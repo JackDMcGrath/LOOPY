@@ -62,7 +62,6 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
  - Original implementation
 """
 
-# import pdb
 import os
 import sys
 import time
@@ -73,11 +72,11 @@ import numpy as np
 import pandas as pd
 # import multiprocessing as multi
 import scipy.stats as stats
+import LOOPY_loop_lib as loop_lib
 import LiCSBAS_io_lib as io_lib
 # import LiCSBAS_inv_lib as inv_lib
 import LiCSBAS_plot_lib as plot_lib
 import LiCSBAS_tools_lib as tools_lib
-import LiCSBAS_loopy_lib14 as loop_lib
 
 class Usage(Exception):
     """Usage context manager"""
@@ -162,13 +161,6 @@ def main(argv=None):
     start = time.time()
     
     # Define Frame, directories and files
-    frame = '028A_05817_131313'
-    # frame = '073D_13256_001823'
-    print(frame)
-    homedir = 'D:\\' + frame
-    ifgdir = 'GEOCml10GACOS'
-    tsadir = os.path.join(homedir, 'TS_'+ifgdir)
-    ifgdir = os.path.join(homedir, ifgdir)
     loopdir = os.path.join(tsadir,'12loop')
     infodir = os.path.join(tsadir,'info')
     resultsdir = os.path.join(tsadir,'results')
@@ -244,9 +236,6 @@ def main(argv=None):
  
     cohfile=os.path.join(resultsdir,'coh_avg')
     coh=io_lib.read_img(cohfile,length=length, width=width)
-    
-    del bad_ifgfile, bad_ifg_cands_file, mlipar, Step11BadIfgFile
-    del reset, frame, homedir, loop_infofile, bperp_file
     
     #%% Create Loops and dictionaries
     print('Creating Loops')
