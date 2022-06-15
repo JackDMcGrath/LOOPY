@@ -7,11 +7,7 @@
 #################
 ### Settings ####
 #################
-<<<<<<< HEAD
-start_step="02"	# 01-02
-=======
 start_step="01"	# 01-02
->>>>>>> 0cf2f415e204111be0b50914be074fb6b02e8de8
 end_step="02"	# 01-02
 
 nlook="10"	# multilook factor, used in step02
