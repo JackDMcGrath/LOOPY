@@ -8,12 +8,12 @@
 ### Settings ####
 #################
 start_step="01"	# 01-02
-end_step="16"	# 01-02
+end_step="02"	# 01-02
 
-nlook="1"	# multilook factor, used in step02
+nlook="10"	# multilook factor, used in step02
 ifgdir="GEOCml${nlook}GACOS"	# If start from 11 or later after doing 03-05, use e.g., GEOCml${nlook}GACOSmaskclip
 n_para="" # Number of paralell processing in step 02-05,12,13,16. default: number of usable CPU
-check_only="n" # y/n. If y, not run scripts and just show commands to be done
+check_only="y" # y/n. If y, not run scripts and just show commands to be done
 
 logdir="log"
 log="$logdir/$(date +%Y%m%d%H%M)$(basename $0 .sh)_${start_step}_${end_step}.log"
