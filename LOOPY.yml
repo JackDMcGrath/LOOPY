@@ -1,0 +1,17 @@
+name: loopy
+channels:
+  - defaults
+dependencies:
+  - python=3.9
+  - astropy
+  - beautifulsoup4
+  - gdal>=2.4
+  - h5py
+  - matplotlib
+  - numpy=1.21.5
+  - psutil
+  - requests
+  - shapely
+  - statsmodels
+  - pandas>=1.0.0
+  - scipy
