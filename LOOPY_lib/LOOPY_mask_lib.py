@@ -193,6 +193,7 @@ def make_unw_npi_mask_png(data3, pngfile, cmap, title3):
     cmap can be 'insar'. To wrap data, np.angle(np.exp(1j*x/cycle)*cycle)
     """
     ### Plot setting    
+    interp = 'nearest'
     length, width = data3[0].shape
     figsizex = 12
     xmergin = 4
@@ -202,9 +203,9 @@ def make_unw_npi_mask_png(data3, pngfile, cmap, title3):
     for i in range(3):
         ax = fig.add_subplot(1, 3, i+1) #index start from 1
         if i == 2:
-            im = ax.imshow(data3[i], cmap=cmap[i], vmin=-1, vmax=1)
+            im = ax.imshow(data3[i], cmap=cmap[i], interpolation=interp, vmin=-1, vmax=1)
         else:
-            im = ax.imshow(data3[i], cmap=cmap[i])
+            im = ax.imshow(data3[i], cmap=cmap[i], interpolation=interp)
         ax.set_title(title3[i])
         ax.set_xticklabels([])
         ax.set_yticklabels([])
