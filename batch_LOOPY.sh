@@ -48,7 +48,7 @@ if [ $start_step -le 01 -a $end_step -ge 01 ];then
   if [ ! -z $p01_ifgdir ];then p01_op="$p01_op -d $p01_ifgdir"; 
     else p01_op="$p01_op -d $ifgdir"; fi
   if [ ! -z $p01_tsadir ];then p01_op="$p01_op -t $p01_tsadir";
-    else p02_op="$p02_op -t $TSdir"; fi
+    else p01_op="$p01_op -t $TSdir"; fi
   if [ ! -z $p01_reset ];then p01_op="$p01_op --reset"; fi
   if [ ! -z $p01_n_para ];then p01_op="$p01_op --n_para $p01_n_para"; fi
 

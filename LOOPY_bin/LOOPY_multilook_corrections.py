@@ -15,11 +15,12 @@ Outputs in GEOCml*/ (downsampled if indicated):
 =====
 Usage
 =====
-LiCSBAS02_ml_prep.py -i GEOCdir [-o GEOCmldir] [-n nlook] [--freq float] [--n_para int]
+LOOPY_multilook_mask.py -i GEOCdir -o outdir -n out_nlook [-a in_nlook] [--n_para int]
 
- -i  Path to the input GEOC dir containing stack of geotiff data
- -o  Path to the output GEOCml dir (Default: GEOCml[nlook])
- -n  Number of donwsampling factor (Default: 1, no downsampling)
+ -i  Path to the input GEOCml dir
+ -o  Path to the output GEOCml dir
+ -n  Number of downsampling factor (Default: 1, no downsampling)
+ -a  Number of downsampling of input data (Default: 1. If not 1, nlooks = int(out/in)
  --n_para  Number of parallel processing (Default: # of usable CPU)
 
 """
@@ -56,7 +57,7 @@ class Usage(Exception):
 
 #%% Main
 def main(argv=None):
-   
+    
     #%% Check argv
     if argv == None:
         argv = sys.argv
@@ -110,7 +111,7 @@ def main(argv=None):
                 n_para = int(a)
 
         if not geocdir:
-            raise Usage('No GEOC directory given, -d is not optional!')
+            raise Usage('No GEOC directory given, -i is not optional!')
         elif not os.path.isdir(geocdir):
             raise Usage('No {} dir exists!'.format(geocdir))
         elif not outdir:
@@ -188,4 +189,6 @@ def multi_look_mask(i):
     mask.astype('bool').tofile(os.path.join(outdir,date,date+'.mask'))
     unw.tofile(os.path.join(outdir,date,date+'.unw_mask'))
 
-    
+#%% main
+if __name__ == "__main__":
+    sys.exit(main())
