@@ -170,6 +170,9 @@ def main(argv=None):
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
     
     cohfile=os.path.join(resultsdir,'coh_avg')
+    # If no coh file, use slc
+    if not os.path.exists(cohfile): cohfile=os.path.join(ifgdir,'slc.mli')
+    
     coh=io_lib.read_img(cohfile,length=length, width=width)
     n_px = sum(sum(~np.isnan(coh[:])))
     
