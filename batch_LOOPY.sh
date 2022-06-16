@@ -25,10 +25,10 @@ p02_reset=""	# default: False
 p02_n_para=""	# default: 4
 
 ### Less frequently used options. If blank, use default. ###
-p01_ifgdir=""	# e.g. GEOCml10
-p01_tsadir=""	# e.g. TS_GEOCml10
-p02_ifgdir=""	# e.g. GEOCml10
-p02_tsadir=""	# e.g. TS_GEOCml10
+p01_ifgdir=""	# default: $ifgdir
+p01_tsadir=""	# default: TS_$ifgdir
+p02_ifgdir=""	# default: $ifgdir
+p02_tsadir=""	# default: TS_$ifgdir
 
 #############################
 ### Run (No need to edit) ###
