@@ -57,6 +57,7 @@ import re
 import sys
 import time
 import getopt
+import warnings
 import numpy as np
 import pandas as pd
 import multiprocessing as multi
@@ -212,9 +213,9 @@ def main(argv=None):
     print('In an overly verbose way for IFG 1')
     ### Parallel processing
     p = q.Pool(_n_para)
-    mask_cov = np.array(p.map(mask_unw_errors, range(48)))
+    mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
     p.close()
-    
+ 
     f = open(mask_info_file, 'a')
     for i in range(n_ifg):
         print('{0}  {1:6.2f}'.format(ifgdates[i], mask_cov[i]/n_px), file=f)
@@ -302,13 +303,33 @@ def mask_unw_errors(i):
     
     ID = 0
     # Remove regions smaller than the min size
-    for region in too_small:
-        labels[labels==region] = 0
+#    if i == 0:
+#        print(len(too_small))
+#    for ix, region in enumerate(too_small):
+#        if ix==0 and ix%100 == 0:
+#            print('        ({}/{}): {} remove {:.2f}'.format(i+1, n_ifg, ix, time.time()-begin))
+#        labels[labels==region] = 0
+    labels[np.isin(labels,too_small)] = 0
+
     if i==0:
         print('        ({}/{}): remove {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     # Renumber remaining regions
+    if i == 0:
+        print('KEEP:', len(keep))
+
+
+##    py, px = np.where(np.isin(labels,keep))
+##    if i == 0:
+##        print('KEEPpy:', len(py))
+##    for ix, y in enumerate(py):
+##        x = px[ix]
+##        labels[y,x] = np.where(labels[py[ix],px[ix]] == keep)[0][0] + 1
+##    if i==0:
+##        print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
+
     for region in keep:
-        lables[labels==region] = ID
+        ID += 1
+        labels[labels==region] = ID
     if i==0:
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
 #    count = ix
@@ -326,7 +347,7 @@ def mask_unw_errors(i):
 #            mapped_area += 1
 #        labels[region] = mapped_area
 #    count = mapped_area
-    
+    print(vals)   
     for ix,val in enumerate(vals):
         if i==0:
             print('        ({}/{}): {} npi {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
@@ -339,13 +360,14 @@ def mask_unw_errors(i):
             keep = np.setdiff1d(labs, too_small)
 
             # Remove regions smaller than the min size
-            for region in too_small:
-                labels[labels_tmp==region] = 0
+            labels[np.isin(labels_tmp,too_small)] = 0
+#            for region in too_small:
+#                labels[labels_tmp==region] = 0
 
             # Renumber remaining regions
             for region in keep:
                 ID += 1
-                lables[labels_tmp==region] = ID
+                labels[labels_tmp==region] = ID
 
 #            count = ix
 
@@ -392,8 +414,12 @@ def mask_unw_errors(i):
     if i==0:
         print('        Prepping DF {:.2f}'.format(time.time()-begin))
     all_regions=pd.DataFrame([],columns=['Region','Value','Size','Checked'])
-    for region in range(0,count):
+    
+    # Suppress runtime warning for nanmean and nansum on values with only nans
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    for region in range(0,ID):
         all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
+    warnings.simplefilter("default", category=RuntimeWarning)
     all_regions = all_regions.set_index('Region')
     
     #https://stackoverflow.com/questions/38073433/determine-adjacent-regions-in-numpy-array
