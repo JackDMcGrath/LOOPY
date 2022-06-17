@@ -209,7 +209,7 @@ def main(argv=None):
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs,'.format(n_ifg), flush=True)
     print('with {} parallel processing...'.format(_n_para), flush=True)
-
+    print('In an overly verbose way for IFG 1')
     ### Parallel processing
     p = q.Pool(_n_para)
     mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
@@ -235,13 +235,14 @@ def main(argv=None):
 
 #%%
 def mask_unw_errors(i):
+    begin=time.time()
     date = ifgdates[i]
     print('    ({}/{}): {}'.format(i+1, n_ifg, date))
     if os.path.exists(os.path.join(ifgdir,date,date+'.unw_mask')):
         mask_coverage = 0
         return mask_coverage
     unw=io_lib.read_img(os.path.join(ifgdir,date,date+'.unw'),length=length, width=width)
-
+    
     ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
     if np.isnan(ref):
         print('Invalid Ref Value found. Setting to 0')
@@ -253,12 +254,15 @@ def mask_unw_errors(i):
     if plot_figures:
         loop_lib.plotmask(ifg,centerz=False,title='UNW')
     
-    
     #%%
     data = ifg
     mask = np.where(~np.isnan(data))
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
+    if i==0:
+        print('            interp  {:.2f}'.format(time.time()-begin))
     filled_ifg = interp(*np.indices(data.shape))
+    if i==0:
+        print('            filled_ifg  {:.2f}'.format(time.time()-begin))
     filled_ifg[np.isnan(coh)]=np.nan
     filled_ifg[coh<0.05]=np.nan
     npi = (filled_ifg/(tol*np.pi)).round()
@@ -266,18 +270,22 @@ def mask_unw_errors(i):
     if plot_figures:
         loop_lib.plotmask(filled_ifg,centerz=False,title='UNW interp')
         loop_lib.plotmask(npi,centerz=True,title='UNW/{:.1f}pi interp'.format(tol),cmap='tab20b')
-    
+    min_size=100
+    if i==0:
+        print('        Forced minsize to 100. CHANGE!!!!! {:.2f}'.format(time.time()-begin))
     #%%
     vals= np.unique(npi)
     vals = vals[~np.isnan(vals)]
     
     tmp=np.zeros((length,width))
     tmp[npi==0] = 1
-    
+    if i==0:
+        print('        Labelling {:.2f}'.format(time.time()-begin))
     labels, count = label(tmp)
-    
+    if i==0:
+        print('        ({}/{}): {} regions'.format(i+1, n_ifg, np.nanmax(np.nanmax(labels))))
     mapped_area = 0
-
+    
     #trim labels to account for single pixels around marginc
     for ID in range(1,int(count)+1):
         region = labels==ID
@@ -312,7 +320,8 @@ def mask_unw_errors(i):
                 labels_tmp[labels_tmp != 0] = labels_tmp[labels_tmp != 0] + count
                 count = count + mapped_area
                 labels = labels + labels_tmp
-            
+    if i==0:
+        print('        Filling holes {:.2f}'.format(time.time()-begin))        
     labels=labels.astype('float32')
     labels[np.isnan(coh)] = np.nan
     if plot_figures:
@@ -335,7 +344,8 @@ def mask_unw_errors(i):
         loop_lib.plotmask(labels,centerz=False,title='Filtered Labelled Groups',cmap='tab20b')
     
     #%% All regions are now labelled. Now search for neighbour regions to the reference region
-    
+    if i==0:
+        print('        Prepping DF {:.2f}'.format(time.time()-begin))
     all_regions=pd.DataFrame([],columns=['Region','Value','Size','Checked'])
     for region in range(0,count):
         all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
@@ -362,6 +372,8 @@ def mask_unw_errors(i):
     
     iteration = 1
     while 1 in all_regions['Checked'].values:
+        if i==0:
+            print('        ({}/{}): {} iterations {:.2f}'.format(i+1, n_ifg, iteration, time.time()-begin))
         for region in errors['Region'].values:
             if all_regions.loc[region,'Checked'] != 2:
                 all_regions.loc[region,'Checked'] = 2
