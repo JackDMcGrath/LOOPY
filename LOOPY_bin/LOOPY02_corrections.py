@@ -77,6 +77,7 @@ import LiCSBAS_io_lib as io_lib
 # import LiCSBAS_inv_lib as inv_lib
 import LiCSBAS_plot_lib as plot_lib
 import LiCSBAS_tools_lib as tools_lib
+from scipy.interpolate import NearestNDInterpolator
 
 class Usage(Exception):
     """Usage context manager"""
@@ -299,8 +300,27 @@ def main(argv=None):
             ifg_position = loop_lib.calc_bad_ifg_position_single(ifg_name, A3loop[loop,:], ifgdates)
             corr_all[:,:,count] = loop_lib.get_corr(A3loop[loop,:], ifg_position, thresh, ifgdates, ifgdir, length, width, ref_file)
         
-        corr, corrcount = stats.mode(corr_all, axis=2, nan_policy='omit')
-        corr = np.array(corr[:,:,0])
+        
+        # New method of finding mode, where in the event of 2 modal values, nearest neighbour interp is used       
+        py,px = np.where(np.any(~np.isnan(corr_all),axis=2))
+        corr = np.zeros((length,width))
+        for ix, y in enumerate(py):
+            x= px[ix]
+            corr_slice = corr_all[y,x,:]
+            u,c = np.unique(corr_slice[~np.isnan(corr_slice)], return_counts=True)
+            if np.shape(np.where(c==cmax()))[1] > 1:
+                corr[y,x] = 1
+            else:
+                corr[y,x] = u[np.where(c==c.max())[0][0]]
+
+        mask = np.where(((~np.isnan(corrnp)).astype('int') + (corr!=1).astype('int'))==2)
+        interp = NearestNDInterpolator(np.transpose(mask), corr[mask])
+        corr_interp = interp(*np.where(corr==1)
+        corr[np.where(corr==1)] = corr_interp
+
+#        corr, corrcount = stats.mode(corr_all, axis=2, nan_policy='omit')
+#        corr = np.array(corr[:,:,0])
+
         corr[corr==0] = np.nan
         corr = np.array(corr, dtype='float32')
     
