@@ -44,7 +44,7 @@ def find_neighbours(ref_region, labels):
 
     neighbours = set(np.unique(np.extract(z, labels))) - set([ref_region])
     neighbours = {x for x in neighbours if x==x} # Drop NaN value
-    
+
     return neighbours
 
 #%% Classify neighbour regions as good or bad 
