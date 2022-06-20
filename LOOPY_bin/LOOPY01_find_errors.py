@@ -57,6 +57,7 @@ import re
 import sys
 import time
 import getopt
+import warnings
 import numpy as np
 import pandas as pd
 import multiprocessing as multi
@@ -209,12 +210,12 @@ def main(argv=None):
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs,'.format(n_ifg), flush=True)
     print('with {} parallel processing...'.format(_n_para), flush=True)
-
+    print('In an overly verbose way for IFG 1')
     ### Parallel processing
     p = q.Pool(_n_para)
     mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
     p.close()
-    
+ 
     f = open(mask_info_file, 'a')
     for i in range(n_ifg):
         print('{0}  {1:6.2f}'.format(ifgdates[i], mask_cov[i]/n_px), file=f)
@@ -235,13 +236,14 @@ def main(argv=None):
 
 #%%
 def mask_unw_errors(i):
+    begin=time.time()
     date = ifgdates[i]
     print('    ({}/{}): {}'.format(i+1, n_ifg, date))
     if os.path.exists(os.path.join(ifgdir,date,date+'.unw_mask')):
-        mask_coverage = -1
-        return
+        mask_coverage = 0
+        return mask_coverage
     unw=io_lib.read_img(os.path.join(ifgdir,date,date+'.unw'),length=length, width=width)
-
+    
     ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
     if np.isnan(ref):
         print('Invalid Ref Value found. Setting to 0')
@@ -253,12 +255,17 @@ def mask_unw_errors(i):
     if plot_figures:
         loop_lib.plotmask(ifg,centerz=False,title='UNW')
     
-    
     #%%
     data = ifg
     mask = np.where(~np.isnan(data))
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
-    filled_ifg = interp(*np.indices(data.shape))
+    if i==0:
+        print('            interp  {:.2f}'.format(time.time()-begin))
+    filled_ifg = np.zeros((length,width))*np.nan
+    nearest_ifg = interp(*np.where(~np.isnan(coh)))
+    filled_ifg[np.where(~np.isnan(coh))] = nearest_ifg
+    if i==0:
+        print('            filled_ifg  {:.2f}'.format(time.time()-begin))
     filled_ifg[np.isnan(coh)]=np.nan
     filled_ifg[coh<0.05]=np.nan
     npi = (filled_ifg/(tol*np.pi)).round()
@@ -266,53 +273,121 @@ def mask_unw_errors(i):
     if plot_figures:
         loop_lib.plotmask(filled_ifg,centerz=False,title='UNW interp')
         loop_lib.plotmask(npi,centerz=True,title='UNW/{:.1f}pi interp'.format(tol),cmap='tab20b')
-    
+    min_size=100
+    if i==0:
+        print('        Forced minsize to 100. CHANGE!!!!! {:.2f}'.format(time.time()-begin))
     #%%
+    # Find all unique values of npi
     vals= np.unique(npi)
     vals = vals[~np.isnan(vals)]
     
+    # Make tmp array of values where npi == 0, and label (best to start with 0 region for labels)
     tmp=np.zeros((length,width))
     tmp[npi==0] = 1
-    
+    if i==0:
+        print('        Labelling {:.2f}'.format(time.time()-begin))
     labels, count = label(tmp)
+    if i==0:
+        print('        ({}/{}): {} regions'.format(i+1, n_ifg, np.nanmax(np.nanmax(labels))))
+#    mapped_area = 0
     
-    mapped_area = 0
+    labs, counts = np.unique(labels, return_counts=True)
+    if i==0:
+        print('        ({}/{}): unique {:.2f}'.format(i+1, n_ifg, time.time()-begin))
+    too_small = np.where(counts < min_size)[0]
+    if i==0:
+        print('        ({}/{}): too small {:.2f}'.format(i+1, n_ifg, time.time()-begin))
+    keep = np.setdiff1d(labs, too_small)
+    if i==0:
+        print('        ({}/{}): keep {:.2f}'.format(i+1, n_ifg, time.time()-begin))
+    
+    ID = 0
+    # Remove regions smaller than the min size
+#    if i == 0:
+#        print(len(too_small))
+#    for ix, region in enumerate(too_small):
+#        if ix==0 and ix%100 == 0:
+#            print('        ({}/{}): {} remove {:.2f}'.format(i+1, n_ifg, ix, time.time()-begin))
+#        labels[labels==region] = 0
+    labels[np.isin(labels,too_small)] = 0
 
-    #trim labels to account for single pixels around marginc
-    for ID in range(1,int(count)+1):
-        region = labels==ID
-        size = np.nansum(region)
-        if size > 1: # Skip check if size =1 for speed
-            if size < min_size:
-                labels[region] = 0
-            else:
-                mapped_area += 1
-        else:
-            mapped_area += 1
-        labels[region] = mapped_area
-    count = mapped_area
-    
+    if i==0:
+        print('        ({}/{}): remove {:.2f}'.format(i+1, n_ifg, time.time()-begin))
+    # Renumber remaining regions
+    if i == 0:
+        print('KEEP:', len(keep))
+
+
+##    py, px = np.where(np.isin(labels,keep))
+##    if i == 0:
+##        print('KEEPpy:', len(py))
+##    for ix, y in enumerate(py):
+##        x = px[ix]
+##        labels[y,x] = np.where(labels[py[ix],px[ix]] == keep)[0][0] + 1
+##    if i==0:
+##        print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
+
+    for region in keep:
+        ID += 1
+        labels[labels==region] = ID
+    if i==0:
+        print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
+#    count = ix
+
+#    #trim labels to account for single pixels around marginc
+#    for ID in range(1,int(count)+1):
+#        region = labels==ID
+#        size = np.nansum(region)
+#        if size > 1: # Skip check if size =1 for speed
+#            if size < min_size:
+#                labels[region] = 0
+#            else:
+#                mapped_area += 1
+#        else:
+#            mapped_area += 1
+#        labels[region] = mapped_area
+#    count = mapped_area
+    print(vals)   
     for ix,val in enumerate(vals):
+        if i==0:
+            print('        ({}/{}): {} npi {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
         if val != 0:
             tmp=np.zeros((length,width),dtype='float32')
             tmp[npi==val] = 1
             labels_tmp, count_tmp = label(tmp)
-            if ~np.isnan(count_tmp):
-                mapped_area = 0
-                #trim labels to account for single pixels around margin
-                for ID in range(1,int(count_tmp)+1):
-                    region = labels_tmp==ID
-                    size = np.nansum(region)
-                    if size < min_size:
-                        labels_tmp[region] = 0
-                    else:
-                        mapped_area += 1
-                        labels_tmp[region] = mapped_area
+            labs, counts = np.unique(labels_tmp, return_counts=True)
+            too_small = np.where(counts < min_size)[0]
+            keep = np.setdiff1d(labs, too_small)
+
+            # Remove regions smaller than the min size
+            labels[np.isin(labels_tmp,too_small)] = 0
+#            for region in too_small:
+#                labels[labels_tmp==region] = 0
+
+            # Renumber remaining regions
+            for region in keep:
+                ID += 1
+                labels[labels_tmp==region] = ID
+
+#            count = ix
+
+#            if ~np.isnan(count_tmp):
+#                mapped_area = 0
+#                #trim labels to account for single pixels around margin
+#                for ID in range(1,int(count_tmp)+1):
+#                    region = labels_tmp==ID
+#                    size = np.nansum(region)
+#                    if size < min_size:
+#                        labels_tmp[region] = 0
+#                    else:
+#                        mapped_area += 1
+#                        labels_tmp[region] = mapped_area
     
-                labels_tmp[labels_tmp != 0] = labels_tmp[labels_tmp != 0] + count
-                count = count + mapped_area
-                labels = labels + labels_tmp
-            
+#                labels_tmp[labels_tmp != 0] = labels_tmp[labels_tmp != 0] + count
+#                count = count + ix
+#                labels = labels + labels_tmp
+    if i==0:
+        print('        Filling holes {:.2f}'.format(time.time()-begin))        
     labels=labels.astype('float32')
     labels[np.isnan(coh)] = np.nan
     if plot_figures:
@@ -321,12 +396,13 @@ def mask_unw_errors(i):
     # Interpolate labels over gaps left by removing regions that are too small (and also apply filter to npi file)
     mask = np.where(labels != 0)
     interp = NearestNDInterpolator(np.transpose(mask), labels[mask])
-    labels = interp(*np.indices(labels.shape))
-    labels[np.isnan(coh)]=np.nan
+    labels_interp = interp(*np.where(~np.isnan(coh)))
+    labels[np.where(~np.isnan(coh))] = labels_interp
     labels[coh<0.05]=np.nan
     
     interp = NearestNDInterpolator(np.transpose(mask), npi[mask])
-    npi = interp(*np.indices(labels.shape))
+    npi_interp = interp(*np.where(~np.isnan(coh)))
+    npi[np.where(~np.isnan(coh))] = npi_interp
     npi[np.isnan(coh)]=np.nan
     npi[coh<0.05]=np.nan
 
@@ -335,10 +411,15 @@ def mask_unw_errors(i):
         loop_lib.plotmask(labels,centerz=False,title='Filtered Labelled Groups',cmap='tab20b')
     
     #%% All regions are now labelled. Now search for neighbour regions to the reference region
-    
+    if i==0:
+        print('        Prepping DF {:.2f}'.format(time.time()-begin))
     all_regions=pd.DataFrame([],columns=['Region','Value','Size','Checked'])
-    for region in range(0,count):
+    
+    # Suppress runtime warning for nanmean and nansum on values with only nans
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    for region in range(0,ID):
         all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
+    warnings.simplefilter("default", category=RuntimeWarning)
     all_regions = all_regions.set_index('Region')
     
     #https://stackoverflow.com/questions/38073433/determine-adjacent-regions-in-numpy-array
@@ -362,6 +443,8 @@ def mask_unw_errors(i):
     
     iteration = 1
     while 1 in all_regions['Checked'].values:
+        if i==0:
+            print('        ({}/{}): {} iterations {:.2f}'.format(i+1, n_ifg, iteration, time.time()-begin))
         for region in errors['Region'].values:
             if all_regions.loc[region,'Checked'] != 2:
                 all_regions.loc[region,'Checked'] = 2
