@@ -14,7 +14,7 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from numba import njit
+from numba import jit, njit
 
 os.environ['QT_QPA_PLATFORM']='offscreen'
 
@@ -140,7 +140,8 @@ def ClassifyCands(neighbours, good, errors, region, value, labels):
 
 
 #%% Remove previously made masks and pngs
-@njit
+#@njit
+@jit(forceobj=True)
 def reset_masks(ifgdir):
     
     for root, dirs, files in os.walk(ifgdir):
