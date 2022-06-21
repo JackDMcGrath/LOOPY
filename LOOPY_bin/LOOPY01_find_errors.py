@@ -368,7 +368,7 @@ def mask_unw_errors(i):
    
     labels_tmp=np.zeros((length,width,length(vals)),dtype='float32')
     for ix in range(vals):
-        labels_tmp[:,:,] = label((npi==vals).astype('int'))
+        labels_tmp[:,:,ix] = label((npi==vals).astype('int'))
     
     labels, ID = number_regions(vals, i, begin, npi, labels, ID, labels_tmp)
 
@@ -440,15 +440,15 @@ def mask_unw_errors(i):
     #%% All regions are now labelled. Now search for neighbour regions to the reference region
     if i==0:
         print('        Prepping DF {:.2f}'.format(time.time()-begin))
+
+    all_regions = prep_df(ID, npi, labels)
     all_regions=pd.DataFrame([],columns=['Region','Value','Size','Checked'])
-    
-    all_regions = prep_df(ID, all_regions, npi, labels)
     # # Suppress runtime warning for nanmean and nansum on values with only nans
     # warnings.simplefilter("ignore", category=RuntimeWarning)
     # for region in range(0,ID):
     #     all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
     # warnings.simplefilter("default", category=RuntimeWarning)
-    # all_regions = all_regions.set_index('Region')
+    all_regions = all_regions.set_index('Region')
     if i==0:
         print('        DF prepped {:.2f}'.format(time.time()-begin))
     
@@ -624,13 +624,15 @@ def renumber(keep, ID, labels):
 
 #%%
 @jit(nopython=True)
-def prep_df(ID, all_regions, npi, labels):
+def prep_df(ID, npi, labels):
     # Suppress runtime warning for nanmean and nansum on values with only nans
     warnings.simplefilter("ignore", category=RuntimeWarning)
+    all_regions = np.zeros(4*ID).reshape(ID,4)
     for region in range(0,ID):
-        all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
+        all_regions[region] = [region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
+        
     warnings.simplefilter("default", category=RuntimeWarning)
-    all_regions = all_regions.set_index('Region')
+    # all_regions = all_regions.set_index('Region')
     
     return all_regions
 
@@ -650,7 +652,7 @@ def make_class_map(all_regions, labels, good, errors):
     return region_class
 
 #%%
-@jit(nopython=True)
+@jit(forceobj=True)
 def class_from_error(errors, all_regions, labels, good, cands, npi):
     for region in errors['Region'].values:
         if all_regions.loc[region,'Checked'] != 2:
@@ -664,7 +666,7 @@ def class_from_error(errors, all_regions, labels, good, cands, npi):
     return errors, cands
     
 #%%
-@jit(nopython=True)
+@jit(forceobj=True)
 def class_from_good(good, all_regions, labels, errors, cands, npi):
     for region in good['Region'].values:
         if all_regions.loc[region,'Checked'] != 2:

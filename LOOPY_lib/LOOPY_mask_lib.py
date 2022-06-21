@@ -50,7 +50,6 @@ def find_neighbours(ref_region, labels):
     return neighbours
 
 #%% Classify neighbour regions as good or bad 
-@njit
 def classify_regions(neighbours, similar, different, unclass, ref_val, npi, tol, labels):
     """
     Function to classify regions as based on if an unwrapping error is detected between two regions
@@ -77,7 +76,6 @@ def classify_regions(neighbours, similar, different, unclass, ref_val, npi, tol,
     return similar.astype('int'), different.astype('int'), unclass.astype('int')
 
 #%% Classify neighbour regions as good, bad or candidate, coming from a good region
-@njit
 def ClassifyFromGoodRegions(neighbours, good, errors, unclass, ref_val, npi, tol, labels):
     """
     Function to classify regions as good, bad o unclassified based on if an unwrapping error is detected
@@ -102,7 +100,6 @@ def ClassifyFromGoodRegions(neighbours, good, errors, unclass, ref_val, npi, tol
     return good.astype('int'), errors.astype('int'), unclass.astype('int')
 
 #%% Classify neighbour regions as good or bad 
-@njit
 def ClassifyFromErrorRegions(neighbours, good, errors, unclass, ref_val, npi, tol, labels):
     """
     Function to classify regions as bad or unclassified based on the detection of unwrapping errors
@@ -140,7 +137,6 @@ def ClassifyCands(neighbours, good, errors, region, value, labels):
 
 
 #%% Remove previously made masks and pngs
-@njit
 def reset_masks(ifgdir):
     
     for root, dirs, files in os.walk(ifgdir):
