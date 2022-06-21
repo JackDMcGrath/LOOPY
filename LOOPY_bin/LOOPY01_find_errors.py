@@ -66,7 +66,7 @@ import LOOPY_mask_lib as mask_lib
 import LOOPY_loop_lib as loop_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_tools_lib as tools_lib
-form numba import jit
+from numba import jit
 from scipy.ndimage import label
 from scipy.interpolate import NearestNDInterpolator
 
@@ -243,15 +243,15 @@ def mask_unw_errors(i):
     begin=time.time()
     date = ifgdates[i]
     if i==0:
-        print('        Starting'.format(time.time()-begin))
+        print('        Starting')
     print('    ({}/{}): {}'.format(i+1, n_ifg, date))
     if os.path.exists(os.path.join(ifgdir,date,date+'.unw_mask')):
         if i==0:
-            print('        Mask Exists'.format(time.time()-begin))
+            print('        Mask Exists')
         mask_coverage = 0
         return mask_coverage
     if i==0:
-        print('        Loading'.format(time.time()-begin))
+        print('        Loading')
   
 
     unw=io_lib.read_img(os.path.join(ifgdir,date,date+'.unw'),length=length, width=width)
@@ -364,26 +364,29 @@ def mask_unw_errors(i):
 #        labels[region] = mapped_area
 #    count = mapped_area
    
-    for ix,val in enumerate(vals):
-        if i==0:
-            print('        ({}/{}): {} npi {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
-        if val != 0:
-            tmp=np.zeros((length,width),dtype='float32')
-            tmp[npi==val] = 1
-            labels_tmp, count_tmp = label(tmp)
-            labs, counts = np.unique(labels_tmp, return_counts=True)
-            too_small = np.where(counts < min_size)[0]
-            keep = np.setdiff1d(labs, too_small)
 
-            # Remove regions smaller than the min size
-            labels[np.isin(labels_tmp,too_small)] = 0
-#            for region in too_small:
-#                labels[labels_tmp==region] = 0
+    labels, ID = number_regions(vals, i, begin, npi, labels, ID)
 
-            # Renumber remaining regions
-            for region in keep:
-                ID += 1
-                labels[labels_tmp==region] = ID
+#     for ix,val in enumerate(vals):
+#         if i==0:
+#             print('        ({}/{}): {} npi {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
+#         if val != 0:
+#             tmp=np.zeros((length,width),dtype='float32')
+#             tmp[npi==val] = 1
+#             labels_tmp, count_tmp = label(tmp)
+#             labs, counts = np.unique(labels_tmp, return_counts=True)
+#             too_small = np.where(counts < min_size)[0]
+#             keep = np.setdiff1d(labs, too_small)
+
+#             # Remove regions smaller than the min size
+#             labels[np.isin(labels_tmp,too_small)] = 0
+# #            for region in too_small:
+# #                labels[labels_tmp==region] = 0
+
+#             # Renumber remaining regions
+#             for region in keep:
+#                 ID += 1
+#                 labels[labels_tmp==region] = ID
 
 #            count = ix
 
@@ -540,6 +543,32 @@ def mask_unw_errors(i):
     region_class.astype('bool').tofile(os.path.join(ifgdir,date,date+'.mask'))
     masked.tofile(os.path.join(ifgdir,date,date+'.unw_mask'))
     return mask_coverage
+
+#%%
+@jit(nopytho=True)
+def number_regions(vals, i, begin, npi, labels, ID):
+    for ix,val in enumerate(vals):
+        if i==0:
+            print('        ({}/{}): {} npi {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
+        if val != 0:
+            tmp=np.zeros((length,width),dtype='float32')
+            tmp[npi==val] = 1
+            labels_tmp, count_tmp = label(tmp)
+            labs, counts = np.unique(labels_tmp, return_counts=True)
+            too_small = np.where(counts < min_size)[0]
+            keep = np.setdiff1d(labs, too_small)
+
+            # Remove regions smaller than the min size
+            labels[np.isin(labels_tmp,too_small)] = 0
+#            for region in too_small:
+#                labels[labels_tmp==region] = 0
+
+            # Renumber remaining regions
+            for region in keep:
+                ID += 1
+                labels[labels_tmp==region] = ID
+    
+    return labels, ID
 
 #%% main
 if __name__ == "__main__":
