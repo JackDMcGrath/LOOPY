@@ -115,7 +115,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:", ["help", "reset", "n_para"])
+            opts, args = getopt.getopt(argv[1:], "hd:t:", ["help", "reset", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -344,9 +344,10 @@ def mask_unw_errors(i):
 ##    if i==0:
 ##        print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     
-    for region in keep:
-        ID += 1
-        labels[labels==region] = ID
+    labels = renumber(keep, ID, labels)
+    # for region in keep:
+    #     ID += 1
+    #     labels[labels==region] = ID
     if i==0:
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
 #    count = ix
@@ -554,7 +555,7 @@ def mask_unw_errors(i):
     return mask_coverage
 
 #%%
-@jit(nopython=True)
+# @jit(nopython=True)
 def NN_interp(data, i, begin):
     mask = np.where(~np.isnan(data))
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
@@ -571,7 +572,7 @@ def NN_interp(data, i, begin):
     return interped_data
 
 #%%
-@jit(nopython=True)
+# @jit(nopython=True)
 def NN_interp_samedata(data, mask):
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
     data_interp = interp(*np.where(~np.isnan(coh)))
@@ -581,7 +582,7 @@ def NN_interp_samedata(data, mask):
     return data
     
 #%%
-@jit(nopython=True)
+@jit()
 def number_regions(vals, i, begin, npi, labels, ID):
     for ix,val in enumerate(vals):
         if i==0:
@@ -605,6 +606,15 @@ def number_regions(vals, i, begin, npi, labels, ID):
                 labels[labels_tmp==region] = ID
     
     return labels, ID
+
+#%%
+@jit(nopython=True)
+def renumber(keep, ID, labels):
+    for region in keep:
+        ID += 1
+        labels[labels==region] = ID
+    
+    return labels
 
 #%%
 @jit(nopython=True)
