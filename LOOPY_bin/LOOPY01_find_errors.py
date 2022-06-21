@@ -545,7 +545,7 @@ def mask_unw_errors(i):
     return mask_coverage
 
 #%%
-@jit(nopytho=True)
+@jit(nopython=True)
 def number_regions(vals, i, begin, npi, labels, ID):
     for ix,val in enumerate(vals):
         if i==0:
