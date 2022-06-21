@@ -308,21 +308,21 @@ def main(argv=None):
             x= px[ix]
             corr_slice = corr_all[y,x,:]
             u,c = np.unique(corr_slice[~np.isnan(corr_slice)], return_counts=True)
-            if np.shape(np.where(c==cmax()))[1] > 1:
+            if np.shape(np.where(c==c.max()))[1] > 1:
                 corr[y,x] = 1
             else:
                 corr[y,x] = u[np.where(c==c.max())[0][0]]
 
         mask = np.where(((~np.isnan(corrnp)).astype('int') + (corr!=1).astype('int'))==2)
         interp = NearestNDInterpolator(np.transpose(mask), corr[mask])
-        corr_interp = interp(*np.where(corr==1)
+        corr_interp = interp(*np.where(corr==1))
         corr[np.where(corr==1)] = corr_interp
 
 #        corr, corrcount = stats.mode(corr_all, axis=2, nan_policy='omit')
 #        corr = np.array(corr[:,:,0])
 
-        corr[corr==0] = np.nan
         corr = np.array(corr, dtype='float32')
+        corr[corr==0] = np.nan
     
         # loop_lib.correct_bad_ifg(bad_ifg_name,corr,ifgdir, length, width, A3loop[loops2fix,:], ifgdates, tsadir, ref_file)
         loop_lib.correct_bad_ifg(ifg_name,corr,ifgdir, length, width, A3loop[loops2fix,:], ifgdates, loopdir, ref_file)
