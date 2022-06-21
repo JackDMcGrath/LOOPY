@@ -366,8 +366,11 @@ def mask_unw_errors(i):
 #        labels[region] = mapped_area
 #    count = mapped_area
    
-
-    labels, ID = number_regions(vals, i, begin, npi, labels, ID)
+    labels_tmp=np.zeros((length,width,length(vals)),dtype='float32')
+    for ix in range(vals):
+        labels_tmp[:,:,] = label((npi==vals).astype('int'))
+    
+    labels, ID = number_regions(vals, i, begin, npi, labels, ID, labels_tmp)
 
 #     for ix,val in enumerate(vals):
 #         if i==0:
@@ -556,7 +559,7 @@ def mask_unw_errors(i):
 
 #%%
 #@jit(nopython=True)
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def NN_interp(data, i, begin):
     mask = np.where(~np.isnan(data))
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
@@ -574,7 +577,7 @@ def NN_interp(data, i, begin):
 
 #%%
 #@jit(nopython=True)
-@jit(forceobj=True)
+# @jit(forceobj=True)
 def NN_interp_samedata(data, mask):
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
     data_interp = interp(*np.where(~np.isnan(coh)))
@@ -584,29 +587,29 @@ def NN_interp_samedata(data, mask):
     return data
     
 #%%
-#@jit(nopython=True)
-@jit(forceobj=True)
-def number_regions(vals, i, begin, npi, labels, ID):
+@jit(nopython=True)
+# @jit(forceobj=True)
+def number_regions(vals, i, begin, npi, labels, ID, labels_tmp):
     for ix,val in enumerate(vals):
         if i==0:
             print('        ({}/{}): {} npi {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
         if val != 0:
-            tmp=np.zeros((length,width),dtype='float32')
-            tmp[npi==val] = 1
-            labels_tmp, count_tmp = label(tmp)
-            labs, counts = np.unique(labels_tmp, return_counts=True)
+            # tmp=np.zeros((length,width),dtype='float32')
+            # tmp[npi==val] = 1
+            # labels_tmp, count_tmp = label(tmp)
+            labs, counts = np.unique(labels_tmp[:,:,ix], return_counts=True)
             too_small = np.where(counts < min_size)[0]
             keep = np.setdiff1d(labs, too_small)
 
             # Remove regions smaller than the min size
-            labels[np.isin(labels_tmp,too_small)] = 0
+            labels[np.isin(labels_tmp[:,:,ix],too_small)] = 0
 #            for region in too_small:
 #                labels[labels_tmp==region] = 0
 
             # Renumber remaining regions
             for region in keep:
                 ID += 1
-                labels[labels_tmp==region] = ID
+                labels[labels_tmp[:,:,ix]==region] = ID
     
     return labels, ID
 
