@@ -368,7 +368,7 @@ def mask_unw_errors(i):
    
     labels_tmp=np.zeros((length,width,length(vals)),dtype='float32')
     for ix in range(vals):
-        labels_tmp[:,:,] = label((npi==vals).astype('int'))
+        labels_tmp[:,:,ix] = label((npi==vals).astype('int'))
     
     labels, ID = number_regions(vals, i, begin, npi, labels, ID, labels_tmp)
 
