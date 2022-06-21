@@ -272,18 +272,19 @@ def mask_unw_errors(i):
         loop_lib.plotmask(ifg,centerz=False,title='UNW')
     
     #%%
-    data = ifg
-    mask = np.where(~np.isnan(data))
-    interp = NearestNDInterpolator(np.transpose(mask), data[mask])
-    if i==0:
-        print('            interp  {:.2f}'.format(time.time()-begin))
-    filled_ifg = np.zeros((length,width))*np.nan
-    nearest_ifg = interp(*np.where(~np.isnan(coh)))
-    filled_ifg[np.where(~np.isnan(coh))] = nearest_ifg
-    if i==0:
-        print('            filled_ifg  {:.2f}'.format(time.time()-begin))
-    filled_ifg[np.isnan(coh)]=np.nan
-    filled_ifg[coh<0.05]=np.nan
+    # data = ifg
+    filled_ifg = NN_interp(ifg, i, begin)
+    # mask = np.where(~np.isnan(data))
+    # interp = NearestNDInterpolator(np.transpose(mask), data[mask])
+    # if i==0:
+    #     print('            interp  {:.2f}'.format(time.time()-begin))
+    # filled_ifg = np.zeros((length,width))*np.nan
+    # nearest_ifg = interp(*np.where(~np.isnan(coh)))
+    # filled_ifg[np.where(~np.isnan(coh))] = nearest_ifg
+    # if i==0:
+    #     print('            filled_ifg  {:.2f}'.format(time.time()-begin))
+    # filled_ifg[np.isnan(coh)]=np.nan
+    # filled_ifg[coh<0.05]=np.nan
     npi = (filled_ifg/(tol*np.pi)).round()
     
     if plot_figures:
@@ -414,15 +415,18 @@ def mask_unw_errors(i):
     
     # Interpolate labels over gaps left by removing regions that are too small (and also apply filter to npi file)
     mask = np.where(labels != 0)
-    interp = NearestNDInterpolator(np.transpose(mask), labels[mask])
-    labels_interp = interp(*np.where(~np.isnan(coh)))
-    labels[np.where(~np.isnan(coh))] = labels_interp
-    labels[coh<0.05]=np.nan
+    labels = NN_interp_samedata(labels, mask)
     
-    interp = NearestNDInterpolator(np.transpose(mask), npi[mask])
-    npi_interp = interp(*np.where(~np.isnan(coh)))
-    npi[np.where(~np.isnan(coh))] = npi_interp
-    npi[np.isnan(coh)]=np.nan
+    # interp = NearestNDInterpolator(np.transpose(mask), labels[mask])
+    # labels_interp = interp(*np.where(~np.isnan(coh)))
+    # labels[np.where(~np.isnan(coh))] = labels_interp
+    # labels[coh<0.05]=np.nan
+    
+    labels = NN_interp_samedata(npi, mask)
+    # interp = NearestNDInterpolator(np.transpose(mask), npi[mask])
+    # npi_interp = interp(*np.where(~np.isnan(coh)))
+    # npi[np.where(~np.isnan(coh))] = npi_interp
+    # npi[np.isnan(coh)]=np.nan
     npi[coh<0.05]=np.nan
 
     if plot_figures:
@@ -434,12 +438,13 @@ def mask_unw_errors(i):
         print('        Prepping DF {:.2f}'.format(time.time()-begin))
     all_regions=pd.DataFrame([],columns=['Region','Value','Size','Checked'])
     
-    # Suppress runtime warning for nanmean and nansum on values with only nans
-    warnings.simplefilter("ignore", category=RuntimeWarning)
-    for region in range(0,ID):
-        all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
-    warnings.simplefilter("default", category=RuntimeWarning)
-    all_regions = all_regions.set_index('Region')
+    all_regions = prep_df(ID, all_regions, npi, labels)
+    # # Suppress runtime warning for nanmean and nansum on values with only nans
+    # warnings.simplefilter("ignore", category=RuntimeWarning)
+    # for region in range(0,ID):
+    #     all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
+    # warnings.simplefilter("default", category=RuntimeWarning)
+    # all_regions = all_regions.set_index('Region')
     if i==0:
         print('        DF prepped {:.2f}'.format(time.time()-begin))
     
@@ -473,23 +478,25 @@ def mask_unw_errors(i):
     while 1 in all_regions['Checked'].values:
         if i==0:
             print('        ({}/{}): {} iterations {:.2f}'.format(i+1, n_ifg, iteration, time.time()-begin))
-        for region in errors['Region'].values:
-            if all_regions.loc[region,'Checked'] != 2:
-                all_regions.loc[region,'Checked'] = 2
-                neighbours = mask_lib.find_neighbours(region, labels)
-                for neighbour in neighbours:
-                    if all_regions.loc[neighbour,'Checked'] == 0:
-                        all_regions.loc[neighbour,'Checked'] = 1
-                errors, cands = mask_lib.ClassifyFromErrorRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
-                            
-        for region in good['Region'].values:
-            if all_regions.loc[region,'Checked'] != 2:
-                all_regions.loc[region,'Checked'] = 2
-                neighbours = mask_lib.find_neighbours(region, labels)
-                for neighbour in neighbours:
-                    if all_regions.loc[neighbour,'Checked'] == 0:
-                        all_regions.loc[neighbour,'Checked'] = 1
-                good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
+        errors, cands = class_from_error(errors, all_regions, labels, good, cands, npi)
+        # for region in errors['Region'].values:
+        #     if all_regions.loc[region,'Checked'] != 2:
+        #         all_regions.loc[region,'Checked'] = 2
+        #         neighbours = mask_lib.find_neighbours(region, labels)
+        #         for neighbour in neighbours:
+        #             if all_regions.loc[neighbour,'Checked'] == 0:
+        #                 all_regions.loc[neighbour,'Checked'] = 1
+        #         errors, cands = mask_lib.ClassifyFromErrorRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
+
+        good, errors, cands = class_from_good(good, all_regions, labels, errors, cands, npi)
+        # for region in good['Region'].values:
+        #     if all_regions.loc[region,'Checked'] != 2:
+        #         all_regions.loc[region,'Checked'] = 2
+        #         neighbours = mask_lib.find_neighbours(region, labels)
+        #         for neighbour in neighbours:
+        #             if all_regions.loc[neighbour,'Checked'] == 0:
+        #                 all_regions.loc[neighbour,'Checked'] = 1
+        #         good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
     
     
         if plot_figures:
@@ -507,22 +514,24 @@ def mask_unw_errors(i):
         
         if sum(all_regions['Checked'].values==2) == good.shape[0] + errors.shape[0]:
             # print('        Breaking while loop - only cands left')
-            for region in cands['Region'].values:
-                neighbours = mask_lib.find_neighbours(region, labels)
-                value = cands[cands['Region']==region].index.values[0]
-                good, errors = mask_lib.ClassifyCands(neighbours, good, errors, region, value, labels)
+            good, errors = (cands, labels, good, errors)
+            # for region in cands['Region'].values:
+            #     neighbours = mask_lib.find_neighbours(region, labels)
+            #     value = cands[cands['Region']==region].index.values[0]
+            #     good, errors = mask_lib.ClassifyCands(neighbours, good, errors, region, value, labels)
             # print('        Cand regions classified')
             break
     #%%
-    region_class=np.zeros((length,width)).astype('float32')*np.nan
+    region_class = make_class_map(all_regions, labels, good, errors, length, width)
+    # region_class=np.zeros((length,width)).astype('float32')*np.nan
     
-    for region in all_regions.index:
-        if region in good['Region'].values:
-            region_class[labels==region] = 1
-        elif region in errors['Region'].values:
-            region_class[labels==region] = -1
-        else: # For any isolated regions
-            region_class[labels==region] = 0
+    # for region in all_regions.index:
+    #     if region in good['Region'].values:
+    #         region_class[labels==region] = 1
+    #     elif region in errors['Region'].values:
+    #         region_class[labels==region] = -1
+    #     else: # For any isolated regions
+    #         region_class[labels==region] = 0
     
     if plot_figures:
         loop_lib.plotmask(region_class,centerz=False,title='Final Region Classifier')
@@ -546,6 +555,36 @@ def mask_unw_errors(i):
 
 #%%
 @jit(nopython=True)
+<<<<<<< HEAD
+=======
+def NN_interp(data, i, begin):
+    mask = np.where(~np.isnan(data))
+    interp = NearestNDInterpolator(np.transpose(mask), data[mask])
+    if i==0:
+        print('            interp  {:.2f}'.format(time.time()-begin))
+    interped_data = np.zeros((length,width))*np.nan
+    nearest_data = interp(*np.where(~np.isnan(coh)))
+    interped_data[np.where(~np.isnan(coh))] = nearest_data
+    if i==0:
+        print('            filled_data  {:.2f}'.format(time.time()-begin))
+    interped_data[np.isnan(coh)]=np.nan
+    interped_data[coh<0.05]=np.nan
+
+    return interped_data
+
+#%%
+@jit(nopython=True)
+def NN_interp_samedata(data, mask):
+    interp = NearestNDInterpolator(np.transpose(mask), data[mask])
+    data_interp = interp(*np.where(~np.isnan(coh)))
+    data[np.where(~np.isnan(coh))] = data_interp
+    data[coh<0.05]=np.nan
+    
+    return data
+    
+#%%
+@jit(nopython=True)
+>>>>>>> cd3be0b1860dc03caf679f917fa88327e0a59d93
 def number_regions(vals, i, begin, npi, labels, ID):
     for ix,val in enumerate(vals):
         if i==0:
@@ -569,6 +608,71 @@ def number_regions(vals, i, begin, npi, labels, ID):
                 labels[labels_tmp==region] = ID
     
     return labels, ID
+
+#%%
+@jit(nopython=True)
+def prep_df(ID, all_regions, npi, labels):
+    # Suppress runtime warning for nanmean and nansum on values with only nans
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    for region in range(0,ID):
+        all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
+    warnings.simplefilter("default", category=RuntimeWarning)
+    all_regions = all_regions.set_index('Region')
+    
+    return all_regions
+
+#%%
+@jit(nopython=True)
+def make_class_map(all_regions, labels, good, errors):
+    region_class=np.zeros((length,width)).astype('float32')*np.nan
+    
+    for region in all_regions.index:
+        if region in good['Region'].values:
+            region_class[labels==region] = 1
+        elif region in errors['Region'].values:
+            region_class[labels==region] = -1
+        else: # For any isolated regions
+            region_class[labels==region] = 0
+    
+    return region_class
+
+#%%
+@jit(nopython=True)
+def class_from_error(errors, all_regions, labels, good, cands, npi):
+    for region in errors['Region'].values:
+        if all_regions.loc[region,'Checked'] != 2:
+            all_regions.loc[region,'Checked'] = 2
+            neighbours = mask_lib.find_neighbours(region, labels)
+            for neighbour in neighbours:
+                if all_regions.loc[neighbour,'Checked'] == 0:
+                    all_regions.loc[neighbour,'Checked'] = 1
+            errors, cands = mask_lib.ClassifyFromErrorRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
+
+    return errors, cands
+    
+#%%
+@jit(nopython=True)
+def class_from_good(good, all_regions, labels, errors, cands, npi):
+    for region in good['Region'].values:
+        if all_regions.loc[region,'Checked'] != 2:
+            all_regions.loc[region,'Checked'] = 2
+            neighbours = mask_lib.find_neighbours(region, labels)
+            for neighbour in neighbours:
+                if all_regions.loc[neighbour,'Checked'] == 0:
+                    all_regions.loc[neighbour,'Checked'] = 1
+            good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
+
+    return good, errors, cands
+    
+#%%
+@jit(nopython=True)
+def class_cand(cands, labels, good, errors):
+    for region in cands['Region'].values:
+        neighbours = mask_lib.find_neighbours(region, labels)
+        value = cands[cands['Region']==region].index.values[0]
+        good, errors = mask_lib.ClassifyCands(neighbours, good, errors, region, value, labels)
+    
+    return good, errors
 
 #%% main
 if __name__ == "__main__":
