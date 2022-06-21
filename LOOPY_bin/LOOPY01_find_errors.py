@@ -66,6 +66,7 @@ import LOOPY_mask_lib as mask_lib
 import LOOPY_loop_lib as loop_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_tools_lib as tools_lib
+form numba import jit
 from scipy.ndimage import label
 from scipy.interpolate import NearestNDInterpolator
 
