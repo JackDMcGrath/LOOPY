@@ -215,7 +215,8 @@ def main(argv=None):
     print('In an overly verbose way for IFG 1')
     ### Parallel processing
     p = q.Pool(_n_para)
-    mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
+#    mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
+    mask_cov = np.array(p.map(mask_unw_errors, range(48)))
     p.close()
  
     f = open(mask_info_file, 'a')
@@ -240,12 +241,22 @@ def main(argv=None):
 def mask_unw_errors(i):
     begin=time.time()
     date = ifgdates[i]
+    if i==0:
+        print('        Starting'.format(time.time()-begin))
     print('    ({}/{}): {}'.format(i+1, n_ifg, date))
     if os.path.exists(os.path.join(ifgdir,date,date+'.unw_mask')):
+        if i==0:
+            print('        Mask Exists'.format(time.time()-begin))
         mask_coverage = 0
         return mask_coverage
+    if i==0:
+        print('        Loading'.format(time.time()-begin))
+  
+
     unw=io_lib.read_img(os.path.join(ifgdir,date,date+'.unw'),length=length, width=width)
-    
+    if i==0:
+        print('        UNW Loaded {:.2f}'.format(time.time()-begin))
+
     ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
     if np.isnan(ref):
         print('Invalid Ref Value found. Setting to 0')
@@ -253,6 +264,8 @@ def mask_unw_errors(i):
         
     ifg=unw.copy()
     ifg = ifg-ref #Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
+    if i==0:
+        print('        Reffed {:.2f}'.format(time.time()-begin))
         
     if plot_figures:
         loop_lib.plotmask(ifg,centerz=False,title='UNW')
@@ -423,15 +436,22 @@ def mask_unw_errors(i):
         all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
     warnings.simplefilter("default", category=RuntimeWarning)
     all_regions = all_regions.set_index('Region')
+    if i==0:
+        print('        DF prepped {:.2f}'.format(time.time()-begin))
     
     #https://stackoverflow.com/questions/38073433/determine-adjacent-regions-in-numpy-array
     ref_region= labels[refy1,refx1] # number of region whose neighbors we want
     
+    if i==0:
+        print('        Finding Ref Neighbours {:.2f}'.format(time.time()-begin))
+
     all_regions.loc[ref_region,'Checked'] = 2
     neighbours = mask_lib.find_neighbours(ref_region, labels)
     for neighbour in neighbours:
         all_regions.loc[neighbour,'Checked'] = 1
-    
+    if i==0:
+        print('        Neighbours found {:.2f}'.format(time.time()-begin))
+
     #%
     region_class=np.zeros((length,width))*np.nan
     ref_val = all_regions.loc[ref_region,'Value']
@@ -439,6 +459,8 @@ def mask_unw_errors(i):
     good = pd.DataFrame([],columns=['Region','Value', 'Abs Value','Size','CheckNeighbour'])
     cands = pd.DataFrame([],columns=['Region','Value', 'Abs Value','Size','CheckNeighbour'])
     good.loc[len(good.index)]=[ref_region,ref_val,abs(ref_val),sum(sum(labels==ref_region)),1]
+    if i==0:
+        print('        Classifying from ref {:.2f}'.format(time.time()-begin))
 
     good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, ref_val, npi, tol, labels)
     #%
