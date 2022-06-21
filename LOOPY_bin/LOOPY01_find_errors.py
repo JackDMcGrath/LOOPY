@@ -10,6 +10,7 @@ correct other IFGs
 New modules needed:
     - scipy
     - pandas
+    - numba
 
 ===============
 Input & output files
@@ -67,6 +68,7 @@ import LiCSBAS_io_lib as io_lib
 import LiCSBAS_tools_lib as tools_lib
 from scipy.ndimage import label
 from scipy.interpolate import NearestNDInterpolator
+
 
 insar = tools_lib.get_cmap('SCM.romaO')
 
@@ -326,7 +328,7 @@ def mask_unw_errors(i):
 ##        labels[y,x] = np.where(labels[py[ix],px[ix]] == keep)[0][0] + 1
 ##    if i==0:
 ##        print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
-
+    
     for region in keep:
         ID += 1
         labels[labels==region] = ID
@@ -347,7 +349,7 @@ def mask_unw_errors(i):
 #            mapped_area += 1
 #        labels[region] = mapped_area
 #    count = mapped_area
-    print(vals)   
+   
     for ix,val in enumerate(vals):
         if i==0:
             print('        ({}/{}): {} npi {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
