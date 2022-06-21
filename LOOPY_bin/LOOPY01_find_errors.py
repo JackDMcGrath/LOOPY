@@ -217,7 +217,7 @@ def main(argv=None):
     ### Parallel processing
     p = q.Pool(_n_para)
 #    mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
-    mask_cov = np.array(p.map(mask_unw_errors, range(48)))
+    mask_cov = np.array(p.map(mask_unw_errors, range(1)))
     p.close()
  
     f = open(mask_info_file, 'a')
@@ -555,7 +555,8 @@ def mask_unw_errors(i):
     return mask_coverage
 
 #%%
-# @jit(nopython=True)
+#@jit(nopython=True)
+@jit(forceobj=True)
 def NN_interp(data, i, begin):
     mask = np.where(~np.isnan(data))
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
@@ -572,7 +573,8 @@ def NN_interp(data, i, begin):
     return interped_data
 
 #%%
-# @jit(nopython=True)
+#@jit(nopython=True)
+@jit(forceobj=True)
 def NN_interp_samedata(data, mask):
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
     data_interp = interp(*np.where(~np.isnan(coh)))
@@ -582,7 +584,8 @@ def NN_interp_samedata(data, mask):
     return data
     
 #%%
-@jit()
+#@jit(nopython=True)
+@jit(forceobj=True)
 def number_regions(vals, i, begin, npi, labels, ID):
     for ix,val in enumerate(vals):
         if i==0:
