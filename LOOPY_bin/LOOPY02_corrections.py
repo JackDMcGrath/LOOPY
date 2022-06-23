@@ -162,6 +162,9 @@ def main(argv=None):
     reset = False
     start = time.time()
     
+    if not tsadir:
+        tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_'+os.path.basename(ifgdir))
+    
     # Define Frame, directories and files
     loopdir = os.path.join(tsadir,'12loop')
     infodir = os.path.join(tsadir,'info')
