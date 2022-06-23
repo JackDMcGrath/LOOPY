@@ -258,7 +258,7 @@ def correct_bad_ifg(bad_ifg_name,corr,ifgdir, length, width, loop, ifgdates, loo
     corr_min = round(-np.nanmax(abs(corr)) / (2*np.pi))
     corr[0,0]= corr_max
     corr[0,1]= corr_min
-    cmap_wrap = tools_lib.get_cmap('SCM.romaO')
+    # cmap_wrap = tools_lib.get_cmap('SCM.romaO')
     ifg_max = max([np.nanmax(ifg), np.nanmax(corr_ifg)])
     ifg_min = min([np.nanmin(ifg), np.nanmin(corr_ifg)])
     title = '{} ({}pi/cycle)'.format(bad_ifg_name, cycle*2)
