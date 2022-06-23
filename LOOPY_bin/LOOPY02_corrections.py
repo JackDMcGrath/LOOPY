@@ -159,7 +159,6 @@ def main(argv=None):
     
     #%% Assign Parameters, Paths and Variables
     # Restore to uncorrected state
-    reset = False
     start = time.time()
     
     if not tsadir:
