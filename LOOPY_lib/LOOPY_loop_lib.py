@@ -352,13 +352,13 @@ def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file=[], cycle =
             uncorr_png = uncorr_png[:-1] + str(int(uncorr_png[-1])+1)
     
     else:
-        png = os.path.join(loopdir,'loop_png',loop_id + '_V1')
-        print(png)
+        png = os.path.join(loopdir,'loop_pngs',loop_id + '_V1')
+        
         while os.path.exists(png + '.png'):
             png = png[:-1] + str(int(png[-1])+1)
-            print(png)
-        uncorr_png = png + '.png'
-
+            
+        uncorr_png = png
+    
     make_loop_png(unw12, unw23, unw13, loop_ph, uncorr_png, titles4, cycle)
     
     # print('Loop:',imd1+'_'+imd2+'_'+imd3, 'New RMS:',rms)
