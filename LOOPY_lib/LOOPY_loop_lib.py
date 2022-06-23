@@ -281,22 +281,29 @@ def correct_bad_ifg(bad_ifg_name,corr,ifgdir, length, width, loop, ifgdates, loo
         re_loop(loop[l], ifgdates, ifgdir, length, width, loopdir, ref_file, cycle=cycle)
         
 #%% Function to re-run loops where interferograms have been corrected
-def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file, cycle = 3, multi_prime = True):
+def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file=[], cycle = 3, multi_prime = True):
     
     unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = read_unw_loop_ph(loop, ifgdates, ifgdir, length, width)
-    
-    refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
     
     imd1 = ifgd12[:8]
     imd2 = ifgd23[:8]
     imd3 = ifgd23[-8:]
     
-    ## Skip if no data in ref area in any unw. It is bad data.
-    ref_unw12 = np.nanmean(unw12[refy1:refy2, refx1:refx2])
-    ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
-    ref_unw13 = np.nanmean(unw13[refy1:refy2, refx1:refx2])
+    
+    if ref_file:
+        refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
 
-    ## Calculate loop phase taking into account ref phase
+        ## Skip if no data in ref area in any unw. It is bad data.
+        ref_unw12 = np.nanmean(unw12[refy1:refy2, refx1:refx2])
+        ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
+        ref_unw13 = np.nanmean(unw13[refy1:refy2, refx1:refx2])
+
+    else:
+        ref_unw12 = 0
+        ref_unw23 = 0
+        ref_unw13 = 0
+
+ ## Calculate loop phase taking into account ref phase
     loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
     
     if multi_prime:
