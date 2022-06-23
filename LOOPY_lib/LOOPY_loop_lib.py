@@ -969,7 +969,7 @@ def reset_loops(ifgdir,loopdir, tsadir):
                 shutil.move(os.path.join(root,file_name),os.path.join(root,file_name[:-11]+'.unw.png'))
                 
     if os.path.exists(os.path.join(loopdir,'loop_pngs')):
-        os.remove(os.path.join(loopdir,'loop_pngs'))
+        shutil.rmtree(os.path.join(loopdir,'loop_pngs'))
 
     print(' Loops Reset\nReset Complete\n')
     
