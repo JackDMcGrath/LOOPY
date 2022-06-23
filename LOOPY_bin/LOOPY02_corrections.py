@@ -313,7 +313,7 @@ def main(argv=None):
             else:
                 corr[y,x] = u[np.where(c==c.max())[0][0]]
 
-        mask = np.where(((~np.isnan(corrnp)).astype('int') + (corr!=1).astype('int'))==2)
+        mask = np.where(((~np.isnan(corr)).astype('int') + (corr!=1).astype('int'))==2)
         interp = NearestNDInterpolator(np.transpose(mask), corr[mask])
         corr_interp = interp(*np.where(corr==1))
         corr[np.where(corr==1)] = corr_interp
