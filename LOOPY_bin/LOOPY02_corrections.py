@@ -207,6 +207,7 @@ def main(argv=None):
         bad_ifg_list = []
         bad_ifg_cands_list = []
         ref_file = []
+        thresh = 1.5
     
     else:
         with open(loop_infofile,'r') as loop_info:
