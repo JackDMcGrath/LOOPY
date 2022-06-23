@@ -171,8 +171,6 @@ def main(argv=None):
     # Check to see if LiCSBAS step 12 has aready been run
     if ~os.path.exists(loopdir):
         nolics12 = True
-        os.mkdir(loopdir)
-        os.mkdir(os.path.join(loopdir,'loop_pngs'))
         print('No Loop Closure Check previously carried out \nLook out for issues from no ref_file')
         
     else:
@@ -188,6 +186,9 @@ def main(argv=None):
     if reset:
         print('Replacing files')
         loop_lib.reset_loops(ifgdir, loopdir, tsadir)
+        if nolics12:
+            os.makedirs(loopdir, exist_ok=True)
+            os.makedirs(os.path.join(loopdir,'loop_pngs'), exist_ok=True)
     else:
         print('Keeping old files')
     
