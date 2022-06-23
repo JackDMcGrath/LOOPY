@@ -313,7 +313,8 @@ def main(argv=None):
         corr_all = np.empty((length,width,len(loops2fix)))
     
         for count, loop in enumerate(loops2fix):
-            print('    ',loop_info[loop])
+            if nolics12==False:
+                print('    ',loop_info[loop])
             ifg_position = loop_lib.calc_bad_ifg_position_single(ifg_name, A3loop[loop,:], ifgdates)
             corr_all[:,:,count] = loop_lib.get_corr(A3loop[loop,:], ifg_position, thresh, ifgdates, ifgdir, length, width, ref_file)
         

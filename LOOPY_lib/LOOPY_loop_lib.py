@@ -960,6 +960,9 @@ def reset_loops(ifgdir,loopdir, tsadir):
                 os.remove(os.path.join(root,file_name))
             if 'V0' in file_name:
                 shutil.move(os.path.join(root,file_name),os.path.join(root,file_name[:-11]+'.unw.png'))
+                
+    if os.path.exists(os.path.join(loopdir,'loop_pngs')):
+        os.remove(os.path.join(loopdir,'loop_pngs'))
 
     print(' Loops Reset\nReset Complete\n')
     
