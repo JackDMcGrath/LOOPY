@@ -343,6 +343,14 @@ def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file, cycle = 3,
             
         while os.path.exists(uncorr_png + '.png'):
             uncorr_png = uncorr_png[:-1] + str(int(uncorr_png[-1])+1)
+    
+    else:
+        png = os.path.join(loopdir,'loop_png',loop_id + '_V1')
+        
+        while os.path.exists(png + '.png'):
+            png = png[:-1] + str(int(png[-1])+1)
+        
+        uncorr_png = png + '.png'
 
     make_loop_png(unw12, unw23, unw13, loop_ph, uncorr_png, titles4, cycle)
     
