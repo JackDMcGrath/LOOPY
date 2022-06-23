@@ -179,8 +179,10 @@ def main(argv=None):
     
     cohfile=os.path.join(resultsdir,'coh_avg')
     # If no coh file, use slc
-    if not os.path.exists(cohfile): cohfile=os.path.join(ifgdir,'slc.mli')
-    
+    if not os.path.exists(cohfile): 
+        cohfile=os.path.join(ifgdir,'slc.mli')
+        print('No Coherence File - using SLC instead')    
+
     coh=io_lib.read_img(cohfile,length=length, width=width)
     n_px = sum(sum(~np.isnan(coh[:])))
     
@@ -202,12 +204,18 @@ def main(argv=None):
         with open(ref_file, "r") as f:
             refarea = f.read().split()[0]  #str, x1/x2/y1/y2
         refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
-        
-    if np.isnan(coh[refy1:refy2,refx1:refx2]) or ~os.path.exists(ref_file):
+
         if np.isnan(coh[refy1:refy2,refx1:refx2]):
             print('Ref point = [{},{}] invalid. Using max coherent pixel'.format(refy1,refx1))
-        elif ~os.path.exists(ref_file):
-            print('No Reference Pixel provided - using max coherent pixel')
+        
+            refy1,refx1 = np.where(coh==np.nanmax(coh))
+            refy1 = refy1[0]
+            refy2 = refy1 + 1
+            refx1 = refx1[0]
+            refx2 = refx1 + 1
+
+    else:
+        print('No Reference Pixel provided - using max coherent pixel')
 
         refy1,refx1 = np.where(coh==np.nanmax(coh))
         refy1 = refy1[0]
