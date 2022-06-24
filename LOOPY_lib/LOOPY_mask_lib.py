@@ -13,6 +13,7 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
 """
 import os
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from numba import jit, njit
 
@@ -21,7 +22,7 @@ os.environ['QT_QPA_PLATFORM']='offscreen'
 import warnings
 with warnings.catch_warnings(): ## To silence user warning
     warnings.simplefilter('ignore', UserWarning)
-    # mpl.use('Agg')
+    mpl.use('Agg')
     
 #%% Find negihbouring regions (numba only allows first 2 arguements in roll)
 def find_neighbours(ref_region, labels):
