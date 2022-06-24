@@ -228,7 +228,6 @@ def main(argv=None):
     print('Minumum Region Size = {}'.format(min_size))
     
     #%% Run correction in parallel
-    v = 1
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs,'.format(n_ifg), flush=True)
     print('with {} parallel processing...'.format(_n_para), flush=True)
