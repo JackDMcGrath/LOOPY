@@ -132,7 +132,7 @@ def main(argv=None):
             elif o == '-m':
                 min_size = int(a)
             elif o == '-v':
-                v = int(a-1)
+                v = int(a)-1
             elif o == '--reset':
                 reset = True
             elif o == '--n_para':
