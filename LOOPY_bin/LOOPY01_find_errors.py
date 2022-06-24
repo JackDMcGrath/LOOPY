@@ -348,7 +348,7 @@ def mask_unw_errors(i):
    
     labels_tmp=np.zeros((length,width,len(vals)),dtype='float32')
     if i==v:
-        print('        ({}/{}): labels_tmp frame made {:.2f}'.format(i+1, n_ifg, time.time()-begin))
+        print('        ({}/{}): labels_tmp frame made with {} vals {:.2f}'.format(i+1, n_ifg, len(vals), time.time()-begin))
     for ix, val in enumerate(vals):
         if i==v:
             print('        ({}/{}): Label_tmp val {} {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
