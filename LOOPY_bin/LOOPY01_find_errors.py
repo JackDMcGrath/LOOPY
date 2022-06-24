@@ -338,6 +338,7 @@ def mask_unw_errors(i):
     
     # Renumber remaining regions
     labels, ID = renumber(keep, ID, labels, labels)
+    renumber.parallel_diagnostics(level=4)
 
     if i==v:
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
@@ -383,6 +384,7 @@ def mask_unw_errors(i):
         print('        Prepping DF {:.2f}'.format(time.time()-begin))
 
     all_regions = prep_df(0, npi, labels) # Allow numba to compile
+    prep_df.parallel_diagnostics(level=4)
     all_regions = prep_df(ID, npi, labels) # Run efficiently
     if i==v:
         print('        DF array {:.2f}'.format(time.time()-begin))
