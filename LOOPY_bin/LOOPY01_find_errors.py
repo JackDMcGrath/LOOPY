@@ -92,7 +92,7 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
     
     global plot_figures, tol, min_size, refx1, refx2, refy1, refy2, n_ifg, \
-        length, width, ifgdir, ifgdates, coh, i, begin
+        length, width, ifgdir, ifgdates, coh, i, v, begin
     
     #%% Set default
     ifgdir = []
@@ -227,10 +227,11 @@ def main(argv=None):
     print('Minumum Region Size = {}'.format(min_size))
     
     #%% Run correction in parallel
+    v = 1
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs,'.format(n_ifg), flush=True)
     print('with {} parallel processing...'.format(_n_para), flush=True)
-    print('In an overly verbose way for IFG 1')
+    print('In an overly verbose way for IFG {}'.format(v+1))
     ### Parallel processing
     p = q.Pool(_n_para)
     mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
@@ -258,9 +259,10 @@ def main(argv=None):
 #%%
 def mask_unw_errors(i):
     global begin
+    v=0
     begin=time.time()
     date = ifgdates[i]
- #   if i==0:
+ #   if i==v:
 #        print('        Starting')
 #    print('    ({}/{}): {}'.format(i+1, n_ifg, date))
     if os.path.exists(os.path.join(ifgdir,date,date+'.unw_mask')):
@@ -270,12 +272,12 @@ def mask_unw_errors(i):
     else:
         print('    ({}/{}): {}'.format(i+1, n_ifg, date))
 
- #   if i==0:
+ #   if i==v:
 #        print('        Loading')
   
 
     unw=io_lib.read_img(os.path.join(ifgdir,date,date+'.unw'),length=length, width=width)
- #   if i==0:
+ #   if i==v:
 #        print('        UNW Loaded {:.2f}'.format(time.time()-begin))
 
     ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
@@ -285,7 +287,7 @@ def mask_unw_errors(i):
         
     ifg=unw.copy()
     ifg = ifg-ref #Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
- #   if i==0:
+ #   if i==v:
 #        print('        Reffed {:.2f}'.format(time.time()-begin))
         
     if plot_figures:
@@ -294,7 +296,7 @@ def mask_unw_errors(i):
     #%%
     # data = ifg
     filled_ifg = NN_interp(ifg)
- #   if i==0:
+ #   if i==v:
 #         print('            filled_ifg  {:.2f}'.format(time.time()-begin))
     npi = (filled_ifg/(tol*np.pi)).round()
     
@@ -310,10 +312,10 @@ def mask_unw_errors(i):
     # Make tmp array of values where npi == 0, and label (best to start with 0 region for labels)
     tmp=np.zeros((length,width))
     tmp[npi==0] = 1
-    if i==0:
+    if i==v:
         print('        Labelling {:.2f}'.format(time.time()-begin))
     labels, count = label(tmp)
-    if i==0:
+    if i==v:
         print('        ({}/{}): {} regions'.format(i+1, n_ifg, np.nanmax(np.nanmax(labels))))
 #    mapped_area = 0
     
@@ -321,35 +323,35 @@ def mask_unw_errors(i):
     counts = counts[np.logical_not(labs==0)] # Remove zero label
     labs = labs[np.logical_not(labs==0)] # Remove zero label
     
-    if i==0:
+    if i==v:
         print('        ({}/{}): unique {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     too_small = np.where(counts < min_size)[0] + 1
-    if i==0:
+    if i==v:
         print('        ({}/{}): too small {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     keep = np.setdiff1d(labs, too_small)
-    if i==0:
+    if i==v:
         print('        ({}/{}): keep {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     
     ID = 0
     # Remove regions smaller than the min size
     labels[np.isin(labels,too_small)] = 0
 
-    if i==0:
+    if i==v:
         print('        ({}/{}): remove {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     
     # Renumber remaining regions
     labels, ID = renumber(keep, ID, labels)
 
-    if i==0:
+    if i==v:
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
    
     labels_tmp=np.zeros((length,width,len(vals)),dtype='float32')
     for ix, val in enumerate(vals):
         labels_tmp[:,:,ix] = label((npi==val).astype('int'))[0]
 
-    labels, ID = number_regions(vals, npi, labels, ID, labels_tmp, i)
+    labels, ID = number_regions(vals, npi, labels, ID, labels_tmp, i, v)
 
-    if i==0:
+    if i==v:
         print('        Filling holes {:.2f}'.format(time.time()-begin))        
     labels=labels.astype('float32')
     labels[np.isnan(coh)] = np.nan
@@ -369,11 +371,11 @@ def mask_unw_errors(i):
         loop_lib.plotmask(labels,centerz=False,title='Filtered Labelled Groups',cmap='tab20b')
     
     #%% All regions are now labelled. Now search for neighbour regions to the reference region
-    if i==0:
+    if i==v:
         print('        Prepping DF {:.2f}'.format(time.time()-begin))
 
     all_regions = prep_df(ID, npi, labels)
-    if i==0:
+    if i==v:
         print('        DF array {:.2f}'.format(time.time()-begin))
 
     all_regions=pd.DataFrame(all_regions,columns=['Region','Value','Size','Checked'])
@@ -383,19 +385,19 @@ def mask_unw_errors(i):
     #     all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
     # warnings.simplefilter("default", category=RuntimeWarning)
     all_regions = all_regions.set_index('Region')
-    if i==0:
+    if i==v:
         print('        DF prepped {:.2f}'.format(time.time()-begin))
     #https://stackoverflow.com/questions/38073433/determine-adjacent-regions-in-numpy-array
     ref_region= labels[refy1,refx1] # number of region whose neighbors we want
     
-    if i==0:
+    if i==v:
         print('        Finding Ref Neighbours {:.2f}'.format(time.time()-begin))
 
     all_regions.loc[ref_region,'Checked'] = 2
     neighbours = mask_lib.find_neighbours(ref_region, labels)
     for neighbour in neighbours:
         all_regions.loc[neighbour,'Checked'] = 1
-    if i==0:
+    if i==v:
         print('        Neighbours found {:.2f}'.format(time.time()-begin))
 
 
@@ -406,7 +408,7 @@ def mask_unw_errors(i):
     good = pd.DataFrame([],columns=['Region','Value', 'Abs Value','Size','CheckNeighbour'])
     cands = pd.DataFrame([],columns=['Region','Value', 'Abs Value','Size','CheckNeighbour'])
     good.loc[len(good.index)]=[ref_region,ref_val,abs(ref_val),sum(sum(labels==ref_region)),1]
-    if i==0:
+    if i==v:
         print('        Classifying from ref {:.2f}'.format(time.time()-begin))
 
     good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, ref_val, npi, tol, labels)
@@ -414,7 +416,7 @@ def mask_unw_errors(i):
     
     iteration = 1
     while 1 in all_regions['Checked'].values:
-        if i==0:
+        if i==v:
             print('        ({}/{}): {} iterations {:.2f}'.format(i+1, n_ifg, iteration, time.time()-begin))
         errors, cands = class_from_error(errors, all_regions, labels, good, cands, npi)
         # for region in errors['Region'].values:
@@ -487,14 +489,15 @@ def mask_unw_errors(i):
     masked = unw.copy().astype('float32')
     masked[region_class == -1] = np.nan
     region_class[region_class==1]=0
-    if i==0:
+    if i==v:
         print('        Writing maskfile {:.2f}'.format(time.time()-begin))
-        print('        ' + os.path.join(ifgdir,date,date+'.mask'))
-        print('        ' + os.path.join(ifgdir,date,date+'.unw_mask'))
+    print('            ' + os.path.join(ifgdir,date,date+'.mask'))
+    print('            ' + os.path.join(ifgdir,date,date+'.unw_mask'))
 
 
     region_class.astype('bool').tofile(os.path.join(ifgdir,date,date+'.mask'))
     masked.tofile(os.path.join(ifgdir,date,date+'.unw_mask'))
+    print('            ' + os.path.join(ifgdir,date,date+'.unw_mask written'))
     return mask_coverage
 
 #%%
@@ -524,7 +527,7 @@ def NN_interp_samedata(data, mask):
 def numba_regions(vals, npi, labels, ID, labels_tmp, i):
     labels = labels.flatten()
     for ix,val in enumerate(vals):
- #       if i==0:
+ #       if i==v:
 #            print(val)
         if val != 0:
             # tmp=np.zeros((length,width),dtype='float32')
@@ -557,7 +560,7 @@ def numba_regions(vals, npi, labels, ID, labels_tmp, i):
 def number_regions(vals, npi, labels, ID, labels_tmp, i):
     for ix,val in enumerate(vals):
         start_num = time.time()
-        if i==0:
+        if i==v:
             print(val,'npi', round(time.time()-begin,2))
         if val != 0:
             tmp=np.zeros((length,width),dtype='float32')
@@ -582,7 +585,7 @@ def number_regions(vals, npi, labels, ID, labels_tmp, i):
             # Remove regions smaller than the min size
             labels[np.isin(labels_tmp,too_small)] = 0
             # Renumber remaining regions
-            if i==0:
+            if i==v:
                 print('Prep Labels...', round(time.time()-start_num,2))
                 print(len(keep))
 
@@ -593,7 +596,7 @@ def number_regions(vals, npi, labels, ID, labels_tmp, i):
   #                  print(ID,':',np.sum(labels_tmp==region))
  #                   print(labels[labels_tmp==region])
 #                    print(npi[labels_tmp==region])
-            if i==0:
+            if i==v:
                 print('done', round(time.time()-start_num,2))
     return labels, ID
 
