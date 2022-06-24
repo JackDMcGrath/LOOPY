@@ -132,7 +132,7 @@ def main(argv=None):
             elif o == '-m':
                 min_size = int(a)
             elif o == '-v':
-                v = int(a)
+                v = int(a-1)
             elif o == '--reset':
                 reset = True
             elif o == '--n_para':
@@ -347,10 +347,14 @@ def mask_unw_errors(i):
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
    
     labels_tmp=np.zeros((length,width,len(vals)),dtype='float32')
+    if i==v:
+        print('        ({}/{}): labels_tmp frame made {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     for ix, val in enumerate(vals):
+        if i==v:
+            print('        ({}/{}): Label_tmp val {} {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
         labels_tmp[:,:,ix] = label((npi==val).astype('int'))[0]
 
-    labels, ID = number_regions(vals, npi, labels, ID, labels_tmp, i, v)
+    labels, ID = number_regions(vals, npi, labels, ID, labels_tmp, i)
 
     if i==v:
         print('        Filling holes {:.2f}'.format(time.time()-begin))        
