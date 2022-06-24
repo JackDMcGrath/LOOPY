@@ -382,7 +382,8 @@ def mask_unw_errors(i):
     if i==v:
         print('        Prepping DF {:.2f}'.format(time.time()-begin))
 
-    all_regions = prep_df(ID, npi, labels)
+    all_regions = prep_df(0, npi, labels) # Allow numba to compile
+    all_regions = prep_df(ID, npi, labels) # Run efficiently
     if i==v:
         print('        DF array {:.2f}'.format(time.time()-begin))
 
@@ -595,11 +596,11 @@ def number_regions(vals, npi, labels, ID, i):
                 print('Prep Labels...', round(time.time()-start_num,2))
                 print(len(keep))
 
-            for region in keep:
-                ID += 1
-                labels[(labels_tmp==region)] = ID
+  #          for region in keep:
+ #               ID += 1
+#                labels[(labels_tmp==region)] = ID
                 
-            # labels, ID = renumber(keep, ID, labels, labels_tmp)
+            labels, ID = renumber(keep, ID, labels, labels_tmp)
 
             if i==v:
                 print('done', round(time.time()-start_num,2))
