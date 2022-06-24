@@ -13,6 +13,7 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
 """
 import os
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from numba import jit, njit
 
