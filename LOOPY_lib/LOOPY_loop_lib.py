@@ -34,6 +34,9 @@ with warnings.catch_warnings(): ## To silence user warning
     warnings.simplefilter('ignore', UserWarning)
     # mpl.use('Agg')
 
+cmap_wrap = tools_lib.get_cmap('SCM.romaO')
+cmap_loop = tools_lib.get_cmap('SCM.vik')
+
 #%% Used by lib14
 def make_loop_matrix(ifgdates):
     """
@@ -130,8 +133,8 @@ def identify_bad_ifg(bad_ifg_cand, good_ifg):
 
 #%%
 def make_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle):
-    cmap_wrap = tools_lib.get_cmap('SCM.romaO')
-    cmap_loop = tools_lib.get_cmap('SCM.vik')
+    # cmap_wrap = tools_lib.get_cmap('SCM.romaO')
+    # cmap_loop = tools_lib.get_cmap('SCM.vik')
 
     ### Settings
     plt.rcParams['axes.titlesize'] = 10
@@ -255,7 +258,7 @@ def correct_bad_ifg(bad_ifg_name,corr,ifgdir, length, width, loop, ifgdates, loo
     corr_min = round(-np.nanmax(abs(corr)) / (2*np.pi))
     corr[0,0]= corr_max
     corr[0,1]= corr_min
-    cmap_wrap = tools_lib.get_cmap('SCM.romaO')
+    # cmap_wrap = tools_lib.get_cmap('SCM.romaO')
     ifg_max = max([np.nanmax(ifg), np.nanmax(corr_ifg)])
     ifg_min = min([np.nanmin(ifg), np.nanmin(corr_ifg)])
     title = '{} ({}pi/cycle)'.format(bad_ifg_name, cycle*2)
@@ -281,22 +284,29 @@ def correct_bad_ifg(bad_ifg_name,corr,ifgdir, length, width, loop, ifgdates, loo
         re_loop(loop[l], ifgdates, ifgdir, length, width, loopdir, ref_file, cycle=cycle)
         
 #%% Function to re-run loops where interferograms have been corrected
-def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file, cycle = 3, multi_prime = True):
+def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file=[], cycle = 3, multi_prime = True):
     
     unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = read_unw_loop_ph(loop, ifgdates, ifgdir, length, width)
-    
-    refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
     
     imd1 = ifgd12[:8]
     imd2 = ifgd23[:8]
     imd3 = ifgd23[-8:]
     
-    ## Skip if no data in ref area in any unw. It is bad data.
-    ref_unw12 = np.nanmean(unw12[refy1:refy2, refx1:refx2])
-    ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
-    ref_unw13 = np.nanmean(unw13[refy1:refy2, refx1:refx2])
+    
+    if ref_file:
+        refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
 
-    ## Calculate loop phase taking into account ref phase
+        ## Skip if no data in ref area in any unw. It is bad data.
+        ref_unw12 = np.nanmean(unw12[refy1:refy2, refx1:refx2])
+        ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
+        ref_unw13 = np.nanmean(unw13[refy1:refy2, refx1:refx2])
+
+    else:
+        ref_unw12 = 0
+        ref_unw23 = 0
+        ref_unw13 = 0
+
+ ## Calculate loop phase taking into account ref phase
     loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
     
     if multi_prime:
@@ -343,7 +353,15 @@ def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file, cycle = 3,
             
         while os.path.exists(uncorr_png + '.png'):
             uncorr_png = uncorr_png[:-1] + str(int(uncorr_png[-1])+1)
-
+    
+    else:
+        png = os.path.join(loopdir,'loop_pngs',loop_id + '_V1')
+        
+        while os.path.exists(png + '.png'):
+            png = png[:-1] + str(int(png[-1])+1)
+            
+        uncorr_png = png
+    
     make_loop_png(unw12, unw23, unw13, loop_ph, uncorr_png, titles4, cycle)
     
     # print('Loop:',imd1+'_'+imd2+'_'+imd3, 'New RMS:',rms)
@@ -952,6 +970,9 @@ def reset_loops(ifgdir,loopdir, tsadir):
                 os.remove(os.path.join(root,file_name))
             if 'V0' in file_name:
                 shutil.move(os.path.join(root,file_name),os.path.join(root,file_name[:-11]+'.unw.png'))
+                
+    if os.path.exists(os.path.join(loopdir,'loop_pngs')):
+        shutil.rmtree(os.path.join(loopdir,'loop_pngs'))
 
     print(' Loops Reset\nReset Complete\n')
     

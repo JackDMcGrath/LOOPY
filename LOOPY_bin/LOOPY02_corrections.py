@@ -71,7 +71,7 @@ import shutil
 import numpy as np
 import pandas as pd
 # import multiprocessing as multi
-import scipy.stats as stats
+# import scipy.stats as stats
 import LOOPY_loop_lib as loop_lib
 import LiCSBAS_io_lib as io_lib
 # import LiCSBAS_inv_lib as inv_lib
@@ -106,6 +106,7 @@ def main(argv=None):
     tsadir = []
     reset = False
     plot_figures = False
+    nolics12 = False
     tol = 0.5 # N value to use for modulo pi division
     min_size = 1 # Minimum size of labelled regions
 
@@ -123,7 +124,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:", ["help", "reset", "n_para"])
+            opts, args = getopt.getopt(argv[1:], "hd:t:", ["help", "reset", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -158,31 +159,44 @@ def main(argv=None):
     
     #%% Assign Parameters, Paths and Variables
     # Restore to uncorrected state
-    reset = False
     start = time.time()
+    
+    if not tsadir:
+        tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_'+os.path.basename(ifgdir))
     
     # Define Frame, directories and files
     loopdir = os.path.join(tsadir,'12loop')
     infodir = os.path.join(tsadir,'info')
-    resultsdir = os.path.join(tsadir,'results')
     
-    loop_infofile = os.path.join(loopdir, 'loop_info.txt')
-    bad_ifgfile = os.path.join(infodir, '12bad_ifg.txt')
-    bad_ifg_cands_file = os.path.join(infodir, '12bad_ifg_cand.txt')
-    ref_file = os.path.join(infodir,'12ref.txt')
+    # Check to see if LiCSBAS step 12 has aready been run
+    if ~os.path.exists(loopdir):
+        nolics12 = True
+        print('No Loop Closure Check previously carried out \nLook out for issues from no ref_file')
+        
+    else:
+        bad_ifgfile = os.path.join(infodir, '12bad_ifg.txt')
+        bad_ifg_cands_file = os.path.join(infodir, '12bad_ifg_cand.txt')
+        ref_file = os.path.join(infodir,'12ref.txt')
+        loop_infofile = os.path.join(loopdir, 'loop_info.txt')
+    
+
     mlipar = os.path.join(ifgdir, 'slc.mli.par')
     mask_infofile = os.path.join(infodir,'mask_info.txt')
     
     if reset:
         print('Replacing files')
         loop_lib.reset_loops(ifgdir, loopdir, tsadir)
+        if nolics12:
+            os.makedirs(loopdir, exist_ok=True)
+            os.makedirs(os.path.join(loopdir,'loop_pngs'), exist_ok=True)
     else:
         print('Keeping old files')
     
     # Make folder to hold comparisons of corrected and uncorrected IFGS
     if not os.path.exists(os.path.join(ifgdir, 'Corr_dir')):
         os.mkdir(os.path.join(ifgdir, 'Corr_dir'))
-    
+        
+   
     print('Loading Information')
     ### Read in information
     # Bad ifgs from LiCSBAS11
@@ -190,17 +204,24 @@ def main(argv=None):
     Step11BadIfg = io_lib.read_ifg_list(Step11BadIfgFile)
     
     # Read in Loop info (+ thresh), bad ifgs and bad cands identified in LiCSBAS12
-    with open(loop_infofile,'r') as loop_info:
-        loop_info = loop_info.read().splitlines()
-        thresh = float(loop_info[0].split()[2])
-        loop_info = loop_info[4:]
+    if nolics12:
+        bad_ifg_list = []
+        bad_ifg_cands_list = []
+        ref_file = []
+        thresh = 1.5
     
-    with open(bad_ifgfile,'r') as bad_ifg_list:
-        bad_ifg_list = bad_ifg_list.read().splitlines()
-    
-    with open(bad_ifg_cands_file,'r') as bad_ifg_cands_list:
-        bad_ifg_cands_list = bad_ifg_cands_list.read().splitlines()
-    
+    else:
+        with open(loop_infofile,'r') as loop_info:
+            loop_info = loop_info.read().splitlines()
+            thresh = float(loop_info[0].split()[2])
+            loop_info = loop_info[4:]
+        
+        with open(bad_ifgfile,'r') as bad_ifg_list:
+            bad_ifg_list = bad_ifg_list.read().splitlines()
+        
+        with open(bad_ifg_cands_file,'r') as bad_ifg_cands_list:
+            bad_ifg_cands_list = bad_ifg_cands_list.read().splitlines()
+        
     with open(mask_infofile,'r') as mask_info:
         mask_info = mask_info.read().splitlines()
         mask_info = mask_info[2:]
@@ -234,25 +255,23 @@ def main(argv=None):
     pngfile = os.path.join(tsadir, 'network', 'network12cands_precorrection.png')
     plot_lib.plot_cand_network(ifgdates, bperp, bad_ifg_list, pngfile, bad_ifg_cands_list)
     
- 
-    cohfile=os.path.join(resultsdir,'coh_avg')
-    coh=io_lib.read_img(cohfile,length=length, width=width)
-    
+     
     #%% Create Loops and dictionaries
     print('Creating Loops')
     A3loop = loop_lib.make_loop_matrix(ifgdates)
     
-    for i in range(len(loop_info)-1,-1,-1):
-        loop = loop_info[i]
-        for ifg in Step11BadIfg:
-            if ifg.split('_')[0] in loop and ifg.split('_')[1] in loop:
-                loop_info.remove(loop)
-                break
-            
-    # Check that there same number of loops have been calculated as LiCSBAS12 did
-    if np.shape(A3loop)[0] != np.shape(loop_info)[0]:
-        print('ERROR: Different number of Loops in A3loop and loop_info.txt. Stopping')
-        sys.exit()
+    if nolics12 == False: # Skip check if there has been no check of LiCSBAS12
+        for i in range(len(loop_info)-1,-1,-1):
+            loop = loop_info[i]
+            for ifg in Step11BadIfg:
+                if ifg.split('_')[0] in loop and ifg.split('_')[1] in loop:
+                    loop_info.remove(loop)
+                    break
+                
+        # Check that there same number of loops have been calculated as LiCSBAS12 did
+        if np.shape(A3loop)[0] != np.shape(loop_info)[0]:
+            print('ERROR: Different number of Loops in A3loop and loop_info.txt. Stopping')
+            sys.exit()
     
     ifg_dict, loop_dict = loop_lib.create_loop_dict(A3loop, ifgdates)
     
@@ -296,7 +315,8 @@ def main(argv=None):
         corr_all = np.empty((length,width,len(loops2fix)))
     
         for count, loop in enumerate(loops2fix):
-            print('    ',loop_info[loop])
+            if nolics12==False:
+                print('    ',loop_info[loop])
             ifg_position = loop_lib.calc_bad_ifg_position_single(ifg_name, A3loop[loop,:], ifgdates)
             corr_all[:,:,count] = loop_lib.get_corr(A3loop[loop,:], ifg_position, thresh, ifgdates, ifgdir, length, width, ref_file)
         
