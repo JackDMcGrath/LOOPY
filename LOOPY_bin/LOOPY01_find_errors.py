@@ -102,7 +102,6 @@ def main(argv=None):
     plot_figures = False
     tol = 0.5 # N value to use for modulo pi division
     v = -1
-#    min_size = 100 # Minimum size of labelled regions
 
     # Parallel Processing options    
     try:
@@ -209,8 +208,7 @@ def main(argv=None):
         refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
 
         if np.isnan(coh[refy1:refy2,refx1:refx2]):
-            print('Ref point = [{},{}] invalid. Using max coherent pixel'.format(refy1,refx1))
-        
+            print('Ref point = [{},{}] invalid. Using max coherent pixel'.format(refy1,refx1))        
             refy1,refx1 = np.where(coh==np.nanmax(coh))
             refy1 = refy1[0]
             refy2 = refy1 + 1
@@ -354,7 +352,28 @@ def mask_unw_errors(i):
             print('        ({}/{}): Label_tmp val {} {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
         labels_tmp[:,:,ix] = label((npi==val).astype('int'))[0]
 
+    if i==v:
+        commence_numba1 = time.time()
+    labels_numba1, ID_numba1 = numba_regions(vals, npi, labels, ID, labels_tmp, i)
+    if i==v:
+        end_numba1 = time.time()    
+        print('        ({}/{}): numba1 {:.2f}'.format(i+1, n_ifg, end_numba1-commence_numba1))
+    
+    if i==v:
+        commence_numba2 = time.time()    
+    labels_numba2, ID_numba2 = numba_regions(vals, npi, labels, ID, labels_tmp, i)
+    if i==v:
+        end_numba2 = time.time()
+        print('        ({}/{}): numba2 {:.2f}'.format(i+1, n_ifg, end_numba2-commence_numba2))
+
+    if i==v:
+        commence_num = time.time()
     labels, ID = number_regions(vals, npi, labels, ID, labels_tmp, i)
+    
+    if i==v:
+        end_num = time.time()
+        print('        ({}/{}): number {:.2f}'.format(i+1, n_ifg, end_num-commence_num))
+        
 
     if i==v:
         print('        Filling holes {:.2f}'.format(time.time()-begin))        
@@ -530,7 +549,7 @@ def NN_interp_samedata(data, mask):
     
 #%%
 #@jit(nopython=True)
-@jit(forceobj=True)
+@jit(forceobj=True, parallel=True)
 def numba_regions(vals, npi, labels, ID, labels_tmp, i):
     labels = labels.flatten()
     for ix,val in enumerate(vals):
@@ -608,7 +627,7 @@ def number_regions(vals, npi, labels, ID, labels_tmp, i):
     return labels, ID
 
 #%%
-@jit(nopython=True)
+@jit(nopython=True, parallel=True)
 def renumber(keep, ID, data):
     data = data.flatten()
     for region in keep:
@@ -617,19 +636,15 @@ def renumber(keep, ID, data):
     return data.reshape(length,width), ID
 
 #%%
-#@jit(nopython=True)
+@jit(nopython=True, parallel=True)
 def prep_df(ID, npi, labels):
     npi_flat = npi.flatten()
     labels_flat = labels.flatten()
 
     all_regions = np.zeros(4*ID).reshape(ID,4)
     for region in range(0,ID):
-  #      if np.isnan(np.nanmean(npi_flat[labels_flat==region+1])):
- #           print(npi[labels==region+1])
-#            print([region+1,np.nanmean(npi_flat[labels_flat==region+1]),np.nansum(labels_flat==region+1),0])
-
         all_regions[region] = [region+1,np.nanmean(npi_flat[labels_flat==region+1]),np.nansum(labels_flat==region+1),0]
-#        all_regions[region] = [region+1,np.mean(npi_flat[labels_flat==region+1]),np.nansum(labels_flat==region+1),0]
+    
     return all_regions
 
 #%%
