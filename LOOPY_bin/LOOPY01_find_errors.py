@@ -101,6 +101,7 @@ def main(argv=None):
     reset = False
     plot_figures = False
     tol = 0.5 # N value to use for modulo pi division
+    v = -1
 #    min_size = 100 # Minimum size of labelled regions
 
     # Parallel Processing options    
@@ -117,7 +118,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:m:", ["help", "reset", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hd:t:m:v:", ["help", "reset", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -130,6 +131,8 @@ def main(argv=None):
                 tsadir = a
             elif o == '-m':
                 min_size = int(a)
+            elif o == '-v':
+                v = int(a)
             elif o == '--reset':
                 reset = True
             elif o == '--n_para':
@@ -231,11 +234,11 @@ def main(argv=None):
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs,'.format(n_ifg), flush=True)
     print('with {} parallel processing...'.format(_n_para), flush=True)
-    print('In an overly verbose way for IFG {}'.format(v+1))
+    if v >= 0:
+        print('In an overly verbose way for IFG {}'.format(v+1))
     ### Parallel processing
     p = q.Pool(_n_para)
     mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
-#    mask_cov = np.array(p.map(mask_unw_errors, range(1)))
     p.close()
  
     f = open(mask_info_file, 'a')
@@ -259,12 +262,10 @@ def main(argv=None):
 #%%
 def mask_unw_errors(i):
     global begin
-    v=0
     begin=time.time()
     date = ifgdates[i]
- #   if i==v:
-#        print('        Starting')
-#    print('    ({}/{}): {}'.format(i+1, n_ifg, date))
+    if i==v:
+        print('        Starting')#    print('    ({}/{}): {}'.format(i+1, n_ifg, date))
     if os.path.exists(os.path.join(ifgdir,date,date+'.unw_mask')):
         print('    ({}/{}): {}  Mask Exists. Skipping'.format(i+1, n_ifg, date))
         mask_coverage = 0
@@ -272,13 +273,13 @@ def mask_unw_errors(i):
     else:
         print('    ({}/{}): {}'.format(i+1, n_ifg, date))
 
- #   if i==v:
-#        print('        Loading')
+    if i==v:
+        print('        Loading')
   
 
     unw=io_lib.read_img(os.path.join(ifgdir,date,date+'.unw'),length=length, width=width)
- #   if i==v:
-#        print('        UNW Loaded {:.2f}'.format(time.time()-begin))
+    if i==v:
+        print('        UNW Loaded {:.2f}'.format(time.time()-begin))
 
     ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
     if np.isnan(ref):
@@ -287,8 +288,8 @@ def mask_unw_errors(i):
         
     ifg=unw.copy()
     ifg = ifg-ref #Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
- #   if i==v:
-#        print('        Reffed {:.2f}'.format(time.time()-begin))
+    if i==v:
+        print('        Reffed {:.2f}'.format(time.time()-begin))
         
     if plot_figures:
         loop_lib.plotmask(ifg,centerz=False,title='UNW')
@@ -296,8 +297,8 @@ def mask_unw_errors(i):
     #%%
     # data = ifg
     filled_ifg = NN_interp(ifg)
- #   if i==v:
-#         print('            filled_ifg  {:.2f}'.format(time.time()-begin))
+    if i==v:
+         print('            filled_ifg  {:.2f}'.format(time.time()-begin))
     npi = (filled_ifg/(tol*np.pi)).round()
     
     if plot_figures:
@@ -453,13 +454,15 @@ def mask_unw_errors(i):
         iteration += 1
         
         if sum(all_regions['Checked'].values==2) == good.shape[0] + errors.shape[0]:
-            # print('        Breaking while loop - only cands left')
+            if i == v:
+                print('        Breaking while loop - only cands left')
             good, errors = class_cand(cands, labels, good, errors)
             # for region in cands['Region'].values:
             #     neighbours = mask_lib.find_neighbours(region, labels)
             #     value = cands[cands['Region']==region].index.values[0]
             #     good, errors = mask_lib.ClassifyCands(neighbours, good, errors, region, value, labels)
-            # print('        Cand regions classified')
+            if i == v:
+                print('        Cand regions classified')
             break
     #%%
     region_class = make_class_map(all_regions.index.values, labels, good['Region'].values, errors['Region'].values, length, width)
@@ -491,8 +494,8 @@ def mask_unw_errors(i):
     region_class[region_class==1]=0
     if i==v:
         print('        Writing maskfile {:.2f}'.format(time.time()-begin))
-    print('            ' + os.path.join(ifgdir,date,date+'.mask'))
-    print('            ' + os.path.join(ifgdir,date,date+'.unw_mask'))
+        print('            ' + os.path.join(ifgdir,date,date+'.mask'))
+        print('            ' + os.path.join(ifgdir,date,date+'.unw_mask'))
 
 
     region_class.astype('bool').tofile(os.path.join(ifgdir,date,date+'.mask'))
