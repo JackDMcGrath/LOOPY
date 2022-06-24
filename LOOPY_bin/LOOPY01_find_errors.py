@@ -370,8 +370,10 @@ def mask_unw_errors(i):
     
     # Interpolate labels over gaps left by removing regions that are too small (and also apply filter to npi file)
     mask = np.where(labels != 0)
-    labels = NN_interp_samedata(labels, mask)
-    npi = NN_interp_samedata(npi, mask)
+    # labels = NN_interp_samedata(labels, mask)
+    # npi = NN_interp_samedata(npi, mask)
+    labels = NN_interp_samedata(labels, labels, mask)
+    npi = NN_interp_samedata(npi, labels, mask)
     npi[coh<0.05]=np.nan
     
 
@@ -526,10 +528,19 @@ def NN_interp(data):
     return interped_data
 
 #%%
-def NN_interp_samedata(data, mask):
-    interp = NearestNDInterpolator(np.transpose(mask), data[mask])
-    data_interp = interp(*np.where(~np.isnan(coh)))
-    data[np.where(~np.isnan(coh))] = data_interp
+# def NN_interp_samedata(data, mask):
+#     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
+#     data_interp = interp(*np.where(~np.isnan(coh)              ))
+#     data[np.where(~np.isnan(coh))] = data_interp
+#     data[coh<0.05]=np.nan
+    
+#     return data
+
+def NN_interp_samedata(data, mask, mask_ix):
+    interp = NearestNDInterpolator(np.transpose(mask_ix), data[mask_ix])
+    interp_to = np.where(((~np.isnan(coh)).astype('int') + (mask==0).astype('int')) == 2)
+    data_interp = interp(*interp_to)
+    data[interp_to] = data_interp
     data[coh<0.05]=np.nan
     
     return data
@@ -613,9 +624,17 @@ def number_regions(vals, npi, labels, ID, i):
 def renumber(keep, ID, data, data_ref):
     data = data.flatten()
     data_ref = data.flatten()
-    for region in keep:
-        ID += 1
-        data[data_ref==region] = ID
+    # for region in keep:
+    #     ID += 1
+    #     data[data_ref==region] = ID
+    
+    # Optimised for parallel?    
+    ID_tmp = [*range(1+ID,len(keep)+ID)]
+    for region in range(0,len(keep)):
+        data[data_ref==keep[region]] = ID_tmp[region]
+    
+    ID = ID + len(keep)
+        
     return data.reshape(length,width), ID
 
 #%%
