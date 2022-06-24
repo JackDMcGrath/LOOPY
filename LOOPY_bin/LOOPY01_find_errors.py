@@ -353,14 +353,14 @@ def mask_unw_errors(i):
 
     if i==v:
         commence_numba1 = time.time()
-    labels_numba1, ID_numba1 = numba_regions(vals, npi, labels, ID, labels_tmp, i)
+    labels_numba1, ID_numba1 = numba_regions(vals, npi, labels, ID, labels_tmp, i, v)
     if i==v:
         end_numba1 = time.time()    
         print('        ({}/{}): numba1 {:.2f}'.format(i+1, n_ifg, end_numba1-commence_numba1))
     
     if i==v:
         commence_numba2 = time.time()    
-    labels_numba2, ID_numba2 = numba_regions(vals, npi, labels, ID, labels_tmp, i)
+    labels_numba2, ID_numba2 = numba_regions(vals, npi, labels, ID, labels_tmp, i, v)
     if i==v:
         end_numba2 = time.time()
         print('        ({}/{}): numba2 {:.2f}'.format(i+1, n_ifg, end_numba2-commence_numba2))
@@ -547,13 +547,18 @@ def NN_interp_samedata(data, mask):
     return data
     
 #%%
-#@jit(nopython=True)
+#@jit(nopython=True. parallel=True)
 @jit(forceobj=True, parallel=True)
-def numba_regions(vals, npi, labels, ID, labels_tmp, i):
+def numba_regions(vals, npi, labels, ID, labels_tmp, i, v):
+    if i==v:
+        print('Numba Start')
     labels = labels.flatten()
+    if i==v:
+        print('Labels flat')
+
     for ix,val in enumerate(vals):
- #       if i==v:
-#            print(val)
+        if i==v:
+            print(val)
         if val != 0:
             # tmp=np.zeros((length,width),dtype='float32')
             # tmp[npi==val] = 1
