@@ -315,7 +315,6 @@ def mask_unw_errors(i):
     labels, count = label(tmp)
     if i==v:
         print('        ({}/{}): {} regions'.format(i+1, n_ifg, np.nanmax(np.nanmax(labels))))
-#    mapped_area = 0
     
     labs, counts = np.unique(labels, return_counts=True)
     counts = counts[np.logical_not(labs==0)] # Remove zero label
@@ -338,7 +337,7 @@ def mask_unw_errors(i):
         print('        ({}/{}): remove {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     
     # Renumber remaining regions
-    labels, ID = renumber(keep, ID, labels)
+    labels, ID = renumber(keep, ID, labels, labels)
 
     if i==v:
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
@@ -352,22 +351,8 @@ def mask_unw_errors(i):
         labels_tmp[:,:,ix] = label((npi==val).astype('int'))[0]
 
     if i==v:
-        commence_numba1 = time.time()
-    labels_numba1, ID_numba1 = numba_regions(vals, npi, labels, ID, labels_tmp, i, v)
-    if i==v:
-        end_numba1 = time.time()    
-        print('        ({}/{}): numba1 {:.2f}'.format(i+1, n_ifg, end_numba1-commence_numba1))
-    
-    if i==v:
-        commence_numba2 = time.time()    
-    labels_numba2, ID_numba2 = numba_regions(vals, npi, labels, ID, labels_tmp, i, v)
-    if i==v:
-        end_numba2 = time.time()
-        print('        ({}/{}): numba2 {:.2f}'.format(i+1, n_ifg, end_numba2-commence_numba2))
-
-    if i==v:
         commence_num = time.time()
-    labels, ID = number_regions(vals, npi, labels, ID, labels_tmp, i)
+    labels, ID = number_regions(vals, npi, labels, ID, i)
     
     if i==v:
         end_num = time.time()
@@ -587,7 +572,7 @@ def numba_regions(vals, npi, labels, ID, labels_tmp, i, v):
     return labels.reshape(length,width), ID
 
 #%% Because numba regions is too slow
-def number_regions(vals, npi, labels, ID, labels_tmp, i):
+def number_regions(vals, npi, labels, ID, i):
     for ix,val in enumerate(vals):
         start_num = time.time()
         if i==v:
@@ -600,17 +585,8 @@ def number_regions(vals, npi, labels, ID, labels_tmp, i):
             counts = counts[np.logical_not(labs==0)] # Remove zero label
             labs = labs[np.logical_not(labs==0)] # Remove zero label            
 
-#            if val<-0:
-#                print(labs)
-#                print(counts)
-
             too_small = np.where(counts < min_size)[0] + 1
             keep = np.setdiff1d(labs, too_small)
-  #          if val<-0:
- #               print(too_small)
-#                print(keep)
-
-
 
             # Remove regions smaller than the min size
             labels[np.isin(labels_tmp,too_small)] = 0
@@ -622,21 +598,21 @@ def number_regions(vals, npi, labels, ID, labels_tmp, i):
             for region in keep:
                 ID += 1
                 labels[(labels_tmp==region)] = ID
-   #             if val==-3:
-  #                  print(ID,':',np.sum(labels_tmp==region))
- #                   print(labels[labels_tmp==region])
-#                    print(npi[labels_tmp==region])
+                
+            # labels, ID = renumber(keep, ID, labels, labels_tmp)
+
             if i==v:
                 print('done', round(time.time()-start_num,2))
     return labels, ID
 
 #%%
 @jit(nopython=True, parallel=True)
-def renumber(keep, ID, data):
+def renumber(keep, ID, data, data_ref):
     data = data.flatten()
+    data_ref = data.flatten()
     for region in keep:
         ID += 1
-        data[data==region] = ID
+        data[data_ref==region] = ID
     return data.reshape(length,width), ID
 
 #%%
