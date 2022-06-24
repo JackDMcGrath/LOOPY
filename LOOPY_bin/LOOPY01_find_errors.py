@@ -262,7 +262,7 @@ def mask_unw_errors(i):
     date = ifgdates[i]
  #   if i==0:
 #        print('        Starting')
-    print('    ({}/{}): {}'.format(i+1, n_ifg, date))
+#    print('    ({}/{}): {}'.format(i+1, n_ifg, date))
     if os.path.exists(os.path.join(ifgdir,date,date+'.unw_mask')):
         print('    ({}/{}): {}  Mask Exists. Skipping'.format(i+1, n_ifg, date))
         mask_coverage = 0
