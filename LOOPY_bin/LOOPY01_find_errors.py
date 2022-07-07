@@ -238,7 +238,7 @@ def main(argv=None):
     p = q.Pool(_n_para)
     mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
     p.close()
- 
+    # mask_cov = mask_unw_errors(0) 
     f = open(mask_info_file, 'a')
     for i in range(n_ifg):
         print('{0}  {1:6.2f}'.format(ifgdates[i], mask_cov[i]/n_px), file=f)
@@ -338,8 +338,13 @@ def mask_unw_errors(i):
         print('        ({}/{}): remove {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     
     # Renumber remaining regions
-    ID_tmp = np.array([*range(1+ID,len(keep)+ID)])
+    # print(ID, keep)
+    ID_tmp = np.array([*range(ID,len(keep)+ID)]) + 1
+    # print(ID_tmp)
+    # print('Max Label =', max(labels.flatten()))
     labels, ID = renumber(keep, ID, labels, labels, ID_tmp)
+    # print('Max Label2 =', max(labels.flatten()))
+    # print('ID =',ID)
 #    renumber.parallel_diagnostics(level=4)
 
     if i==v:
@@ -356,7 +361,7 @@ def mask_unw_errors(i):
     if i==v:
         commence_num = time.time()
     labels, ID = number_regions(vals, npi, labels, ID, i)
-    
+    # print('Max Label3 =', max(labels.flatten()))
     if i==v:
         end_num = time.time()
         print('        ({}/{}): number {:.2f}'.format(i+1, n_ifg, end_num-commence_num))
@@ -366,7 +371,7 @@ def mask_unw_errors(i):
         print('        Filling holes {:.2f}'.format(time.time()-begin))        
     labels=labels.astype('float32')
     labels[np.isnan(coh)] = np.nan
-
+    # print('Max Label4 =', np.nanmax(labels.flatten()))
     if plot_figures:
         loop_lib.plotmask(labels,centerz=False,title='Labelled Groups')
     
@@ -376,7 +381,7 @@ def mask_unw_errors(i):
  #   labels = NN_interp_samedata(labels, mask)
 #    npi = NN_interp_samedata(npi, mask)
     labels = NN_interp_samedata2(labels, labels, mask)
-    
+    # print('Max Label5 =', np.nanmax(labels.flatten()))
     npi = NN_interp_samedata2(npi, labels, mask)
     npi[coh<0.05]=np.nan
 
@@ -389,10 +394,11 @@ def mask_unw_errors(i):
         print('        Prepping DF {:.2f}'.format(time.time()-begin))
 
     all_regions = prep_df(0, npi, labels) # Allow numba to compile
-    print(all_regions)
+    # print(all_regions)
+    # print(np.unique(labels), len(np.unique(labels)))
 #    prep_df.parallel_diagnostics(level=4)
     all_regions = prep_df(ID, npi, labels) # Run efficiently
-    print(all_regions[0:10,:])
+    # print(all_regions[-10:,:])
 
     if i==v:
         print('        DF array {:.2f}'.format(time.time()-begin))
@@ -446,7 +452,8 @@ def mask_unw_errors(i):
         #             if all_regions.loc[neighbour,'Checked'] == 0:
         #                 all_regions.loc[neighbour,'Checked'] = 1
         #         errors, cands = mask_lib.ClassifyFromErrorRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
-
+        if i==v:
+            print(np.unique(labels))
         good, errors, cands = class_from_good(good, all_regions, labels, errors, cands, npi)
         # for region in good['Region'].values:
         #     if all_regions.loc[region,'Checked'] != 2:
@@ -607,7 +614,6 @@ def number_regions(vals, npi, labels, ID, i):
 
             too_small = np.where(counts < min_size)[0] + 1
             keep = np.setdiff1d(labs, too_small)
-
             # Remove regions smaller than the min size
             labels[np.isin(labels_tmp,too_small)] = 0
             # Renumber remaining regions
@@ -619,7 +625,7 @@ def number_regions(vals, npi, labels, ID, i):
  #               ID += 1
 #                labels[(labels_tmp==region)] = ID
                 
-            ID_tmp = np.array([*range(1+ID,len(keep)+ID)])
+            ID_tmp = np.array([*range(ID,len(keep)+ID)]) + 1
             labels, ID = renumber(keep, ID, labels, labels_tmp, ID_tmp)
 
             if i==v:
@@ -631,6 +637,7 @@ def number_regions(vals, npi, labels, ID, i):
 def renumber(keep, ID, data, data_ref, ID_tmp):
     data = data.flatten()
     data_ref = data_ref.flatten()
+    
     # for region in keep:
     #     ID += 1
     #     data[data_ref==region] = ID
@@ -639,9 +646,8 @@ def renumber(keep, ID, data, data_ref, ID_tmp):
 #    ID_tmp = np.array([*range(1+ID,len(keep)+ID)])
     for region in range(0,len(keep)):
         data[data_ref==keep[region]] = ID_tmp[region]
-    
     ID = ID + len(keep)
-        
+    
     return data.reshape(length,width), ID
 
 #%%
@@ -693,7 +699,7 @@ def class_from_good(good, all_regions, labels, errors, cands, npi):
             neighbours = mask_lib.find_neighbours(region, labels)
             for neighbour in neighbours:
                 if all_regions.loc[neighbour,'Checked'] == 0:
-                    all_regions.loc[neighbour,'Checked'] = 1
+                        all_regions.loc[neighbour,'Checked'] = 1
             good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
 
     return good, errors, cands
