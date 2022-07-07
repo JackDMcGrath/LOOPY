@@ -42,6 +42,7 @@ LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [--reset] [--n_para]
  -d       Path to the GEOCml* dir containing stack of unw data.
  -t       Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
  -m       Minimum region size to be used in masking (Default: 1 (No filtering))
+ -v       IFG to give verbose timings for (Development option, Default: -1 (not verbose))
  --reset  Remove previous corrections
  --n_para Number of parallel processing (Default: # of usable CPU)
                                          
@@ -658,7 +659,7 @@ def prep_df(ID, npi, labels):
 
     all_regions = np.zeros(4*ID).reshape(ID,4)
     for region in prange(0,ID):
-        all_regions[region] = [region+1,np.nanmean(npi_flat[labels_flat==region+1]),np.nansum(labels_flat==region+1),0]
+        all_regions[region] = [region+1,round(np.nanmean(npi_flat[labels_flat==region+1])),np.nansum(labels_flat==region+1),0]
     
     return all_regions
 
