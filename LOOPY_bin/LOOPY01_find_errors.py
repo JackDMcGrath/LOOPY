@@ -67,7 +67,8 @@ import LOOPY_mask_lib as mask_lib
 import LOOPY_loop_lib as loop_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_tools_lib as tools_lib
-from numba import jit
+import LiCSBAS_plot_lib as plot_lib
+from numba import jit, prange
 from scipy.ndimage import label
 from scipy.interpolate import NearestNDInterpolator
 
@@ -337,18 +338,19 @@ def mask_unw_errors(i):
         print('        ({}/{}): remove {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     
     # Renumber remaining regions
-    labels, ID = renumber(keep, ID, labels, labels)
-    renumber.parallel_diagnostics(level=4)
+    ID_tmp = np.array([*range(1+ID,len(keep)+ID)])
+    labels, ID = renumber(keep, ID, labels, labels, ID_tmp)
+#    renumber.parallel_diagnostics(level=4)
 
     if i==v:
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
    
     labels_tmp=np.zeros((length,width,len(vals)),dtype='float32')
-    if i==v:
-        print('        ({}/{}): labels_tmp frame made with {} vals {:.2f}'.format(i+1, n_ifg, len(vals), time.time()-begin))
+ #   if i==v:
+#        print('        ({}/{}): labels_tmp frame made with {} vals {:.2f}'.format(i+1, n_ifg, len(vals), time.time()-begin))
     for ix, val in enumerate(vals):
-        if i==v:
-            print('        ({}/{}): Label_tmp val {} {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
+ #       if i==v:
+#            print('        ({}/{}): Label_tmp val {} {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
         labels_tmp[:,:,ix] = label((npi==val).astype('int'))[0]
 
     if i==v:
@@ -370,12 +372,13 @@ def mask_unw_errors(i):
     
     # Interpolate labels over gaps left by removing regions that are too small (and also apply filter to npi file)
     mask = np.where(labels != 0)
-    # labels = NN_interp_samedata(labels, mask)
-    # npi = NN_interp_samedata(npi, mask)
-    labels = NN_interp_samedata(labels, labels, mask)
-    npi = NN_interp_samedata(npi, labels, mask)
-    npi[coh<0.05]=np.nan
     
+ #   labels = NN_interp_samedata(labels, mask)
+#    npi = NN_interp_samedata(npi, mask)
+    labels = NN_interp_samedata2(labels, labels, mask)
+    
+    npi = NN_interp_samedata2(npi, labels, mask)
+    npi[coh<0.05]=np.nan
 
     if plot_figures:
         loop_lib.plotmask(npi,centerz=True,title='Filtered UNW/{:.1f}pi interp'.format(tol),cmap='tab20b')
@@ -386,8 +389,11 @@ def mask_unw_errors(i):
         print('        Prepping DF {:.2f}'.format(time.time()-begin))
 
     all_regions = prep_df(0, npi, labels) # Allow numba to compile
-    prep_df.parallel_diagnostics(level=4)
+    print(all_regions)
+#    prep_df.parallel_diagnostics(level=4)
     all_regions = prep_df(ID, npi, labels) # Run efficiently
+    print(all_regions[0:10,:])
+
     if i==v:
         print('        DF array {:.2f}'.format(time.time()-begin))
 
@@ -528,15 +534,15 @@ def NN_interp(data):
     return interped_data
 
 #%%
-# def NN_interp_samedata(data, mask):
-#     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
-#     data_interp = interp(*np.where(~np.isnan(coh)              ))
-#     data[np.where(~np.isnan(coh))] = data_interp
-#     data[coh<0.05]=np.nan
+def NN_interp_samedata(data, mask):
+     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
+     data_interp = interp(*np.where(~np.isnan(coh)              ))
+     data[np.where(~np.isnan(coh))] = data_interp
+     data[coh<0.05]=np.nan
     
-#     return data
+     return data
 
-def NN_interp_samedata(data, mask, mask_ix):
+def NN_interp_samedata2(data, mask, mask_ix):
     interp = NearestNDInterpolator(np.transpose(mask_ix), data[mask_ix])
     interp_to = np.where(((~np.isnan(coh)).astype('int') + (mask==0).astype('int')) == 2)
     data_interp = interp(*interp_to)
@@ -605,15 +611,16 @@ def number_regions(vals, npi, labels, ID, i):
             # Remove regions smaller than the min size
             labels[np.isin(labels_tmp,too_small)] = 0
             # Renumber remaining regions
-            if i==v:
-                print('Prep Labels...', round(time.time()-start_num,2))
-                print(len(keep))
+  #          if i==v:
+ #               print('Prep Labels...', round(time.time()-start_num,2))
+#                print(len(keep))
 
   #          for region in keep:
  #               ID += 1
 #                labels[(labels_tmp==region)] = ID
                 
-            labels, ID = renumber(keep, ID, labels, labels_tmp)
+            ID_tmp = np.array([*range(1+ID,len(keep)+ID)])
+            labels, ID = renumber(keep, ID, labels, labels_tmp, ID_tmp)
 
             if i==v:
                 print('done', round(time.time()-start_num,2))
@@ -621,15 +628,15 @@ def number_regions(vals, npi, labels, ID, i):
 
 #%%
 @jit(nopython=True, parallel=True)
-def renumber(keep, ID, data, data_ref):
+def renumber(keep, ID, data, data_ref, ID_tmp):
     data = data.flatten()
-    data_ref = data.flatten()
+    data_ref = data_ref.flatten()
     # for region in keep:
     #     ID += 1
     #     data[data_ref==region] = ID
     
     # Optimised for parallel?    
-    ID_tmp = [*range(1+ID,len(keep)+ID)]
+#    ID_tmp = np.array([*range(1+ID,len(keep)+ID)])
     for region in range(0,len(keep)):
         data[data_ref==keep[region]] = ID_tmp[region]
     
@@ -644,7 +651,7 @@ def prep_df(ID, npi, labels):
     labels_flat = labels.flatten()
 
     all_regions = np.zeros(4*ID).reshape(ID,4)
-    for region in range(0,ID):
+    for region in prange(0,ID):
         all_regions[region] = [region+1,np.nanmean(npi_flat[labels_flat==region+1]),np.nansum(labels_flat==region+1),0]
     
     return all_regions
