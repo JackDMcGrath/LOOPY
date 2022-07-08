@@ -45,7 +45,7 @@ LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [--reset] [--n_para]
  -v       IFG to give verbose timings for (Development option, Default: -1 (not verbose))
  --reset  Remove previous corrections
  --n_para Number of parallel processing (Default: # of usable CPU)
-                                         
+
 =========
 Changelog
 =========
@@ -80,7 +80,7 @@ class Usage(Exception):
     """Usage context manager"""
     def __init__(self, msg):
         self.msg = msg
-        
+
 #%% Main
 def main(argv=None):
 
@@ -92,10 +92,10 @@ def main(argv=None):
     ver="1.1.0"; date=20220615; author="J. McGrath"
     print("\n{} ver{} {} {}".format(os.path.basename(argv[0]), ver, date, author), flush=True)
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
-    
+
     global plot_figures, tol, min_size, refx1, refx2, refy1, refy2, n_ifg, \
         length, width, ifgdir, ifgdates, coh, i, v, begin
-    
+
     #%% Set default
     ifgdir = []
     tsadir = []
@@ -105,12 +105,12 @@ def main(argv=None):
     tol = 0.5 # N value to use for modulo pi division
     v = -1
 
-    # Parallel Processing options    
+    # Parallel Processing options
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
         n_para = multi.cpu_count()
-    
+
     if sys.platform == "linux" or sys.platform == "linux2":
         q = multi.get_context('fork')
     elif sys.platform == "win32":
@@ -151,7 +151,7 @@ def main(argv=None):
         print("  "+str(err.msg), file=sys.stderr)
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         return 2
-    
+
     #%% Directory setting
     ifgdir = os.path.abspath(ifgdir)
 
@@ -165,10 +165,10 @@ def main(argv=None):
 
     infodir = os.path.join(tsadir, 'info')
     if not os.path.exists(infodir): os.mkdir(infodir)
-    
+
     resultsdir = os.path.join(tsadir, 'results')
     if not os.path.exists(resultsdir): os.mkdir(resultsdir)
-    
+
     if reset:
         print('Removing Previous Masks')
         mask_lib.reset_masks(ifgdir)
@@ -180,16 +180,16 @@ def main(argv=None):
     mlipar = os.path.join(ifgdir, 'slc.mli.par')
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
-    
+
     cohfile=os.path.join(resultsdir,'coh_avg')
     # If no coh file, use slc
-    if not os.path.exists(cohfile): 
+    if not os.path.exists(cohfile):
         cohfile=os.path.join(ifgdir,'slc.mli')
-        print('No Coherence File - using SLC instead')    
+        print('No Coherence File - using SLC instead')
 
     coh=io_lib.read_img(cohfile,length=length, width=width)
     n_px = sum(sum(~np.isnan(coh[:])))
-    
+
     mask_info_file = os.path.join(infodir, 'mask_info.txt')
     f = open(mask_info_file, 'w')
     print('# Size: {0}({1}x{2}), n_valid: {3}'.format(width*length, width, length, n_px), file=f)
@@ -210,7 +210,7 @@ def main(argv=None):
         refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
 
         if np.isnan(coh[refy1:refy2,refx1:refx2]):
-            print('Ref point = [{},{}] invalid. Using max coherent pixel'.format(refy1,refx1))        
+            print('Ref point = [{},{}] invalid. Using max coherent pixel'.format(refy1,refx1))
             refy1,refx1 = np.where(coh==np.nanmax(coh))
             refy1 = refy1[0]
             refy2 = refy1 + 1
@@ -225,10 +225,10 @@ def main(argv=None):
         refy2 = refy1 + 1
         refx1 = refx1[0]
         refx2 = refx1 + 1
-    
+
     print('Ref point = [{},{}]'.format(refy1,refx1))
     print('Minumum Region Size = {}'.format(min_size))
-    
+
     #%% Run correction in parallel
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs,'.format(n_ifg), flush=True)
@@ -239,12 +239,12 @@ def main(argv=None):
     p = q.Pool(_n_para)
     mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
     p.close()
-    # mask_cov = mask_unw_errors(0) 
+    # mask_cov = mask_unw_errors(0)
     f = open(mask_info_file, 'a')
     for i in range(n_ifg):
         print('{0}  {1:6.2f}'.format(ifgdates[i], mask_cov[i]/n_px), file=f)
     f.close()
-        
+
     #%% Finish
     print('\nCheck network/*, 11bad_ifg_ras/* and 11ifg_ras/* in TS dir.')
     print('If you want to change the bad ifgs to be discarded, re-run with different thresholds or make a ifg list and indicate it by --rm_ifg_list option in the next step.')
@@ -274,7 +274,7 @@ def mask_unw_errors(i):
 
     if i==v:
         print('        Loading')
-  
+
 
     unw=io_lib.read_img(os.path.join(ifgdir,date,date+'.unw'),length=length, width=width)
     if i==v:
@@ -284,22 +284,22 @@ def mask_unw_errors(i):
     if np.isnan(ref):
         print('Invalid Ref Value found. Setting to 0')
         ref = 0
-        
+
     ifg=unw.copy()
     ifg = ifg-ref #Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
     if i==v:
         print('        Reffed {:.2f}'.format(time.time()-begin))
-        
+
     if plot_figures:
         loop_lib.plotmask(ifg,centerz=False,title='UNW')
-    
+
     #%%
     # data = ifg
     filled_ifg = NN_interp(ifg)
     if i==v:
          print('            filled_ifg  {:.2f}'.format(time.time()-begin))
     npi = (filled_ifg/(tol*np.pi)).round()
-    
+
     if plot_figures:
         loop_lib.plotmask(filled_ifg,centerz=False,title='UNW interp')
         loop_lib.plotmask(npi,centerz=True,title='UNW/{:.1f}pi interp'.format(tol),cmap='tab20b')
@@ -308,7 +308,7 @@ def mask_unw_errors(i):
     # Find all unique values of npi
     vals= np.unique(npi)
     vals = vals[~np.isnan(vals)]
-    
+
     # Make tmp array of values where npi == 0, and label (best to start with 0 region for labels)
     tmp=np.zeros((length,width))
     tmp[npi==0] = 1
@@ -317,11 +317,11 @@ def mask_unw_errors(i):
     labels, count = label(tmp)
     if i==v:
         print('        ({}/{}): {} regions'.format(i+1, n_ifg, np.nanmax(np.nanmax(labels))))
-    
+
     labs, counts = np.unique(labels, return_counts=True)
     counts = counts[np.logical_not(labs==0)] # Remove zero label
     labs = labs[np.logical_not(labs==0)] # Remove zero label
-    
+
     if i==v:
         print('        ({}/{}): unique {:.2f}'.format(i+1, n_ifg, time.time()-begin))
     too_small = np.where(counts < min_size)[0] + 1
@@ -330,14 +330,14 @@ def mask_unw_errors(i):
     keep = np.setdiff1d(labs, too_small)
     if i==v:
         print('        ({}/{}): keep {:.2f}'.format(i+1, n_ifg, time.time()-begin))
-    
+
     ID = 0
     # Remove regions smaller than the min size
     labels[np.isin(labels,too_small)] = 0
 
     if i==v:
         print('        ({}/{}): remove {:.2f}'.format(i+1, n_ifg, time.time()-begin))
-    
+
     # Renumber remaining regions
     # print(ID, keep)
     ID_tmp = np.array([*range(ID,len(keep)+ID)]) + 1
@@ -350,7 +350,7 @@ def mask_unw_errors(i):
 
     if i==v:
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
-   
+
     labels_tmp=np.zeros((length,width,len(vals)),dtype='float32')
  #   if i==v:
 #        print('        ({}/{}): labels_tmp frame made with {} vals {:.2f}'.format(i+1, n_ifg, len(vals), time.time()-begin))
@@ -366,19 +366,19 @@ def mask_unw_errors(i):
     if i==v:
         end_num = time.time()
         print('        ({}/{}): number {:.2f}'.format(i+1, n_ifg, end_num-commence_num))
-        
+
 
     if i==v:
-        print('        Filling holes {:.2f}'.format(time.time()-begin))        
+        print('        Filling holes {:.2f}'.format(time.time()-begin))
     labels=labels.astype('float32')
     labels[np.isnan(coh)] = np.nan
     # print('Max Label4 =', np.nanmax(labels.flatten()))
     if plot_figures:
         loop_lib.plotmask(labels,centerz=False,title='Labelled Groups')
-    
+
     # Interpolate labels over gaps left by removing regions that are too small (and also apply filter to npi file)
     mask = np.where(labels != 0)
-    
+
  #   labels = NN_interp_samedata(labels, mask)
 #    npi = NN_interp_samedata(npi, mask)
     labels = NN_interp_samedata2(labels, labels, mask)
@@ -389,125 +389,210 @@ def mask_unw_errors(i):
     if plot_figures:
         loop_lib.plotmask(npi,centerz=True,title='Filtered UNW/{:.1f}pi interp'.format(tol),cmap='tab20b')
         loop_lib.plotmask(labels,centerz=False,title='Filtered Labelled Groups',cmap='tab20b')
-    
-    #%% All regions are now labelled. Now search for neighbour regions to the reference region
-    if i==v:
-        print('        Prepping DF {:.2f}'.format(time.time()-begin))
 
-    all_regions = prep_df(0, npi, labels) # Allow numba to compile
-    # print(all_regions)
-    # print(np.unique(labels), len(np.unique(labels)))
-#    prep_df.parallel_diagnostics(level=4)
-    all_regions = prep_df(ID, npi, labels) # Run efficiently
-    # print(all_regions[-10:,:])
-
-    if i==v:
-        print('        DF array {:.2f}'.format(time.time()-begin))
-
-    all_regions=pd.DataFrame(all_regions,columns=['Region','Value','Size','Checked'])
-    # # Suppress runtime warning for nanmean and nansum on values with only nans
-    # warnings.simplefilter("ignore", category=RuntimeWarning)
-    # for region in range(0,ID):
-    #     all_regions.loc[region]=[region+1,np.nanmean(npi[labels==region+1]),np.nansum(labels==region+1),0]
-    # warnings.simplefilter("default", category=RuntimeWarning)
-    all_regions = all_regions.set_index('Region')
-    if i==v:
-        print('        DF prepped {:.2f}'.format(time.time()-begin))
-    #https://stackoverflow.com/questions/38073433/determine-adjacent-regions-in-numpy-array
-    ref_region= labels[refy1,refx1] # number of region whose neighbors we want
-    
-    if i==v:
-        print('        Finding Ref Neighbours {:.2f}'.format(time.time()-begin))
-
-    all_regions.loc[ref_region,'Checked'] = 2
-    neighbours = mask_lib.find_neighbours(ref_region, labels)
-    for neighbour in neighbours:
-        all_regions.loc[neighbour,'Checked'] = 1
-    if i==v:
-        print('        Neighbours found {:.2f}'.format(time.time()-begin))
-
-
-    #%
-    region_class=np.zeros((length,width))*np.nan
-    ref_val = all_regions.loc[ref_region,'Value']
-    errors = pd.DataFrame([],columns=['Region','Value', 'Abs Value','Size','CheckNeighbour'])
-    good = pd.DataFrame([],columns=['Region','Value', 'Abs Value','Size','CheckNeighbour'])
-    cands = pd.DataFrame([],columns=['Region','Value', 'Abs Value','Size','CheckNeighbour'])
-    good.loc[len(good.index)]=[ref_region,ref_val,abs(ref_val),sum(sum(labels==ref_region)),1]
-    if i==v:
-        print('        Classifying from ref {:.2f}'.format(time.time()-begin))
-
-    good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, ref_val, npi, tol, labels)
-    #%
-    
-    iteration = 1
-    while 1 in all_regions['Checked'].values:
-        if i==v:
-            print('        ({}/{}): {} iterations {:.2f}'.format(i+1, n_ifg, iteration, time.time()-begin))
-        errors, cands = class_from_error(errors, all_regions, labels, good, cands, npi)
-        # for region in errors['Region'].values:
-        #     if all_regions.loc[region,'Checked'] != 2:
-        #         all_regions.loc[region,'Checked'] = 2
-        #         neighbours = mask_lib.find_neighbours(region, labels)
-        #         for neighbour in neighbours:
-        #             if all_regions.loc[neighbour,'Checked'] == 0:
-        #                 all_regions.loc[neighbour,'Checked'] = 1
-        #         errors, cands = mask_lib.ClassifyFromErrorRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
-        if i==v:
-            print(np.unique(labels))
-        good, errors, cands = class_from_good(good, all_regions, labels, errors, cands, npi)
-        # for region in good['Region'].values:
-        #     if all_regions.loc[region,'Checked'] != 2:
-        #         all_regions.loc[region,'Checked'] = 2
-        #         neighbours = mask_lib.find_neighbours(region, labels)
-        #         for neighbour in neighbours:
-        #             if all_regions.loc[neighbour,'Checked'] == 0:
-        #                 all_regions.loc[neighbour,'Checked'] = 1
-        #         good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
-    
-    
-        if plot_figures:
-            for region in cands['Region'].values:
-                region_class[labels==region] = 0
-        
-            for region in good['Region'].values:
-                region_class[labels==region] = 1
-        
-            for region in errors['Region'].values:
-                region_class[labels==region] = -1
-            if np.mod(iteration-1,1) == 0:
-                loop_lib.plotmask(region_class,centerz=False,title='Region Classifier {}'.format(iteration))
-        iteration += 1
-        
-        if sum(all_regions['Checked'].values==2) == good.shape[0] + errors.shape[0]:
-            if i == v:
-                print('        Breaking while loop - only cands left')
-            good, errors = class_cand(cands, labels, good, errors)
-            # for region in cands['Region'].values:
-            #     neighbours = mask_lib.find_neighbours(region, labels)
-            #     value = cands[cands['Region']==region].index.values[0]
-            #     good, errors = mask_lib.ClassifyCands(neighbours, good, errors, region, value, labels)
-            if i == v:
-                print('        Cand regions classified')
-            break
     #%%
-    region_class = make_class_map(all_regions.index.values, labels, good['Region'].values, errors['Region'].values, length, width)
-    # region_class=np.zeros((length,width)).astype('float32')*np.nan
-    
-    # for region in all_regions.index:
-    #     if region in good['Region'].values:
-    #         region_class[labels==region] = 1
-    #     elif region in errors['Region'].values:
-    #         region_class[labels==region] = -1
-    #     else: # For any isolated regions
-    #         region_class[labels==region] = 0
-    
-    if plot_figures:
-        loop_lib.plotmask(region_class,centerz=False,title='Final Region Classifier')
-        
-    # plot_lib.make_im_png(region_class, os.path.join(ifgdir,date,date+'.mask.png'), 'viridis', 'Unwrapping Error Mask - {} Iterations'.format(iteration), cbar=False)
-    # plot_lib.make_im_png(npi, os.path.join(ifgdir,date,date+'.npi.png'), 'tab20b', 'Interpolated unw/{:1}pi'.format(tol), cbar=True)
-    title3 = ['Original unw', 'Interpolated unw/{:1}pi'.format(tol),'Unwrapping Error Mask - {} Iterations'.format(iteration)]
+    start= time.time()
+    neighbour_dict = {}
+    class_dict = {}
+    check_dict = {}
+    value_dict = {}
+    for r in range(1,ID+1):
+        neighbours = mask_lib.find_neighbours(r, labels)
+        neighbour_dict[r] = list(neighbours)
+        class_dict[r] = 'Unclassified'
+        check_dict[r] = 0
+        value_dict[r] = np.nanmean(npi[labels==r]).round()
+
+    ref_region= labels[refy1,refx1] # number of region whose neighbors we want
+
+    class_dict[ref_region] = 'Good'
+    check_dict[ref_region] = 2
+
+    iterations = 1
+    for n in neighbour_dict[ref_region]:
+        if class_dict[n] != 'Good' or class_dict[n] != 'Bad':
+            if abs(value_dict[n] - value_dict[ref_region]) == 1:
+                class_dict[n] = 'Good'
+                check_dict[n] = 1
+            elif abs(value_dict[n] - value_dict[ref_region]) > 3:
+                class_dict[n] = 'Bad'
+                check_dict[n] = 1
+            else:
+                class_dict[n] = 'Cand'
+
+    while 1 in check_dict.values():
+        iterations += 1
+        error_check = []
+        good_check = []
+
+        for r in [k for k,v in check_dict.items() if v == 1]:
+            if class_dict[r] == 'Bad':
+                error_check.append(r)
+            else:
+                good_check.append(r)
+
+        for r in error_check:
+            check_dict[r] = 2
+            for n in neighbour_dict[r]:
+                if class_dict[n] == 'Unclassified' or class_dict[n] == 'Cand':
+                    if abs(value_dict[n] - value_dict[r]) == 1:
+                        class_dict[n] = 'Bad'
+                        check_dict[n] = 1
+                    elif abs(value_dict[n] - value_dict[r]) > 1 or abs(value_dict[n] - value_dict[r]) < 3:
+                        class_dict[n] = 'Cand'
+        # breakpoint()
+        for r in good_check:
+            check_dict[r] = 2
+            for n in neighbour_dict[r]:
+                if class_dict[n] == 'Unclassified' or class_dict[n] == 'Cand':
+                    if abs(value_dict[n] - value_dict[r]) == 1:
+                        check_dict[n] = 1
+                        class_dict[n] = 'Good'
+                    elif abs(value_dict[n] - value_dict[r]) > 3:
+                        class_dict[n] = 'Bad'
+                        check_dict[n] = 1
+                    else:
+                        class_dict[n] = 'Cand'
+        if i==v:
+            print(len([k for k,v in check_dict.items() if v == 2]))
+            print(time.time()-start)
+
+
+
+    # Allow isolated regions through
+    unclass = [k for k,v in class_dict.items() if v == 'Unclassified']
+    for r in unclass:
+        if len(neighbour_dict) == 0:
+            class_dict[r] = 'Good'
+            # Note, isolated unclassified groups still remain. some unclassified may, however, be connected by cands
+
+    # Classify remaining candidates
+
+    cands = [k for k,v in class_dict.items() if v == 'Cand']
+
+    # Classify candidate regions entirely surrounded by a single good or bad class
+    for r in cands:
+        if all(c == 'Good' for c in [class_dict[v] for v in neighbour_dict[r]]):
+            class_dict[r] = 'Good'
+        elif all(c == 'Bad' for c in [class_dict[v] for v in neighbour_dict[r]]):
+            class_dict[r] = 'Bad'
+
+    cands = [k for k,v in class_dict.items() if v == 'Cand']
+    #Tidy up the other candidates
+    neutral_check = True
+
+    while len(cands) > 0:
+        print(cands)
+        for r in cands:
+            bound = find_boundaries(labels==r, connectivity=1, mode='outer')
+            neighbours, count = np.unique(labels[bound], return_counts=True)
+            neighbours = [n for n in neighbours if n == n]
+            good_count = 0
+            bad_count = 0
+            neutral_count = 0
+            for ix, n in enumerate(neighbours):
+                if class_dict[n] == 'Good':
+                    good_count += count[ix]
+                elif class_dict[n] == 'Bad':
+                    bad_count += count[ix]
+                elif neutral_check:
+                    neutral_count += count[ix]
+
+            if good_count > bad_count and good_count > neutral_count:
+                class_dict[r] = 'Good'
+                check_dict[r] = 2
+                for n in neighbours:
+                    if class_dict[n] == 'Unclassified' or class_dict[n] == 'Cand':
+                        if abs(value_dict[n] - value_dict[r]) == 1:
+                            check_dict[n] = 1
+                            class_dict[n] = 'Good'
+                        elif abs(value_dict[n] - value_dict[r]) > 3:
+                            class_dict[n] = 'Bad'
+                            check_dict[n] = 1
+                        else:
+                            class_dict[n] = 'Cand'
+
+            elif bad_count > good_count and bad_count > neutral_count:
+                class_dict[r] = 'Bad'
+                check_dict[r] = 2
+                for n in neighbours:
+                    if class_dict[n] == 'Unclassified' or class_dict[n] == 'Cand':
+                        if abs(value_dict[n] - value_dict[r]) == 1:
+                            class_dict[n] = 'Bad'
+                            check_dict[n] = 1
+                        elif abs(value_dict[n] - value_dict[r]) > 1 or abs(value_dict[n] - value_dict[r]) < 3:
+                            class_dict[n] = 'Cand'
+
+        # Redo the check based of the new good values
+        while 1 in check_dict.values():
+            error_check = []
+            good_check = []
+
+            for r in [k for k,v in check_dict.items() if v == 1]:
+                if class_dict[r] == 'Bad':
+                    error_check.append(r)
+                else:
+                    good_check.append(r)
+
+            for r in error_check:
+                check_dict[r] = 2
+                for n in neighbour_dict[r]:
+                    if class_dict[n] == 'Unclassified' or class_dict[n] == 'Cand':
+                        if abs(value_dict[n] - value_dict[r]) == 1:
+                            class_dict[n] = 'Bad'
+                            check_dict[n] = 1
+                        elif abs(value_dict[n] - value_dict[r]) > 1 or abs(value_dict[n] - value_dict[r]) < 3:
+                            class_dict[n] = 'Cand'
+            # breakpoint()
+            for r in good_check:
+                check_dict[r] = 2
+                for n in neighbour_dict[r]:
+                    if class_dict[n] == 'Unclassified' or class_dict[n] == 'Cand':
+                        if abs(value_dict[n] - value_dict[r]) == 1:
+                            check_dict[n] = 1
+                            class_dict[n] = 'Good'
+                        elif abs(value_dict[n] - value_dict[r]) > 3:
+                            class_dict[n] = 'Bad'
+                            check_dict[n] = 1
+                        else:
+                            class_dict[n] = 'Cand'
+
+        cands_old = cands
+        cands = [k for k,v in class_dict.items() if v == 'Cand']
+
+        if cands_old == cands and neutral_check == False:
+            print('Cant classify remaining Cands. Breaking while loop')
+            break
+        elif cands_old == cands:
+            neutral_check = False
+            print('Removing Neutral Check')
+        elif cands_old != cands and neutral_check == False:
+            print('Resetting Neutral Check')
+            neutral_check = True
+
+
+    # Set anything left to be masked
+
+    unclass = [k for k,v in class_dict.items() if v == 'Unclassified' or v == 'Cand']
+    for r in unclass:
+        class_dict[r] = 'Bad'
+
+    region_class=np.empty((length,width)).astype('float32')*np.nan
+
+    for r in range(1,ID+1):
+        if class_dict[r] == 'Good':
+            region_class[labels==r] = 2
+        elif class_dict[r] == 'Cand':
+            region_class[labels==r] = 1
+        elif class_dict[r] == 'Bad':
+            region_class[labels==r] = -1
+        elif class_dict[r] == 'Unclassified':
+          region_class[labels==r] = 0
+
+    if i == v:
+        print(time.time()-start)
+
+    title3 = ['Original unw', 'Interpolated unw/{:1}pi'.format(tol),'Unwrapping Error Mask - {} Iterations'.format(iterations)]
 
     region_class[np.isnan(unw)] = np.nan
     mask_lib.make_unw_npi_mask_png([unw, npi,region_class], os.path.join(ifgdir,date,date+'.mask.png'), [insar,'tab20c','viridis'], title3)
@@ -547,7 +632,7 @@ def NN_interp_samedata(data, mask):
      data_interp = interp(*np.where(~np.isnan(coh)              ))
      data[np.where(~np.isnan(coh))] = data_interp
      data[coh<0.05]=np.nan
-    
+
      return data
 
 def NN_interp_samedata2(data, mask, mask_ix):
@@ -556,9 +641,9 @@ def NN_interp_samedata2(data, mask, mask_ix):
     data_interp = interp(*interp_to)
     data[interp_to] = data_interp
     data[coh<0.05]=np.nan
-    
+
     return data
-    
+
 #%%
 #@jit(nopython=True. parallel=True)
 @jit(forceobj=True, parallel=True)
@@ -596,7 +681,7 @@ def numba_regions(vals, npi, labels, ID, labels_tmp, i, v):
             for region in keep:
                 ID += 1
                 labels[(labels_tmp[:,:,ix]==region).flatten()] = ID
-    
+
     return labels.reshape(length,width), ID
 
 #%% Because numba regions is too slow
@@ -611,7 +696,7 @@ def number_regions(vals, npi, labels, ID, i):
             labels_tmp, count_tmp = label(tmp)
             labs, counts = np.unique(labels_tmp, return_counts=True)
             counts = counts[np.logical_not(labs==0)] # Remove zero label
-            labs = labs[np.logical_not(labs==0)] # Remove zero label            
+            labs = labs[np.logical_not(labs==0)] # Remove zero label
 
             too_small = np.where(counts < min_size)[0] + 1
             keep = np.setdiff1d(labs, too_small)
@@ -625,7 +710,7 @@ def number_regions(vals, npi, labels, ID, i):
   #          for region in keep:
  #               ID += 1
 #                labels[(labels_tmp==region)] = ID
-                
+
             ID_tmp = np.array([*range(ID,len(keep)+ID)]) + 1
             labels, ID = renumber(keep, ID, labels, labels_tmp, ID_tmp)
 
@@ -638,17 +723,17 @@ def number_regions(vals, npi, labels, ID, i):
 def renumber(keep, ID, data, data_ref, ID_tmp):
     data = data.flatten()
     data_ref = data_ref.flatten()
-    
+
     # for region in keep:
     #     ID += 1
     #     data[data_ref==region] = ID
-    
-    # Optimised for parallel?    
+
+    # Optimised for parallel?
 #    ID_tmp = np.array([*range(1+ID,len(keep)+ID)])
     for region in range(0,len(keep)):
         data[data_ref==keep[region]] = ID_tmp[region]
     ID = ID + len(keep)
-    
+
     return data.reshape(length,width), ID
 
 #%%
@@ -660,7 +745,7 @@ def prep_df(ID, npi, labels):
     all_regions = np.zeros(4*ID).reshape(ID,4)
     for region in prange(0,ID):
         all_regions[region] = [region+1,round(np.nanmean(npi_flat[labels_flat==region+1])),np.nansum(labels_flat==region+1),0]
-    
+
     return all_regions
 
 #%%
@@ -676,7 +761,7 @@ def make_class_map(all_regions, labels, good, errors, length, width):
             region_class[labels==region] = -1
         else: # For any isolated regions
             region_class[labels==region] = 0
-    
+
     return region_class.reshape(length, width)
 
 #%%
@@ -691,7 +776,7 @@ def class_from_error(errors, all_regions, labels, good, cands, npi):
             errors, cands = mask_lib.ClassifyFromErrorRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
 
     return errors, cands
-    
+
 #%%
 def class_from_good(good, all_regions, labels, errors, cands, npi):
     for region in good['Region'].values:
@@ -704,14 +789,14 @@ def class_from_good(good, all_regions, labels, errors, cands, npi):
             good, errors, cands = mask_lib.ClassifyFromGoodRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
 
     return good, errors, cands
-    
+
 #%%
 def class_cand(cands, labels, good, errors):
     for region in cands['Region'].values:
         neighbours = mask_lib.find_neighbours(region, labels)
         value = cands[cands['Region']==region].index.values[0]
         good, errors = mask_lib.ClassifyCands(neighbours, good, errors, region, value, labels)
-    
+
     return good, errors
 
 #%% main
