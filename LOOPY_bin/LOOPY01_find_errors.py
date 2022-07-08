@@ -72,6 +72,7 @@ import LiCSBAS_plot_lib as plot_lib
 from numba import jit, prange
 from scipy.ndimage import label
 from scipy.interpolate import NearestNDInterpolator
+from skimage.segmentation import find_boundaries
 
 
 insar = tools_lib.get_cmap('SCM.romaO')
