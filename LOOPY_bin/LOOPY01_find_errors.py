@@ -351,15 +351,20 @@ def mask_unw_errors(i):
     if i==v:
         print('        ({}/{}): renumbered {:.2f}'.format(i+1, n_ifg, time.time()-begin))
    
-    labels_tmp=np.zeros((length,width,len(vals)),dtype='float32')
- #   if i==v:
-#        print('        ({}/{}): labels_tmp frame made with {} vals {:.2f}'.format(i+1, n_ifg, len(vals), time.time()-begin))
+    try:
+        labels_tmp=np.zeros((length,width,len(vals)),dtype='float32')
+    except MemoryError:
+        print('        ({}/{}): Memory Error'.format(i+1, n_ifg))
+
+    if i==v:
+        print('        ({}/{}): labels_tmp frame made with {} vals {:.2f}'.format(i+1, n_ifg, len(vals), time.time()-begin))
     for ix, val in enumerate(vals):
  #       if i==v:
 #            print('        ({}/{}): Label_tmp val {} {:.2f}'.format(i+1, n_ifg, val, time.time()-begin))
         labels_tmp[:,:,ix] = label((npi==val).astype('int'))[0]
 
     if i==v:
+        print('Start numberin regions')
         commence_num = time.time()
     labels, ID = number_regions(vals, npi, labels, ID, i)
     # print('Max Label3 =', max(labels.flatten()))
@@ -453,8 +458,8 @@ def mask_unw_errors(i):
         #             if all_regions.loc[neighbour,'Checked'] == 0:
         #                 all_regions.loc[neighbour,'Checked'] = 1
         #         errors, cands = mask_lib.ClassifyFromErrorRegions(neighbours, good, errors, cands, all_regions.loc[region,'Value'], npi, tol, labels)
-        if i==v:
-            print(np.unique(labels))
+ #       if i==v:
+#            print(np.unique(labels))
         good, errors, cands = class_from_good(good, all_regions, labels, errors, cands, npi)
         # for region in good['Region'].values:
         #     if all_regions.loc[region,'Checked'] != 2:
