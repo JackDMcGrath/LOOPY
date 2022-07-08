@@ -485,8 +485,10 @@ def mask_unw_errors(i):
     while len(cands) > 0:
         print(cands)
         for r in cands:
-            bound = find_boundaries(labels==r, connectivity=1, mode='outer')
-            neighbours, count = np.unique(labels[bound], return_counts=True)
+            y,x = np.where(labels==r)
+            labels_trim = labels[y[0]-1:y[-1]+1, x[0]-1:x[-1]+1]
+            bound = find_boundaries(labels_trim==r, connectivity=1, mode='outer')
+            neighbours, count = np.unique(labels_trim[bound], return_counts=True)
             neighbours = [n for n in neighbours if n == n]
             good_count = 0
             bad_count = 0
