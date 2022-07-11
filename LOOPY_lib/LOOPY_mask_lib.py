@@ -23,7 +23,7 @@ import warnings
 with warnings.catch_warnings(): ## To silence user warning
     warnings.simplefilter('ignore', UserWarning)
     mpl.use('Agg')
-    
+
 #%% Find negihbouring regions (numba only allows first 2 arguements in roll)
 def find_neighbours(ref_region, labels):
     y = labels == ref_region  # convert to Boolean
@@ -44,41 +44,12 @@ def find_neighbours(ref_region, labels):
     rolled[:, -1] = False
     z = np.logical_or(z, rolled)
 
-    neighbours = list(set(np.unique(np.extract(z, labels))) - set([ref_region]))
-    neighbours = [x for x in neighbours if x==x] # Drop NaN value
+    neighbours = set(np.unique(np.extract(z, labels))) - set([ref_region])
+    neighbours = {x for x in neighbours if x==x} # Drop NaN value
 
     return neighbours
-#%% Not as fast
-@njit
-def find_neighbours_nb(ref_region, labels, length, width):
-    y = labels == ref_region  # convert to Boolean
 
-#    rolled = np.roll(y, 1, axis=0)          # shift down
-    rolled = np.roll(y, width)
-    rolled[0, :] = False             
-    z = np.logical_or(y, rolled)
-
-#    rolled = np.roll(y, -1, axis=0)         # shift up 
-    rolled = np.roll(y, -width)
-    rolled[-1, :] = False
-    z = np.logical_or(z, rolled)
-
-#    rolled = np.roll(y, 1, axis=1)          # shift right
-    rolled = np.transpose(np.roll(np.transpose(y),length))
-    rolled[:, 0] = False
-    z = np.logical_or(z, rolled)
-
-#    rolled = np.roll(y, -1, axis=1)         # shift left
-    rolled = np.transpose(np.roll(np.transpose(y),width))
-    rolled[:, -1] = False
-    z = np.logical_or(z, rolled)
-
-    neighbours = list(set(np.unique(np.extract(z, labels))) - set([ref_region]))
-    neighbours = [x for x in neighbours if x==x] # Drop NaN value
-    
-    return neighbours
-
-#%% Classify neighbour regions as good or bad 
+#%% Classify neighbour regions as good or bad
 def classify_regions(neighbours, similar, different, unclass, ref_val, npi, tol, labels):
     """
     Function to classify regions as based on if an unwrapping error is detected between two regions
@@ -128,7 +99,7 @@ def ClassifyFromGoodRegions(neighbours, good, errors, unclass, ref_val, npi, tol
 
     return good.astype('int'), errors.astype('int'), unclass.astype('int')
 
-#%% Classify neighbour regions as good or bad 
+#%% Classify neighbour regions as good or bad
 def ClassifyFromErrorRegions(neighbours, good, errors, unclass, ref_val, npi, tol, labels):
     """
     Function to classify regions as bad or unclassified based on the detection of unwrapping errors
@@ -143,14 +114,14 @@ def ClassifyFromErrorRegions(neighbours, good, errors, unclass, ref_val, npi, to
                 if neighbour in unclass['Region'].values:
                     unclass = unclass.drop(unclass[unclass['Region']==neighbour].index.values).reset_index(drop=True)
             elif neighbour not in unclass['Region'].values:
-                unclass.loc[len(unclass.index)]=[int(neighbour),diff,abs(diff),sum(sum(labels==neighbour)),0] 
-            
+                unclass.loc[len(unclass.index)]=[int(neighbour),diff,abs(diff),sum(sum(labels==neighbour)),0]
+
 
     errors = errors.sort_values(['Abs Value','Size'], ascending=False, ignore_index=True)
 
     return errors.astype('int'), unclass.astype('int')
 
-#%% Classify candidate as good or bad 
+#%% Classify candidate as good or bad
 def ClassifyCands(neighbours, good, errors, region, value, labels):
     """
     Function to classify candidate regions as good or bad based on what it touches.
@@ -167,19 +138,19 @@ def ClassifyCands(neighbours, good, errors, region, value, labels):
 
 #%% Remove previously made masks and pngs
 def reset_masks(ifgdir):
-    
+
     for root, dirs, files in os.walk(ifgdir):
         for dir_name in dirs:
             mask_file = os.path.join(root,dir_name,dir_name + '.mask')
             mask = os.path.join(root,dir_name,dir_name + '.unw_mask')
             maskpng = os.path.join(root,dir_name,dir_name + '.mask.png')
-          
+
             if os.path.exists(mask_file):
                 os.remove(mask_file)
 
             if os.path.exists(mask):
                 os.remove(mask)
-                
+
             if os.path.exists(maskpng):
                 os.remove(maskpng)
 
@@ -199,7 +170,7 @@ def make_npi_mask_png(data2, pngfile, cmap, title2):
     figsizex = 12
     xmergin = 4
     figsizey = int((figsizex-xmergin)/2*length/width)+2
-    
+
     fig = plt.figure(figsize = (figsizex, figsizey))
 
     for i in range(2):
@@ -211,14 +182,14 @@ def make_npi_mask_png(data2, pngfile, cmap, title2):
         ax.set_title(title2[i])
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-        if i == 0: 
+        if i == 0:
             fig.colorbar(im, ax=ax)
 
     plt.tight_layout()
     plt.savefig(pngfile)
     plt.close()
-   
-    return 
+
+    return
 
 #%%
 def make_unw_npi_mask_png(data3, pngfile, cmap, title3):
@@ -227,7 +198,7 @@ def make_unw_npi_mask_png(data3, pngfile, cmap, title3):
     data3 and title3 must be list with 3 elements.
     cmap can be 'insar'. To wrap data, np.angle(np.exp(1j*x/cycle)*cycle)
     """
-    ### Plot setting    
+    ### Plot setting
     interp = 'nearest'
     length, width = data3[0].shape
     figsizex = 12
@@ -250,7 +221,7 @@ def make_unw_npi_mask_png(data3, pngfile, cmap, title3):
         plt.savefig(pngfile)
     except:
         print('ERROR: Mask Comparison Figure Failed to Save. Error usually\n    MemoryError: Unable to allocate [X] MiB for an array with shape (Y, Z) and data type int64.\nSkipping')
-    
+
     plt.close()
-   
-    return 
+
+    return
