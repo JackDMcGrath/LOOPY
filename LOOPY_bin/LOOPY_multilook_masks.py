@@ -57,11 +57,11 @@ class Usage(Exception):
 
 #%% Main
 def main(argv=None):
-    
+
     #%% Check argv
     if argv == None:
         argv = sys.argv
-        
+
     start = time.time()
     ver="1.0.0"; date=20220616; author="J. McGrath"
     print("\n{} ver{} {} {}".format(os.path.basename(argv[0]), ver, date, author), flush=True)
@@ -76,13 +76,13 @@ def main(argv=None):
     outdir = []
     inlook = 1
     outlook = 1
-    
-    # Parallel Processing options    
+
+    # Parallel Processing options
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
         n_para = multi.cpu_count()
-    
+
     if sys.platform == "linux" or sys.platform == "linux2":
         q = multi.get_context('fork')
     elif sys.platform == "win32":
@@ -124,7 +124,7 @@ def main(argv=None):
         print("  "+str(err.msg), file=sys.stderr)
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         return 2
- 
+
 
     #%% Directory and file setting
     geocdir = os.path.abspath(geocdir)
@@ -140,20 +140,28 @@ def main(argv=None):
     if nlook < 1:
         nlook = 1
         print('Nlook < 1: This is not allowed. Skipping multilooking ')
-        
+
     #%% Get IFG dates and multilook in parallel
     ifgdates = tools_lib.get_ifgdates(geocdir)
     n_ifg = len(ifgdates)
-    
-    _n_para = n_para if n_para < n_ifg else n_ifg
-    print('\nMultilooking Error Maps for {} ifgs,'.format(n_ifg), flush=True)
-    print('with {} parallel processing...'.format(_n_para), flush=True)
 
-    ### Parallel processing
-    p = q.Pool(_n_para)
-    p.map(multi_look_mask, range(n_ifg))
-    p.close()
-    
+    print('\nMultilooking Error Maps for {} ifgs,'.format(n_ifg), flush=True)
+
+    if n_para == 1:
+        print('with no parallel processing...', flush=True)
+        for i in range(n_ifg):
+            multi_look_mask(i)
+
+    else:
+        _n_para = n_para if n_para < n_ifg else n_ifg
+
+        print('with {} parallel processing...'.format(_n_para), flush=True)
+
+        ### Parallel processing
+        p = q.Pool(_n_para)
+        p.map(multi_look_mask, range(n_ifg))
+        p.close()
+
     print('\nMask multilooking complete. Run LiCSBAS to produce time-series')
 
     #%% Finish
@@ -162,29 +170,29 @@ def main(argv=None):
     minute = int(np.mod((elapsed_time/60),60))
     sec = int(np.mod(elapsed_time,60))
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour,minute,sec))
-    
+
     print('\nSuccessfully finished!!\n')
     print('Output directory: {}\n'.format(outdir))
-    
+
 
 #%%
 def multi_look_mask(i):
     date = ifgdates[i]
-    
+
     print('    ({}/{}): {}'.format(i+1, n_ifg, date))
-    
+
     maskfile = os.path.join(geocdir, date, date+'.mask')
     mask = io_lib.read_img(maskfile, length,width, dtype='bool').astype('float32')
     mask = tools_lib.multilook(mask, nlook, nlook, 0.1).astype('bool')
     mask = (mask > 0.5)
-    
+
     # Apply mask to multilooked data
     unwfile = os.path.join(outdir, date, date + '.unw')
     unw = io_lib.read_image(unwfile, length, width)
-    
+
     titles = ['UNW', 'ML{} Mask'.format(nlook)]
     mask_lib.make_npi_mask_png([unw, mask], os.path.join(outdir,date,date+'.mask2.png'), [insar,'viridis'], titles)
-    
+
     unw[mask] = np.nan
     mask.astype('bool').tofile(os.path.join(outdir,date,date+'.mask'))
     unw.tofile(os.path.join(outdir,date,date+'.unw_mask'))
