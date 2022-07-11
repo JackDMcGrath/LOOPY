@@ -381,13 +381,13 @@ def mask_unw_errors(i):
         loop_lib.plotmask(labels,centerz=False,title='Labelled Groups')
 
     # Interpolate labels over gaps left by removing regions that are too small (and also apply filter to npi file)
-    mask = np.where(labels != 0)
+    # mask = np.where(labels != 0)
+    # Only take mask of pixels surrounding areas to be interpolated
+    mask = np.where((find_boundaries(labels==0).astype('int') + (labels != 0).astype('int') + (~np.isnan(labels)).astype('int')) == 3)
 
- #   labels = NN_interp_samedata(labels, mask)
-#    npi = NN_interp_samedata(npi, mask)
-    labels = NN_interp_samedata2(labels, labels, mask)
+    labels = NN_interp_samedata(labels, labels, mask)
     # print('Max Label5 =', np.nanmax(labels.flatten()))
-    npi = NN_interp_samedata2(npi, labels, mask)
+    npi = NN_interp_samedata(npi, labels, mask)
     npi[coh<0.05]=np.nan
 
     if plot_figures:
@@ -486,7 +486,8 @@ def mask_unw_errors(i):
     neutral_check = True
 
     while len(cands) > 0:
-        print(cands)
+        if i==v:
+            print(cands)
         for r in cands:
             y,x = np.where(labels==r)
             labels_trim = labels[y[0]-1:y[-1]+1, x[0]-1:x[-1]+1]
@@ -567,13 +568,16 @@ def mask_unw_errors(i):
         cands = [k for k,v in class_dict.items() if v == 'Cand']
 
         if cands_old == cands and neutral_check == False:
-            print('Cant classify remaining Cands. Breaking while loop')
+            if i==v:
+                print('Cant classify remaining Cands. Breaking while loop')
             break
         elif cands_old == cands:
             neutral_check = False
-            print('Removing Neutral Check')
+            if i==v:
+                print('Removing Neutral Check')
         elif cands_old != cands and neutral_check == False:
-            print('Resetting Neutral Check')
+            if i==v:
+                print('Resetting Neutral Check')
             neutral_check = True
 
 
@@ -624,24 +628,14 @@ def mask_unw_errors(i):
 def NN_interp(data):
     mask = np.where(~np.isnan(data))
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
-    interped_data = np.zeros((length,width))*np.nan
-    nearest_data = interp(*np.where(~np.isnan(coh)))
-    interped_data[np.where(~np.isnan(coh))] = nearest_data
-    interped_data[np.isnan(coh)]=np.nan
-    interped_data[coh<0.05]=np.nan
-
+    interped_data = data.copy()
+    interp_to = np.where(((~np.isnan(coh)).astype('int') + np.isnan(data).astype('int')) == 2)
+    nearest_data = interp(*interp_to)
+    interped_data[interp_to] = nearest_data
     return interped_data
 
 #%%
-def NN_interp_samedata(data, mask):
-     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
-     data_interp = interp(*np.where(~np.isnan(coh)              ))
-     data[np.where(~np.isnan(coh))] = data_interp
-     data[coh<0.05]=np.nan
-
-     return data
-
-def NN_interp_samedata2(data, mask, mask_ix):
+def NN_interp_samedata(data, mask, mask_ix):
     interp = NearestNDInterpolator(np.transpose(mask_ix), data[mask_ix])
     interp_to = np.where(((~np.isnan(coh)).astype('int') + (mask==0).astype('int')) == 2)
     data_interp = interp(*interp_to)
