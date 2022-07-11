@@ -1,4 +1,4 @@
-name: licsbas
+name: loopy
 channels:
   - defaults
 dependencies:
@@ -15,3 +15,5 @@ dependencies:
   - statsmodels
   - pandas>=1.0.0
   - scipy
+  - scikit-image
+  - numba

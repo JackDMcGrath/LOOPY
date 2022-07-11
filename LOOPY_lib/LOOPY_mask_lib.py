@@ -13,24 +13,26 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
 """
 import os
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+from numba import jit, njit
 
 os.environ['QT_QPA_PLATFORM']='offscreen'
 
 import warnings
 with warnings.catch_warnings(): ## To silence user warning
     warnings.simplefilter('ignore', UserWarning)
-    # mpl.use('Agg')
+    mpl.use('Agg')
     
-#%% Find negihbouring regions
+#%% Find negihbouring regions (numba only allows first 2 arguements in roll)
 def find_neighbours(ref_region, labels):
     y = labels == ref_region  # convert to Boolean
 
     rolled = np.roll(y, 1, axis=0)          # shift down
-    rolled[0, :] = False             
+    rolled[0, :] = False
     z = np.logical_or(y, rolled)
 
-    rolled = np.roll(y, -1, axis=0)         # shift up 
+    rolled = np.roll(y, -1, axis=0)         # shift up
     rolled[-1, :] = False
     z = np.logical_or(z, rolled)
 
@@ -42,8 +44,37 @@ def find_neighbours(ref_region, labels):
     rolled[:, -1] = False
     z = np.logical_or(z, rolled)
 
-    neighbours = set(np.unique(np.extract(z, labels))) - set([ref_region])
-    neighbours = {x for x in neighbours if x==x} # Drop NaN value
+    neighbours = list(set(np.unique(np.extract(z, labels))) - set([ref_region]))
+    neighbours = [x for x in neighbours if x==x] # Drop NaN value
+
+    return neighbours
+#%% Not as fast
+@njit
+def find_neighbours_nb(ref_region, labels, length, width):
+    y = labels == ref_region  # convert to Boolean
+
+#    rolled = np.roll(y, 1, axis=0)          # shift down
+    rolled = np.roll(y, width)
+    rolled[0, :] = False             
+    z = np.logical_or(y, rolled)
+
+#    rolled = np.roll(y, -1, axis=0)         # shift up 
+    rolled = np.roll(y, -width)
+    rolled[-1, :] = False
+    z = np.logical_or(z, rolled)
+
+#    rolled = np.roll(y, 1, axis=1)          # shift right
+    rolled = np.transpose(np.roll(np.transpose(y),length))
+    rolled[:, 0] = False
+    z = np.logical_or(z, rolled)
+
+#    rolled = np.roll(y, -1, axis=1)         # shift left
+    rolled = np.transpose(np.roll(np.transpose(y),width))
+    rolled[:, -1] = False
+    z = np.logical_or(z, rolled)
+
+    neighbours = list(set(np.unique(np.extract(z, labels))) - set([ref_region]))
+    neighbours = [x for x in neighbours if x==x] # Drop NaN value
     
     return neighbours
 
@@ -139,9 +170,13 @@ def reset_masks(ifgdir):
     
     for root, dirs, files in os.walk(ifgdir):
         for dir_name in dirs:
+            mask_file = os.path.join(root,dir_name,dir_name + '.mask')
             mask = os.path.join(root,dir_name,dir_name + '.unw_mask')
             maskpng = os.path.join(root,dir_name,dir_name + '.mask.png')
           
+            if os.path.exists(mask_file):
+                os.remove(mask_file)
+
             if os.path.exists(mask):
                 os.remove(mask)
                 
