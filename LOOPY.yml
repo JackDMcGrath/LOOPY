@@ -1,4 +1,4 @@
-name: licsbas
+name: loopy
 channels:
   - defaults
 dependencies:
