@@ -234,14 +234,26 @@ def main(argv=None):
     #%% Run correction in parallel
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs,'.format(n_ifg), flush=True)
-    print('with {} parallel processing...'.format(_n_para), flush=True)
-    if v >= 0:
-        print('In an overly verbose way for IFG {}'.format(v+1))
-    ### Parallel processing
-    p = q.Pool(_n_para)
-    mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
-    p.close()
-    # mask_cov = mask_unw_errors(0)
+
+    if n_para == 1:
+        print('with no parallel processing...', flush=True)
+        if v >= 0:
+            print('In an overly verbose way for IFG {}'.format(v+1))
+        mask_cov=[]
+        for i in range(n_ifg):
+            mask_cov_tmp = mask_unw_errors(i)
+            mask_cov.append(mask_cov_tmp)
+
+    else:
+        print('with {} parallel processing...'.format(_n_para), flush=True)
+        if v >= 0:
+            print('In an overly verbose way for IFG {}'.format(v+1))
+
+        ### Parallel processing
+        p = q.Pool(_n_para)
+        mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
+        p.close()
+
     f = open(mask_info_file, 'a')
     for i in range(n_ifg):
         print('{0}  {1:6.2f}'.format(ifgdates[i], mask_cov[i]/n_px), file=f)
@@ -459,7 +471,7 @@ def mask_unw_errors(i):
                         class_dict[n] = 'Cand'
         if i==v:
             print(len([k for k,v in check_dict.items() if v == 2]))
-            print(time.time()-start)
+            print(round(time.time()-start,2))
 
 
 
@@ -600,7 +612,7 @@ def mask_unw_errors(i):
           region_class[labels==r] = 0
 
     if i == v:
-        print(time.time()-start)
+        print(round(time.time()-start,2))
 
     title3 = ['Original unw', 'Interpolated unw/{:1}pi'.format(tol),'Unwrapping Error Mask - {} Iterations'.format(iterations)]
 
@@ -619,7 +631,7 @@ def mask_unw_errors(i):
         print('            ' + os.path.join(ifgdir,date,date+'.unw_mask'))
 
 
-    region_class.astype('bool').tofile(os.path.join(ifgdir,date,date+'.mask'))
+    (region_class==-1).astype('bool').tofile(os.path.join(ifgdir,date,date+'.mask'))
     masked.tofile(os.path.join(ifgdir,date,date+'.unw_mask'))
     print('            ' + os.path.join(ifgdir,date,date+'.unw_mask written'))
     return mask_coverage
