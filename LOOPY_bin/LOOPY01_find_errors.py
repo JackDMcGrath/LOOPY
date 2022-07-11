@@ -459,7 +459,7 @@ def mask_unw_errors(i):
                         class_dict[n] = 'Cand'
         if i==v:
             print(len([k for k,v in check_dict.items() if v == 2]))
-            print(time.time()-start)
+            print(round(time.time()-start,2))
 
 
 
@@ -600,7 +600,7 @@ def mask_unw_errors(i):
           region_class[labels==r] = 0
 
     if i == v:
-        print(time.time()-start)
+        print(round(time.time()-start,2))
 
     title3 = ['Original unw', 'Interpolated unw/{:1}pi'.format(tol),'Unwrapping Error Mask - {} Iterations'.format(iterations)]
 
