@@ -619,7 +619,7 @@ def mask_unw_errors(i):
         print('            ' + os.path.join(ifgdir,date,date+'.unw_mask'))
 
 
-    region_class.astype('bool').tofile(os.path.join(ifgdir,date,date+'.mask'))
+    (region_class==-1).astype('bool').tofile(os.path.join(ifgdir,date,date+'.mask'))
     masked.tofile(os.path.join(ifgdir,date,date+'.unw_mask'))
     print('            ' + os.path.join(ifgdir,date,date+'.unw_mask written'))
     return mask_coverage
