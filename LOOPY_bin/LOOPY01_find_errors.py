@@ -75,6 +75,7 @@ from scipy.interpolate import NearestNDInterpolator
 from skimage.segmentation import find_boundaries
 
 
+
 insar = tools_lib.get_cmap('SCM.romaO')
 
 class Usage(Exception):
@@ -696,25 +697,27 @@ def number_regions(vals, npi, labels, ID, i):
         if i==v:
             print(val,'npi', round(time.time()-begin,2))
         if val != 0:
+        # if val < -9:
             tmp=np.zeros((length,width),dtype='float32')
             tmp[npi==val] = 1
-            labels_tmp, count_tmp = label(tmp)
-            labs, counts = np.unique(labels_tmp, return_counts=True)
-            counts = counts[np.logical_not(labs==0)] # Remove zero label
-            labs = labs[np.logical_not(labs==0)] # Remove zero label
 
+            labels_tmp, count_tmp = label(tmp)
+
+            # labs, counts = np.unique(labels_tmp, return_counts=True)
+            # counts = counts[np.logical_not(labs==0)] # Remove zero label
+            # labs = labs[np.logical_not(labs==0)] # Remove zero label
+            labs, counts = np.unique(labels_tmp[np.where(labels_tmp!=0)], return_counts=True) #Speed up by ignoring zeros
             too_small = np.where(counts < min_size)[0] + 1
             keep = np.setdiff1d(labs, too_small)
-            # Remove regions smaller than the min size
-            labels[np.isin(labels_tmp,too_small)] = 0
-            # Renumber remaining regions
-  #          if i==v:
- #               print('Prep Labels...', round(time.time()-start_num,2))
-#                print(len(keep))
 
-  #          for region in keep:
- #               ID += 1
-#                labels[(labels_tmp==region)] = ID
+            # Remove regions smaller than the min size
+            # labels[np.isin(labels_tmp,too_small)] = 0
+            # Speed up again by ignoring 0
+            x,y = np.where(labels_tmp != 0)
+            drop = np.isin(labels_tmp[np.where(labels_tmp != 0)], too_small)
+            x = x[drop]
+            y = y[drop]
+            labels[x,y] = 0
 
             ID_tmp = np.array([*range(ID,len(keep)+ID)]) + 1
             labels, ID = renumber(keep, ID, labels, labels_tmp, ID_tmp)
