@@ -621,21 +621,30 @@ def mask_unw_errors(i):
     return mask_coverage
 
 #%%
+# def NN_interp(data): #Old and slower
+#     mask = np.where(~np.isnan(data))
+#     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
+#     interped_data = np.zeros((length,width))*np.nan
+#     nearest_data = interp(*np.where(~np.isnan(coh)))
+#     interped_data[np.where(~np.isnan(coh))] = nearest_data
+#     interped_data[np.isnan(coh)]=np.nan
+#     interped_data[coh<0.05]=np.nan
+
+#     return interped_data
+
 def NN_interp(data):
     mask = np.where(~np.isnan(data))
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
-    interped_data = np.zeros((length,width))*np.nan
-    nearest_data = interp(*np.where(~np.isnan(coh)))
-    interped_data[np.where(~np.isnan(coh))] = nearest_data
-    interped_data[np.isnan(coh)]=np.nan
-    interped_data[coh<0.05]=np.nan
-
+    interped_data = data.copy()
+    interp_to = np.where(((~np.isnan(coh)).astype('int') + np.isnan(data).astype('int')) == 2)
+    nearest_data = interp(*interp_to)
+    interped_data[interp_to] = nearest_data
     return interped_data
 
 #%%
 def NN_interp_samedata(data, mask):
      interp = NearestNDInterpolator(np.transpose(mask), data[mask])
-     data_interp = interp(*np.where(~np.isnan(coh)              ))
+     data_interp = interp(*np.where(~np.isnan(coh)))
      data[np.where(~np.isnan(coh))] = data_interp
      data[coh<0.05]=np.nan
 
