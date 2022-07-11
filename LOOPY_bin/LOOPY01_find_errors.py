@@ -381,7 +381,9 @@ def mask_unw_errors(i):
         loop_lib.plotmask(labels,centerz=False,title='Labelled Groups')
 
     # Interpolate labels over gaps left by removing regions that are too small (and also apply filter to npi file)
-    mask = np.where(labels != 0)
+    # mask = np.where(labels != 0)
+    # Only take mask of pixels surrounding areas to be interpolated
+    mask = np.where((find_boundaries(labels==0).astype('int') + (labels != 0).astype('int') + (~np.isnan(labels)).astype('int')) == 3)
 
     labels = NN_interp_samedata(labels, labels, mask)
     # print('Max Label5 =', np.nanmax(labels.flatten()))
