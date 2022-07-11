@@ -9,7 +9,7 @@ correct other IFGs
 
 New modules needed:
     - scipy
-    - pandas
+    - skimage
     - numba
 
 ===============
