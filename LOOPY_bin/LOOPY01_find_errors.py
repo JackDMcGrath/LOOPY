@@ -234,14 +234,26 @@ def main(argv=None):
     #%% Run correction in parallel
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs,'.format(n_ifg), flush=True)
-    print('with {} parallel processing...'.format(_n_para), flush=True)
-    if v >= 0:
-        print('In an overly verbose way for IFG {}'.format(v+1))
-    ### Parallel processing
-    p = q.Pool(_n_para)
-    mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
-    p.close()
-    # mask_cov = mask_unw_errors(0)
+
+    if n_para == 1:
+        print('with no parallel processing...', flush=True)
+        if v >= 0:
+            print('In an overly verbose way for IFG {}'.format(v+1))
+        mask_cov=[]
+        for i in range(n_ifg):
+            mask_cov_tmp = mask_unw_errors(i)
+            mask_cov.append(mask_cov_tmp)
+
+    else:
+        print('with {} parallel processing...'.format(_n_para), flush=True)
+        if v >= 0:
+            print('In an overly verbose way for IFG {}'.format(v+1))
+
+        ### Parallel processing
+        p = q.Pool(_n_para)
+        mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
+        p.close()
+
     f = open(mask_info_file, 'a')
     for i in range(n_ifg):
         print('{0}  {1:6.2f}'.format(ifgdates[i], mask_cov[i]/n_px), file=f)
