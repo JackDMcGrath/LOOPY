@@ -68,7 +68,7 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     ### For parallel processing
-    global ifgdates, length, width, nlook, n_ifg, geocdir, outdir
+    global ifgdates, length, width, nlook, n_ifg, geocdir, outdir, outlength, outwidth
 
 
     #%% Set default
@@ -129,17 +129,27 @@ def main(argv=None):
     #%% Directory and file setting
     geocdir = os.path.abspath(geocdir)
 
-    mlipar = os.path.join(outdir, 'slc.mli.par')
+    mlipar = os.path.join(geocdir, 'slc.mli.par')
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
 
-    no_unw_list = os.path.join(outdir, 'no_unw_list.txt')
+    no_unw_list = os.path.join(geocdir, 'no_unw_list.txt')
     if os.path.exists(no_unw_list): os.remove(no_unw_list)
 
     nlook = int(outlook / inlook)
     if nlook < 1:
         nlook = 1
         print('Nlook < 1: This is not allowed. Skipping multilooking ')
+
+    mlipar = os.path.join(outdir, 'slc.mli.par')
+    if os.path.exists(mlipar):
+        outwidth = int(io_lib.get_param_par(mlipar, 'range_samples'))
+        outlength = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
+    else:
+        print('No mlipar found in outdir. Using nlook, but this might be out by 1...')
+        outwidth = round(width/nlook)
+        outlength = round(length/nlook)
+
 
     #%% Get IFG dates and multilook in parallel
     ifgdates = tools_lib.get_ifgdates(geocdir)
@@ -162,7 +172,7 @@ def main(argv=None):
         p.map(multi_look_mask, range(n_ifg))
         p.close()
 
-    print('\nMask multilooking complete. Run LiCSBAS to produce time-series')
+    print('\nMask multilooking complete. Run LOOPY02 to apply corrections')
 
     #%% Finish
     elapsed_time = time.time()-start
@@ -188,10 +198,10 @@ def multi_look_mask(i):
 
     # Apply mask to multilooked data
     unwfile = os.path.join(outdir, date, date + '.unw')
-    unw = io_lib.read_image(unwfile, length, width)
+    unw = io_lib.read_img(unwfile, outlength, outwidth)
 
     titles = ['UNW', 'ML{} Mask'.format(nlook)]
-    mask_lib.make_npi_mask_png([unw, mask], os.path.join(outdir,date,date+'.mask2.png'), [insar,'viridis'], titles)
+    mask_lib.make_npi_mask_png([unw, mask], os.path.join(outdir,date,date+'.ml_mask.png'), [insar,'viridis'], titles)
 
     unw[mask] = np.nan
     mask.astype('bool').tofile(os.path.join(outdir,date,date+'.mask'))
