@@ -504,15 +504,23 @@ def mask_unw_errors(i):
 
     mask_coverage = sum(~np.isnan(masked_ifg.flatten())) / sum(~np.isnan(unw.flatten()))
     if i == v:
-        print('        {}/{} pixels unmasked ({})'.format(sum(sum(mask == 1)), sum(sum(~np.isnan(unw))), mask_coverage))
+        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(mask == 1)), sum(sum(~np.isnan(unw))), mask_coverage, time.time() - begin))
 
     # %% Multilook mask if required
     if fullres:
         mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool')
+        if i == v:
+            print('        Mask multilooked {:.2f}'.format(time.time() - begin))
         mask = (mask > 0.5)
+        if i == v:
+            print('        Mask re-binarised {:.2f}'.format(time.time() - begin))
         masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1).astype('bool')
+        if i == v:
+            print('        Masked IFG multilooked {:.2f}'.format(time.time() - begin))
         titles = ['UNW', 'ML{} Mask'.format(ml_factor)]
         mask_lib.make_npi_mask_png([unw, mask], os.path.join(ifgdir, date, date + '.ml_mask.png'), [insar, 'viridis'], titles)
+        if i == v:
+            print('        Multilooked png made {:.2f}'.format(time.time() - begin))
 
     mask.astype('bool').tofile(os.path.join(ifgdir, date, date + '.mask'))
     masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))

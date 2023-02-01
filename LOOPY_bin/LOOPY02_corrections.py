@@ -199,7 +199,7 @@ def main(argv=None):
     Step11BadIfgFile = os.path.join(infodir, '11bad_ifg.txt')
     Step11BadIfg = io_lib.read_ifg_list(Step11BadIfgFile)
 
-    # Read in Loop info ( +  thresh), bad ifgs and bad cands identified in LiCSBAS12
+    # Read in Loop info (+thresh), bad ifgs and bad cands identified in LiCSBAS12
     if nolics12:
         bad_ifg_list = []
         bad_ifg_cands_list = []
