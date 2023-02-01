@@ -5,9 +5,9 @@ dependencies:
   - python=3.9
   - astropy
   - beautifulsoup4
-  - gdal>=2.4
+  - gdal=3.0.2
   - h5py
-  - matplotlib
+  - matplotlib=3.4.2
   - numpy=1.21.5
   - psutil
   - requests
@@ -17,3 +17,4 @@ dependencies:
   - scipy
   - scikit-image
   - numba
+  - pillow
