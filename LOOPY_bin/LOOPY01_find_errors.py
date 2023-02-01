@@ -92,6 +92,7 @@ from osgeo import gdal
 from PIL import Image, ImageFilter
 from scipy.ndimage import label
 from scipy.interpolate import NearestNDInterpolator
+from scipy.stats import mode
 from skimage import filters
 
 
@@ -233,15 +234,18 @@ def main(argv = None):
             vmax = np.nanpercentile(mli, 95)
             plot_lib.make_im_png(mli, mlipngfile, 'gray', 'MLI (log10)', vmin, vmax, cbar=True)
             print('  slc.mli[.png] created', flush=True)
+            ref_type = 'MLI'
         else:
             print('  No *.geo.mli.tif found in {}'.format(os.path.basename(geocdir)), flush=True)
 
     else:
         cohfile = os.path.join(resultsdir, 'coh_avg')
+        ref_type = 'coherence'
         # If no coh file, use slc
         if not os.path.exists(cohfile):
             cohfile = os.path.join(ifgdir, 'slc.mli')
-            print('No Coherence File - using SLC instead')
+            print('No Coherence File - using MLI instead')
+            ref_type = 'MLI'
 
         coh = io_lib.read_img(cohfile, length=length, width=width)
 
@@ -251,8 +255,15 @@ def main(argv = None):
             refarea = f.read().split()[0]  # str, x1/x2/y1/y2
         refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
 
+        # Change reference pixel in case working with fullres data
+        if fullres:
+            refx1 = refx1 * ml_factor
+            refx2 = refx2 * ml_factor
+            refy1 = refy1 * ml_factor
+            refy2 = refy2 * ml_factor
+
         if np.isnan(coh[refy1:refy2, refx1:refx2]):
-            print('Ref point = [{}, {}] invalid. Using max coherent pixel'.format(refy1, refx1))
+            print('Ref point = [{}, {}] invalid. Using max {} pixel'.format(refy1, refx1, ref_type))
             refy1, refx1 = np.where(coh == np.nanmax(coh))
             refy1 = refy1[0]
             refy2 = refy1 + 1
@@ -260,7 +271,7 @@ def main(argv = None):
             refx2 = refx1 + 1
 
     else:
-        print('No Reference Pixel provided - using max coherent pixel')
+        print('No Reference Pixel provided - using max {} pixel'.format(ref_type))
 
         refy1, refx1 = np.where(coh == np.nanmax(coh))
         refy1 = refy1[0]
@@ -268,12 +279,12 @@ def main(argv = None):
         refx1 = refx1[0]
         refx2 = refx1 + 1
 
-    # Change reference pixel in case working with fullres data
-    if fullres:
-        refx1 = refx1 * ml_factor
-        refx2 = refx2 * ml_factor
-        refy1 = refy1 * ml_factor
-        refy2 = refy2 * ml_factor
+        # Change reference pixel in case working with fullres data
+        if fullres:
+            refx1 = refx1 * ml_factor
+            refx2 = refx2 * ml_factor
+            refy1 = refy1 * ml_factor
+            refy2 = refy2 * ml_factor
 
     print('Ref point = [{}, {}]'.format(refy1, refx1))
     print('Mask Multilooking Factor = {}'.format(ml_factor))
@@ -474,7 +485,8 @@ def mask_unw_errors(i):
 
     # Find region number of reference pixel. All pixels in this region to be
     # considered unw error free. Mask where 1 == good pixel, 0 == bad
-    ref_region = regions[refy1:refy2, refx1:refx2]
+    # Use mode incase ref area is > 1 pixel (eg if working at full res)
+    ref_region = mode(regions[refy1:refy2, refx1:refx2], keepdims=True)[0][0]
     mask = regions == ref_region
 
     if i == v:
