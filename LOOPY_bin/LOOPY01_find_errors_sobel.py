@@ -397,12 +397,18 @@ def mask_unw_errors(i):
     # Add error lines to the original IFG, and interpolate with these values to
     # create IFG split up by unwrapping error boundaries
     ifg2 = unw.copy()
+    if i == v:
+        print('        Copied unw {:.2f}'.format(time.time() - begin))
     err_val = 10 * np.nanmax(ifg2)
+    if i == v:
+        print('        err_val set {:.2f}'.format(time.time() - begin))
     ifg2[np.where(boundary_err == 1)] = err_val
+    if i == v:
+        print('        Boundaries added {:.2f}'.format(time.time() - begin))
     filled_ifg2 = NN_interp(ifg2)
 
     if i == v:
-        print('        Added to IFG {:.2f}'.format(time.time() - begin))
+        print('        IFG2 interpolated {:.2f}'.format(time.time() - begin))
 
     # Binarise the IFG
     filled_ifg2[np.where(filled_ifg2 == err_val)] = np.nan
@@ -414,6 +420,9 @@ def mask_unw_errors(i):
 
     # Label the binary IFG into connected regions
     regions, count = label(filled_ifg2)
+
+    if i == v:
+        print('        Added to IFG {:.2f}'.format(time.time() - begin))
 
     # Find region number of reference pixel. All pixels in this region to be
     # considered unw error free. Mask where 1 == good pixel, 0 == bad
