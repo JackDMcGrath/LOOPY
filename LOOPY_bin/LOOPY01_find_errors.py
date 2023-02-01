@@ -497,14 +497,14 @@ def mask_unw_errors(i):
     mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
 
     # %% Save Masked UNW to save time in corrections
-    mask_coverage = sum(sum(mask == 1)) / sum(sum(~np.isnan(unw)))
-    if i == v:
-        print('        {}/{} pixels unmasked ({})'.format(sum(sum(mask == 1)), sum(sum(~np.isnan(unw))), mask_coverage))
     masked_ifg = unw.copy().astype('float32')
     masked_ifg[mask == 0] = np.nan
-
     if i == v:
         print('        IFG masked {:.2f}'.format(time.time() - begin))
+
+    mask_coverage = sum(~np.isnan(masked_ifg.flatten())) / sum(~np.isnan(unw.flatten()))
+    if i == v:
+        print('        {}/{} pixels unmasked ({})'.format(sum(sum(mask == 1)), sum(sum(~np.isnan(unw))), mask_coverage))
 
     # %% Multilook mask if required
     if fullres:
