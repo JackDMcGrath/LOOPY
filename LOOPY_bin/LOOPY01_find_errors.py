@@ -486,7 +486,7 @@ def mask_unw_errors(i):
     # Find region number of reference pixel. All pixels in this region to be
     # considered unw error free. Mask where 1 == good pixel, 0 == bad
     # Use mode incase ref area is > 1 pixel (eg if working at full res)
-    ref_region = mode(regions[refy1:refy2, refx1:refx2], keepdims=True)[0][0]
+    ref_region = mode(regions[refy1:refy2, refx1:refx2].flatten(), keepdims=True)[0][0]
     mask = regions == ref_region
 
     if i == v:
@@ -494,7 +494,7 @@ def mask_unw_errors(i):
 
     title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
 
-    mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (2 * np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
+    mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
 
     # %% Save Masked UNW to save time in corrections
     mask_coverage = sum(sum(mask == 1)) / sum(sum(~np.isnan(unw)))
