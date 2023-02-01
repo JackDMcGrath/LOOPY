@@ -262,7 +262,7 @@ def main(argv = None):
             refy1 = refy1 * ml_factor
             refy2 = refy2 * ml_factor
 
-        if np.isnan(coh[refy1:refy2, refx1:refx2]):
+        if np.isnan(np.nanmean(coh[refy1:refy2, refx1:refx2])):
             print('Ref point = [{}, {}] invalid. Using max {} pixel'.format(refy1, refx1, ref_type))
             refy1, refx1 = np.where(coh == np.nanmax(coh))
             refy1 = refy1[0]
