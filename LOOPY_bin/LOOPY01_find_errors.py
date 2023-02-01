@@ -21,6 +21,7 @@ Limitations:
     Can't identify regions that are correctly unwrapped, but isolated from main
     pixel, either by being an island, or because it's cut-off by another
     unwrapping error
+    Needs an unwrapping error to be complete enclosed in order to be masked
 
 New modules needed:
 - scipy
@@ -52,18 +53,23 @@ Outputs in TS_GEOCml*/:
 =====
 Usage
 =====
-LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [--reset] [--n_para]
+LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [--full_res] [--reset] [--n_para]
 
--d       Path to the GEOCml* dir containing stack of unw data.
--t       Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
--m       Output multilooking factor (Default: No multilooking of mask)
--v       IFG to give verbose timings for (Development option, Default: -1 (not verbose))
---reset  Remove previous corrections
---n_para Number of parallel processing (Default: # of usable CPU)
+-d        Path to the GEOCml* dir containing stack of unw data
+-t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
+-m        Output multilooking factor (Default: No multilooking of mask)
+-v        IFG to give verbose timings for (Development option, Default: -1 (not verbose))
+--fullres Create masks from full res data, and multilook to -m (ie. orginal geotiffs) (Assume in folder called GEOC)
+--reset   Remove previous corrections
+--n_para  Number of parallel processing (Default: # of usable CPU)
 
 =========
 Changelog
 =========
+v1.3 20230201 Jack McGrath, Uni of Leeds
+- Allow option to mask geotiffs directly
+v1.2 20230131 Jack McGrath, Uni of Leeds
+- Change masking method to edge detection
 v1.1 20220615 Jack McGrath, Uni of Leeds
 - Edit to run from command line
 v1.0 20220608 Jack McGrath, Uni of Leeds
@@ -74,6 +80,7 @@ import os
 import re
 import sys
 import time
+import glob
 import getopt
 import numpy as np
 import multiprocessing as multi
@@ -81,9 +88,11 @@ import LOOPY_mask_lib as mask_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_plot_lib as plot_lib
+from osgeo import gdal
 from PIL import Image, ImageFilter
 from scipy.ndimage import label
 from scipy.interpolate import NearestNDInterpolator
+from scipy.stats import mode
 from skimage import filters
 
 
@@ -104,17 +113,18 @@ def main(argv = None):
         argv = sys.argv
 
     start = time.time()
-    ver = "1.1.0"; date = 20220615; author = "J. McGrath"
+    ver = "1.3.0"; date = 20230201; author = "J. McGrath"
     print("\n{} ver{} {} {}".format(os.path.basename(argv[0]), ver, date, author), flush=True)
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
-        length, width, ifgdir, ifgdates, coh, i, v, begin
+        length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir
 
     # %% Set default
     ifgdir = []
     tsadir = []
     ml_factor = 1  # Amount to multilook the resulting masks
+    fullres = False
     reset = False
     plot_figures = False
     v = -1
@@ -133,7 +143,7 @@ def main(argv = None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:m:v:", ["help", "reset", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hd:t:m:v:", ["help", "reset", "n_para=", "fullres"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -152,9 +162,11 @@ def main(argv = None):
                 reset = True
             elif o == '--n_para':
                 n_para = int(a)
+            elif o == '--fullres':
+                fullres = True
 
         if not ifgdir:
-            raise Usage('No data directory given, - d is not optional!')
+            raise Usage('No data directory given, -d is not optional!')
         elif not os.path.isdir(ifgdir):
             raise Usage('No {} dir exists!'.format(ifgdir))
         elif not os.path.exists(os.path.join(ifgdir, 'slc.mli.par')):
@@ -201,14 +213,82 @@ def main(argv = None):
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
 
-    # Use coherence to find out how far to interpolate ifg to
-    cohfile = os.path.join(resultsdir, 'coh_avg')
-    # If no coh file, use slc
-    if not os.path.exists(cohfile):
-        cohfile = os.path.join(ifgdir, 'slc.mli')
-        print('No Coherence File - using SLC instead')
+    # Find how far to interpolate IFG to
+    if fullres:
+        geocdir = os.path.abspath(os.path.join(ifgdir, '..', 'GEOC'))
+        print('Processing full resolution masks direct from tifs in {}'.format(geocdir))
 
-    coh = io_lib.read_img(cohfile, length=length, width=width)
+        # Create full res mli
+        print('\nCreate slc.mli', flush=True)
+        mlitif = glob.glob(os.path.join(geocdir, '*.geo.mli.tif'))
+        if len(mlitif) > 0:
+            mlitif = mlitif[0]  # First one
+            coh = np.float32(gdal.Open(mlitif).ReadAsArray())  # Coh due to previous use of coherence to find IFG limits
+            coh[coh == 0] = np.nan
+
+            mlifile = os.path.join(geocdir, 'slc.mli')
+            coh.tofile(mlifile)
+            mlipngfile = mlifile + '.png'
+            mli = np.log10(coh)
+            vmin = np.nanpercentile(mli, 5)
+            vmax = np.nanpercentile(mli, 95)
+            plot_lib.make_im_png(mli, mlipngfile, 'gray', 'MLI (log10)', vmin, vmax, cbar=True)
+            print('  slc.mli[.png] created', flush=True)
+            ref_type = 'MLI'
+        else:
+            print('  No *.geo.mli.tif found in {}'.format(os.path.basename(geocdir)), flush=True)
+
+    else:
+        cohfile = os.path.join(resultsdir, 'coh_avg')
+        ref_type = 'coherence'
+        # If no coh file, use slc
+        if not os.path.exists(cohfile):
+            cohfile = os.path.join(ifgdir, 'slc.mli')
+            print('No Coherence File - using MLI instead')
+            ref_type = 'MLI'
+
+        coh = io_lib.read_img(cohfile, length=length, width=width)
+
+    # Find reference pixel. If none provided, use highest coherence pixel
+    if os.path.exists(ref_file):
+        with open(ref_file, "r") as f:
+            refarea = f.read().split()[0]  # str, x1/x2/y1/y2
+        refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
+
+        # Change reference pixel in case working with fullres data
+        if fullres:
+            refx1 = refx1 * ml_factor
+            refx2 = refx2 * ml_factor
+            refy1 = refy1 * ml_factor
+            refy2 = refy2 * ml_factor
+
+        if np.isnan(np.nanmean(coh[refy1:refy2, refx1:refx2])):
+            print('Ref point = [{}, {}] invalid. Using max {} pixel'.format(refy1, refx1, ref_type))
+            refy1, refx1 = np.where(coh == np.nanmax(coh))
+            refy1 = refy1[0]
+            refy2 = refy1 + 1
+            refx1 = refx1[0]
+            refx2 = refx1 + 1
+
+    else:
+        print('No Reference Pixel provided - using max {} pixel'.format(ref_type))
+
+        refy1, refx1 = np.where(coh == np.nanmax(coh))
+        refy1 = refy1[0]
+        refy2 = refy1 + 1
+        refx1 = refx1[0]
+        refx2 = refx1 + 1
+
+        # Change reference pixel in case working with fullres data
+        if fullres:
+            refx1 = refx1 * ml_factor
+            refx2 = refx2 * ml_factor
+            refy1 = refy1 * ml_factor
+            refy2 = refy2 * ml_factor
+
+    print('Ref point = [{}, {}]'.format(refy1, refx1))
+    print('Mask Multilooking Factor = {}'.format(ml_factor))
+
     n_px = sum(sum(~np.isnan(coh[:])))
 
     # Open file to store mask info
@@ -223,32 +303,6 @@ def main(argv = None):
     ifgdates = tools_lib.get_ifgdates(ifgdir)
     n_ifg = len(ifgdates)
     mask_cov = []
-
-    # Find reference pixel. If none provided, use highest coherence pixel
-    if os.path.exists(ref_file):
-        with open(ref_file, "r") as f:
-            refarea = f.read().split()[0]  # str, x1/x2/y1/y2
-        refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
-
-        if np.isnan(coh[refy1:refy2, refx1:refx2]):
-            print('Ref point = [{}, {}] invalid. Using max coherent pixel'.format(refy1, refx1))
-            refy1, refx1 = np.where(coh == np.nanmax(coh))
-            refy1 = refy1[0]
-            refy2 = refy1 + 1
-            refx1 = refx1[0]
-            refx2 = refx1 + 1
-
-    else:
-        print('No Reference Pixel provided - using max coherent pixel')
-
-        refy1, refx1 = np.where(coh == np.nanmax(coh))
-        refy1 = refy1[0]
-        refy2 = refy1 + 1
-        refx1 = refx1[0]
-        refx2 = refx1 + 1
-
-    print('Ref point = [{}, {}]'.format(refy1, refx1))
-    print('Mask Multilooking Factor = {}'.format(ml_factor))
 
     # %% Run correction in parallel
     _n_para = n_para if n_para < n_ifg else n_ifg
@@ -311,7 +365,12 @@ def mask_unw_errors(i):
         print('        Loading')
 
     # Read in IFG
-    unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width)
+    if fullres:
+        unw = gdal.Open(os.path.join(geocdir, date, date + '.geo.unw.tif')).ReadAsArray()
+        unw[unw == 0] = np.nan
+    else:
+        unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width)
+
     if i == v:
         print('        UNW Loaded {:.2f}'.format(time.time() - begin))
 
@@ -426,7 +485,8 @@ def mask_unw_errors(i):
 
     # Find region number of reference pixel. All pixels in this region to be
     # considered unw error free. Mask where 1 == good pixel, 0 == bad
-    ref_region = regions[refy1:refy2, refx1:refx2]
+    # Use mode incase ref area is > 1 pixel (eg if working at full res)
+    ref_region = mode(regions[refy1:refy2, refx1:refx2].flatten(), keepdims=True)[0][0]
     mask = regions == ref_region
 
     if i == v:
@@ -434,20 +494,20 @@ def mask_unw_errors(i):
 
     title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
 
-    mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (2 * np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
+    mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
 
     # %% Save Masked UNW to save time in corrections
-    mask_coverage = sum(sum(mask == 1)) / sum(sum(~np.isnan(unw)))
-    if i == v:
-        print('        {}/{} pixels unmasked ({})'.format(sum(sum(mask == 1)), sum(sum(~np.isnan(unw))), mask_coverage))
     masked_ifg = unw.copy().astype('float32')
     masked_ifg[mask == 0] = np.nan
-
     if i == v:
         print('        IFG masked {:.2f}'.format(time.time() - begin))
 
+    mask_coverage = sum(~np.isnan(masked_ifg.flatten())) / sum(~np.isnan(unw.flatten()))
+    if i == v:
+        print('        {}/{} pixels unmasked ({})'.format(sum(sum(mask == 1)), sum(sum(~np.isnan(unw))), mask_coverage))
+
     # %% Multilook mask if required
-    if ml_factor > 1:
+    if fullres:
         mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool')
         mask = (mask > 0.5)
         masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1).astype('bool')
