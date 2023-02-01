@@ -496,7 +496,7 @@ def mask_unw_errors(i):
         print('        IFG masked {:.2f}'.format(time.time() - begin))
 
     # %% Multilook mask if required
-    if ml_factor > 1:
+    if fullres:
         mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool')
         mask = (mask > 0.5)
         masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1).astype('bool')
