@@ -212,6 +212,39 @@ def main(argv = None):
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
 
+    # Find how far to interpolate IFG to
+    if fullres:
+        geocdir = os.path.abspath(ifgdir, '..', 'GEOC')
+        print('Processing full resolution masks direct from tifs in {}'.format(geocdir))
+
+        # Create full res mli
+        print('\nCreate slc.mli', flush=True)
+        mlitif = glob.glob(os.path.join(geocdir, '*.geo.mli.tif'))
+        if len(mlitif) > 0:
+            mlitif = mlitif[0]  # First one
+            coh = np.float32(gdal.Open(mlitif).ReadAsArray())  # Coh due to previous use of coherence to find IFG limits
+            coh[coh == 0] = np.nan
+
+            mlifile = os.path.join(geocdir, 'slc.mli')
+            coh.tofile(mlifile)
+            mlipngfile = mlifile + '.png'
+            mli = np.log10(coh)
+            vmin = np.nanpercentile(mli, 5)
+            vmax = np.nanpercentile(mli, 95)
+            plot_lib.make_im_png(mli, mlipngfile, 'gray', 'MLI (log10)', vmin, vmax, cbar=True)
+            print('  slc.mli[.png] created', flush=True)
+        else:
+            print('  No *.geo.mli.tif found in {}'.format(os.path.basename(geocdir)), flush=True)
+
+    else:
+        cohfile = os.path.join(resultsdir, 'coh_avg')
+        # If no coh file, use slc
+        if not os.path.exists(cohfile):
+            cohfile = os.path.join(ifgdir, 'slc.mli')
+            print('No Coherence File - using SLC instead')
+
+        coh = io_lib.read_img(cohfile, length=length, width=width)
+
     # Find reference pixel. If none provided, use highest coherence pixel
     if os.path.exists(ref_file):
         with open(ref_file, "r") as f:
@@ -244,40 +277,6 @@ def main(argv = None):
 
     print('Ref point = [{}, {}]'.format(refy1, refx1))
     print('Mask Multilooking Factor = {}'.format(ml_factor))
-
-    # Find how far to interpolate IFG to
-
-    if fullres:
-        geocdir = os.path.abspath(ifgdir, '..', 'GEOC')
-        print('Processing full resolution masks direct from tifs in {}'.format(geocdir))
-
-        # Create full res mli
-        print('\nCreate slc.mli', flush=True)
-        mlitif = glob.glob(os.path.join(geocdir, '*.geo.mli.tif'))
-        if len(mlitif) > 0:
-            mlitif = mlitif[0]  # First one
-            coh = np.float32(gdal.Open(mlitif).ReadAsArray())  # Coh due to previous use of coherence to find IFG limits
-            coh[coh == 0] = np.nan
-
-            mlifile = os.path.join(geocdir, 'slc.mli')
-            coh.tofile(mlifile)
-            mlipngfile = mlifile + '.png'
-            mli = np.log10(coh)
-            vmin = np.nanpercentile(mli, 5)
-            vmax = np.nanpercentile(mli, 95)
-            plot_lib.make_im_png(mli, mlipngfile, 'gray', 'MLI (log10)', vmin, vmax, cbar=True)
-            print('  slc.mli[.png] created', flush=True)
-        else:
-            print('  No *.geo.mli.tif found in {}'.format(os.path.basename(geocdir)), flush=True)
-
-    else:
-        cohfile = os.path.join(resultsdir, 'coh_avg')
-        # If no coh file, use slc
-        if not os.path.exists(cohfile):
-            cohfile = os.path.join(ifgdir, 'slc.mli')
-            print('No Coherence File - using SLC instead')
-
-        coh = io_lib.read_img(cohfile, length=length, width=width)
 
     n_px = sum(sum(~np.isnan(coh[:])))
 
