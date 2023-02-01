@@ -214,7 +214,7 @@ def main(argv = None):
 
     # Find how far to interpolate IFG to
     if fullres:
-        geocdir = os.path.abspath(ifgdir, '..', 'GEOC')
+        geocdir = os.path.abspath(os.path.join(ifgdir, '..', 'GEOC'))
         print('Processing full resolution masks direct from tifs in {}'.format(geocdir))
 
         # Create full res mli
