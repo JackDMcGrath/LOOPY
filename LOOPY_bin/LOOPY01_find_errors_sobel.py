@@ -432,9 +432,9 @@ def mask_unw_errors(i):
     if i == v:
         print('        Mask made {:.2f}'.format(time.time() - begin))
 
-    title3 = ['Original unw', 'Interpolated unw / 2pi', 'Unwrapping Error Mask']
+    title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
 
-    mask_lib.make_unw_npi_mask_png([unw, npi_og, mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
+    mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (2 * np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
 
     # %% Save Masked UNW to save time in corrections
     mask_coverage = sum(sum(mask == 1)) / sum(sum(~np.isnan(unw)))
