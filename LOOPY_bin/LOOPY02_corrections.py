@@ -168,7 +168,7 @@ def main(argv=None):
     infodir = os.path.join(tsadir, 'info')
 
     # Check to see if LiCSBAS step 12 has aready been run
-    if ~os.path.exists(loopdir):
+    if not os.path.exists(loopdir):
         nolics12 = True
         print('No Loop Closure Check previously carried out \nLook out for issues from no ref_file')
     else:
