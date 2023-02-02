@@ -505,7 +505,7 @@ def mask_unw_errors(i):
     # %% Save Masked UNW to save time in corrections
     # If working with full res data, load in the ml IFG to be masked
     if fullres:
-        masked_ifg = tools_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length, width)
+        masked_ifg = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length, width)
         if i == v:
             print('        Loaded ML{} IFG {:.2f}'.format(ml_factor, time.time() - begin))
 
