@@ -123,7 +123,7 @@ def main(argv = None):
     # %% Set default
     ifgdir = []
     tsadir = []
-    ml_factor = 1  # Amount to multilook the resulting masks
+    ml_factor = []  # Amount to multilook the resulting masks
     fullres = False
     reset = False
     plot_figures = False
@@ -171,6 +171,12 @@ def main(argv = None):
             raise Usage('No {} dir exists!'.format(ifgdir))
         elif not os.path.exists(os.path.join(ifgdir, 'slc.mli.par')):
             raise Usage('No slc.mli.par file exists in {}!'.format(ifgdir))
+
+        if fullres:
+            if not ml_factor:
+                raise Usage('No multilooking factor given, -m is not optional when using --fullres!')
+        else:
+            ml_factor = 1
 
     except Usage as err:
         print("\nERROR:", file=sys.stderr, end='')
@@ -497,33 +503,42 @@ def mask_unw_errors(i):
     mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
 
     # %% Save Masked UNW to save time in corrections
-    masked_ifg = unw.copy().astype('float32')
-    masked_ifg[mask == 0] = np.nan
-    if i == v:
-        print('        IFG masked {:.2f}'.format(time.time() - begin))
-
-    unmasked_percent = sum(sum(~np.isnan(masked_ifg))) / sum(sum(~np.isnan(unw)))
-    mask_coverage = sum(sum(mask == 1))  # Number of pixels that are unmasked
-    if i == v:
-        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), sum(sum(~np.isnan(unw))), unmasked_percent, time.time() - begin))
-
-    # %% Multilook mask if required
+    # If working with full res data, load in the ml IFG to be masked
     if fullres:
-        mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool')
+        masked_ifg = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length, width)
+        n_px = sum(sum(~np.isnan(masked_ifg)))
+        if i == v:
+            print('        Loaded ML{} IFG {:.2f}'.format(ml_factor, time.time() - begin))
+
+        mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.5)
         if i == v:
             print('        Mask multilooked {:.2f}'.format(time.time() - begin))
         mask = (mask > 0.5)
         if i == v:
             print('        Mask re-binarised {:.2f}'.format(time.time() - begin))
-        masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1).astype('bool')
+
+        masked_ifg[np.where(mask == 0)] = np.nan
         if i == v:
-            print('        Masked IFG multilooked {:.2f}'.format(time.time() - begin))
+            print('        IFG masked {:.2f}'.format(time.time() - begin))
+
         titles = ['UNW', 'ML{} Mask'.format(ml_factor)]
         mask_lib.make_npi_mask_png([unw, mask], os.path.join(ifgdir, date, date + '.ml_mask.png'), [insar, 'viridis'], titles)
         if i == v:
             print('        Multilooked png made {:.2f}'.format(time.time() - begin))
 
-    mask.astype('bool').tofile(os.path.join(ifgdir, date, date + '.mask'))
+    else:
+        masked_ifg = unw.copy().astype('float32')
+        n_px = sum(sum(~np.isnan(masked_ifg)))
+        masked_ifg[mask == 0] = np.nan
+        if i == v:
+            print('        IFG masked {:.2f}'.format(time.time() - begin))
+
+    unmasked_percent = sum(sum(~np.isnan(masked_ifg))) / n_px
+    mask_coverage = sum(sum(mask == 1))  # Number of pixels that are unmasked
+    if i == v:
+        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), n_px, unmasked_percent, time.time() - begin))
+
+    mask.tofile(os.path.join(ifgdir, date, date + '.mask'))
     masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))
 
     if i == v:
