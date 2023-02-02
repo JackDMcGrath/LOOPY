@@ -506,6 +506,7 @@ def mask_unw_errors(i):
     # If working with full res data, load in the ml IFG to be masked
     if fullres:
         masked_ifg = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length, width)
+        n_px = sum(sum(~np.isnan(masked_ifg)))
         if i == v:
             print('        Loaded ML{} IFG {:.2f}'.format(ml_factor, time.time() - begin))
 
@@ -516,7 +517,7 @@ def mask_unw_errors(i):
         if i == v:
             print('        Mask re-binarised {:.2f}'.format(time.time() - begin))
 
-        masked_ifg[np.where(np.isnan(mask))] = np.nan
+        masked_ifg[np.where(mask == 0)] = np.nan
         if i == v:
             print('        IFG masked {:.2f}'.format(time.time() - begin))
 
@@ -527,14 +528,15 @@ def mask_unw_errors(i):
 
     else:
         masked_ifg = unw.copy().astype('float32')
+        n_px = sum(sum(~np.isnan(masked_ifg)))
         masked_ifg[mask == 0] = np.nan
         if i == v:
             print('        IFG masked {:.2f}'.format(time.time() - begin))
 
-    unmasked_percent = sum(sum(~np.isnan(masked_ifg))) / sum(sum(~np.isnan(unw)))
+    unmasked_percent = sum(sum(~np.isnan(masked_ifg))) / n_px
     mask_coverage = sum(sum(mask == 1))  # Number of pixels that are unmasked
     if i == v:
-        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), sum(sum(~np.isnan(unw))), unmasked_percent, time.time() - begin))
+        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), n_px, unmasked_percent, time.time() - begin))
 
     mask.tofile(os.path.join(ifgdir, date, date + '.mask'))
     masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))
