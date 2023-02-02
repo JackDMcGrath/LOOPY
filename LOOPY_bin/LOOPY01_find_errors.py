@@ -509,13 +509,13 @@ def mask_unw_errors(i):
 
     # %% Multilook mask if required
     if fullres:
-        mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool')
+        mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1)
         if i == v:
             print('        Mask multilooked {:.2f}'.format(time.time() - begin))
         mask = (mask > 0.5)
         if i == v:
             print('        Mask re-binarised {:.2f}'.format(time.time() - begin))
-        masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1).astype('bool')
+        masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1)
         if i == v:
             print('        Masked IFG multilooked {:.2f}'.format(time.time() - begin))
         titles = ['UNW', 'ML{} Mask'.format(ml_factor)]
