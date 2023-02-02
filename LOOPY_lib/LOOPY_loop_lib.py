@@ -30,9 +30,10 @@ import LiCSBAS_tools_lib as tools_lib
 os.environ['QT_QPA_PLATFORM']='offscreen'
 
 import warnings
+import matplotlib as mpl
 with warnings.catch_warnings(): ## To silence user warning
     warnings.simplefilter('ignore', UserWarning)
-    # mpl.use('Agg')
+    mpl.use('module://matplotlib_inline.backend_inline')
 
 cmap_wrap = tools_lib.get_cmap('SCM.romaO')
 cmap_loop = tools_lib.get_cmap('SCM.vik')

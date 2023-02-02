@@ -141,9 +141,10 @@ def reset_masks(ifgdir):
 
     for root, dirs, files in os.walk(ifgdir):
         for dir_name in dirs:
-            mask_file = os.path.join(root,dir_name,dir_name + '.mask')
-            mask = os.path.join(root,dir_name,dir_name + '.unw_mask')
-            maskpng = os.path.join(root,dir_name,dir_name + '.mask.png')
+            mask_file = os.path.join(root, dir_name, dir_name + '.mask')
+            mask = os.path.join(root, dir_name, dir_name + '.unw_mask')
+            maskpng = os.path.join(root, dir_name, dir_name + '.mask.png')
+            mlmaskpng = os.path.join(root, dir_name, dir_name + '.ml_mask.png')
 
             if os.path.exists(mask_file):
                 os.remove(mask_file)
@@ -153,6 +154,9 @@ def reset_masks(ifgdir):
 
             if os.path.exists(maskpng):
                 os.remove(maskpng)
+
+            if os.path.exists(mlmaskpng):
+                os.remove(mlmaskpng)
 
     print('Reset Complete\n')
 
