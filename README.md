@@ -4,6 +4,13 @@ LOOPY is an open-source package in Python designed to identify and correct unwra
 
 Having pre-processed their data in LiCSBAS, LOOPY can then be run on the unwrapped interferograms. To then include these in further time-series analysis, rerun LiCSBAS from step 12 (Loop Phase Closure Check)
 
+LOOPY consists of two steps - masking unwrapping errors in interferograms, and correcting these errors using a static offset, derived from the loop closures.
+Unwrapping errors are detected using an edge detection algorithm, run three times on the modulo 2pi of the original data, the original data + pi, and the original data - pi.
+An unwrapping error in this data should appear in the same position in all three iterations.
+An region in the interferogram that is isolated from the reference pixel by unwrpping errors are therefore added to a mask.
+
+When fixing unwrapping errors through the loop-closure method, the calculated mask is then applied to any un-corrected interferograms to attempt to prevent the use of 'bad' data in the corrections
+
 THIS IS RESEARCH CODE PROVIDED TO YOU "AS IS" WITH NO WARRANTIES OF CORRECTNESS. USE AT YOUR OWN RISK.
 
 ## Documentation and Bug Reports
