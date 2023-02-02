@@ -502,9 +502,10 @@ def mask_unw_errors(i):
     if i == v:
         print('        IFG masked {:.2f}'.format(time.time() - begin))
 
-    mask_coverage = sum(sum(~np.isnan(masked_ifg))) / sum(sum(~np.isnan(unw)))
+    unmasked_percent = sum(sum(~np.isnan(masked_ifg))) / sum(sum(~np.isnan(unw)))
+    mask_coverage = sum(sum(mask == 1))  # Number of pixels that are unmasked
     if i == v:
-        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), sum(sum(~np.isnan(unw))), mask_coverage, time.time() - begin))
+        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), sum(sum(~np.isnan(unw))), unmasked_percent, time.time() - begin))
 
     # %% Multilook mask if required
     if fullres:
