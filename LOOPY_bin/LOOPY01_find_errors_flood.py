@@ -451,6 +451,9 @@ def mask_unw_errors(i):
         new_errors = ((sobel_prev + sobel_next) == 2).astype('int')
         errors = errors + new_errors
 
+        if i == v:
+            print('        Iteration {:.0f}/{:.0f} ({:.2f})'.format(ii + 1, nIter, time.time() - begin))
+
     # Add coastline incase gap in the errors means that sea can be flooded
     errors = (errors + coast).astype('bool').astype('int')
 
