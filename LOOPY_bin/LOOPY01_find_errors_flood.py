@@ -457,21 +457,33 @@ def mask_unw_errors(i):
     # Add coastline incase gap in the errors means that sea can be flooded
     errors = (errors + coast).astype('bool').astype('int')
 
+    if i == v:
+        print('        Errors binarises {:.2f}'.format(time.time() - begin))
     # Add errors to IFG, reinterpolate, and see what the mask does
     max_unw = np.nanmax(ifg)
+    if i == v:
+        print('        max_unw = {:.2f} {:.2f}'.format(max_unw, time.time() - begin))
     mask_ifg = ifg.copy()
     mask_ifg[np.where(errors == 1)] = max_unw * 5
 
+    if i == v:
+        print('        Errors added {:.2f}'.format(time.time() - begin))
     # Reinterpolate ifg with errors
     mask_ifg = NN_interp(mask_ifg)
 
+    if i == v:
+        print('        Errors interpolated {:.2f}'.format(time.time() - begin))
     # Identify errors based on the max_unw threshold
     errors = (mask_ifg == (max_unw * 5)).astype('int')
 
+    if i == v:
+        print('        Errors rebinarised {:.2f}'.format(time.time() - begin))
     # Dilate errors to fill holes
     if err_dil > 0:
         errors = binary_dilation(errors, iterations=err_dil).astype('int')
 
+    if i == v:
+        print('        Errors dilated x{:.0f} {:.2f}'.format(err_dil, time.time() - begin))
     # Reflood from reference pixel to find the error regions, where 1 is good data and 0 is bad data
     mask = (flood_fill(errors, (floody, floodx), 2) == 2).astype('int')
 
