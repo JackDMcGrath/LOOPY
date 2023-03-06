@@ -271,8 +271,8 @@ def mode_filter(data, filtSize=11):
 i = 0
 begin = time.time()
 date = '20161116_20161122'
-date = '20150327_20151216'
-date = '20161128_20161228'
+# date = '20150327_20151216'
+# date = '20161128_20161228'
 
 focus = True
 if not fullres:
@@ -321,7 +321,7 @@ if i == v:
 
 # Interpolate IFG to entire frame
 filled_ifg = NN_interp(ifg)
-
+breakpoint()
 if plot_figures:
     loop_lib.plotmask(filled_ifg, centerz=False, title='Filled IFG')
     if focus:
@@ -498,8 +498,11 @@ if fullres:
 # Flip round now, so 1 = bad pixel, 0 = good pixel
 mask = (mask == 0).astype('int')
 mask[np.where(np.isnan(unw))] = 0
-mask.astype('bool').tofile(os.path.join(ifgdir, date, date + '.mask'))
-masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))
+# mask.astype('bool').tofile(os.path.join(ifgdir, date, date + '.mask'))
+# masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))
+
+if plot_figures:
+    loop_lib.plotmask(mask, centerz=False, title='Inverted Mask')
 
 if i == v:
     print('        Saved {:.2f}'.format(time.time() - begin))

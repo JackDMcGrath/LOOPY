@@ -53,11 +53,12 @@ Outputs in TS_GEOCml*/:
 =====
 Usage
 =====
-LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [--full_res] [--reset] [--n_para]
+LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [-e int] [-v int] [--full_res] [--reset] [--n_para]
 
 -d        Path to the GEOCml* dir containing stack of unw data
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
 -m        Output multilooking factor (Default: No multilooking of mask)
+-e        Number of iterations of binary dilation of the error boundaries. Set to zero for no dilation (Default: 0.5 * ml_factor)
 -v        IFG to give verbose timings for (Development option, Default: -1 (not verbose))
 --fullres Create masks from full res data, and multilook to -m (ie. orginal geotiffs) (Assume in folder called GEOC)
 --reset   Remove previous corrections
@@ -94,7 +95,7 @@ from scipy.ndimage import label
 from scipy.interpolate import NearestNDInterpolator
 from skimage import filters
 from skimage.segmentation import flood, flood_fill
-from scipy.ndimage import binary_closing
+from scipy.ndimage import binary_dilation
 
 insar = tools_lib.get_cmap('SCM.romaO')
 
@@ -121,12 +122,13 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
-        length, width, ifgdir, ifgdates, coh, coast, i, v, begin, fullres, geocdir
+        length, width, ifgdir, ifgdates, coh, coast, i, v, begin, fullres, geocdir, err_dil
 
     # %% Set default
     ifgdir = []
     tsadir = []
     ml_factor = []  # Amount to multilook the resulting masks
+    err_dil = []  # Amount to binary dilate the error mask
     fullres = False
     reset = False
     plot_figures = False
@@ -146,11 +148,11 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:m:v:", ["help", "reset", "n_para=", "fullres"])
+            opts, args = getopt.getopt(argv[1:], "hd:t:m:v:e", ["help", "reset", "n_para=", "fullres"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
-            if o == '-h' or o == ' --help':
+            if o == '-h' or o == '--help':
                 print(__doc__)
                 return 0
             elif o == '-d':
@@ -161,6 +163,8 @@ def main(argv=None):
                 ml_factor = int(a)
             elif o == '-v':
                 v = int(a) - 1
+            elif o == '-e':
+                err_dil = int(a)
             elif o == '--reset':
                 reset = True
             elif o == '--n_para':
@@ -181,10 +185,14 @@ def main(argv=None):
         else:
             ml_factor = 1
 
+        if not err_dil:
+            err_dil = np.ceil(ml_factor / 2)
+            print('No iteration number set for error boundary dilation. Setting to {:.0f} (0.5 * ml_factor)'.format(err_dil))
+
     except Usage as err:
         print("\nERROR:", file=sys.stderr, end='')
         print("  " + str(err.msg), file=sys.stderr)
-        print("\nFor help, use -h or -- help.\n", file=sys.stderr)
+        print("\nFor help, use -h or --help.\n", file=sys.stderr)
         return 2
 
     # %% Directory setting
@@ -445,8 +453,23 @@ def mask_unw_errors(i):
 
     # Add coastline incase gap in the errors means that sea can be flooded
     errors = (errors + coast).astype('bool').astype('int')
-    errors = binary_closing(errors).astype('int')
 
+    # Add errors to IFG, reinterpolate, and see what the mask does
+    max_unw = np.nanmax(ifg)
+    mask_ifg = ifg.copy()
+    mask_ifg[np.where(errors == 1)] = max_unw * 5
+
+    # Reinterpolate ifg with errors
+    mask_ifg = NN_interp(mask_ifg)
+
+    # Identify errors based on the max_unw threshold
+    errors = (mask_ifg == (max_unw * 5)).astype('int')
+
+    # Dilate errors to fill holes
+    if err_dil > 0:
+        errors = binary_dilation(errors, iterations=err_dil).astype('int')
+
+    # Reflood from reference pixel to find the error regions, where 1 is good data and 0 is bad data
     mask = (flood_fill(errors, (floody, floodx), 2) == 2).astype('int')
 
     if i == v:
