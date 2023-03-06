@@ -1,4 +1,4 @@
-# LOOPY
+# LOOPY - UNDER VERY EARLY STAGE DEVELOPMENT. VERY MUCH USE AT YOUR OWN RISK
 
 LOOPY is an open-source package in Python designed to identify and correct unwrapping errors in interferograms. It is written as an add-on to the COMET [LiCSBAS](https://github.com/yumorishita/LiCSBAS) software.
 
