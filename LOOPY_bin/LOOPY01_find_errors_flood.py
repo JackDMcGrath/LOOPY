@@ -478,6 +478,15 @@ def mask_unw_errors(i):
 
     if i == v:
         print('        Errors rebinarised {:.2f}'.format(time.time() - begin))
+
+    if i == v:
+        print('        Err_dil = {:.0f} {:.2f}'.format(err_dil, time.time() - begin))
+
+    for ii in range(err_dil):
+        errors = binary_dilation(errors).astype('int')
+        if i == v:
+            print('        Dilation iteration = {:.0f} {:.2f}'.format(ii + 1, time.time() - begin))
+
     # Dilate errors to fill holes
     if err_dil > 0:
         errors = binary_dilation(errors, iterations=err_dil).astype('int')
