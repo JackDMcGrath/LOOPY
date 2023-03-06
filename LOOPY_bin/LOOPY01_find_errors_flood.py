@@ -186,7 +186,7 @@ def main(argv=None):
             ml_factor = 1
 
         if not err_dil:
-            err_dil = np.ceil(ml_factor / 2)
+            err_dil = int(np.ceil(ml_factor / 2))
             print('No iteration number set for error boundary dilation. Setting to {:.0f} (0.5 * ml_factor)'.format(err_dil))
 
     except Usage as err:
