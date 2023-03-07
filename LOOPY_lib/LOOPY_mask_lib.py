@@ -12,19 +12,21 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
  - Original implementation
 """
 import os
+import shutil
+import warnings
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from numba import jit, njit
 
-os.environ['QT_QPA_PLATFORM']='offscreen'
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
-import warnings
-with warnings.catch_warnings(): ## To silence user warning
+
+with warnings.catch_warnings():  # To silence user warning
     warnings.simplefilter('ignore', UserWarning)
     mpl.use('Agg')
 
-#%% Find negihbouring regions (numba only allows first 2 arguements in roll)
+
+# %% Find negihbouring regions (numba only allows first 2 arguements in roll)
 def find_neighbours(ref_region, labels):
     y = labels == ref_region  # convert to Boolean
 
@@ -45,11 +47,12 @@ def find_neighbours(ref_region, labels):
     z = np.logical_or(z, rolled)
 
     neighbours = set(np.unique(np.extract(z, labels))) - set([ref_region])
-    neighbours = {x for x in neighbours if x==x} # Drop NaN value
+    neighbours = {x for x in neighbours if x == x}  # Drop NaN value
 
     return neighbours
 
-#%% Classify neighbour regions as good or bad
+
+# %% Classify neighbour regions as good or bad
 def classify_regions(neighbours, similar, different, unclass, ref_val, npi, tol, labels):
     """
     Function to classify regions as based on if an unwrapping error is detected between two regions
@@ -141,16 +144,24 @@ def reset_masks(ifgdir):
 
     for root, dirs, files in os.walk(ifgdir):
         for dir_name in dirs:
+            raw_ifg = os.path.join(root, dir_name, dir_name + '_uncorr.unw')
             mask_file = os.path.join(root, dir_name, dir_name + '.mask')
             mask = os.path.join(root, dir_name, dir_name + '.unw_mask')
+            corrpng = os.path.join(root, dir_name, dir_name + '.corr.png')
             maskpng = os.path.join(root, dir_name, dir_name + '.mask.png')
             mlmaskpng = os.path.join(root, dir_name, dir_name + '.ml_mask.png')
+
+            if os.path.exists(raw_ifg):
+                shutil.move(raw_ifg, os.path.join(ifgdir, dir_name, dir_name + '.unw'))
 
             if os.path.exists(mask_file):
                 os.remove(mask_file)
 
             if os.path.exists(mask):
                 os.remove(mask)
+
+            if os.path.exists(corrpng):
+                os.remove(corrpng)
 
             if os.path.exists(maskpng):
                 os.remove(maskpng)
@@ -216,6 +227,39 @@ def make_unw_npi_mask_png(data3, pngfile, cmap, title3):
             im = ax.imshow(data3[i], cmap=cmap[i], interpolation=interp, vmin=-1, vmax=1)
         else:
             im = ax.imshow(data3[i], cmap=cmap[i], interpolation=interp)
+        ax.set_title(title3[i])
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        fig.colorbar(im, ax=ax, location='bottom')
+    plt.tight_layout()
+    try:
+        plt.savefig(pngfile)
+    except:
+        print('ERROR: Mask Comparison Figure Failed to Save. Error usually\n    MemoryError: Unable to allocate [X] MiB for an array with shape (Y, Z) and data type int64.\nSkipping')
+
+    plt.close()
+
+    return
+
+
+# %%
+def make_unw_mask_corr_png(data3, pngfile, cmap, title3):
+    """
+    Make png with 3 images for comparison.
+    data3 and title3 must be list with 3 elements.
+    cmap can be 'insar'. To wrap data, np.angle(np.exp(1j*x/cycle)*cycle)
+    """
+    # Plot setting
+    interp = 'nearest'
+    length, width = data3[0].shape
+    figsizex = 12
+    xmergin = 4
+    figsizey = int((figsizex - xmergin) / 2 * length / width) + 2
+    fig = plt.figure(figsize=(figsizex, figsizey))
+
+    for i in range(3):
+        ax = fig.add_subplot(1, 3, i + 1)  # index start from 1
+        im = ax.imshow(data3[i], cmap=cmap[i], interpolation=interp)
         ax.set_title(title3[i])
         ax.set_xticklabels([])
         ax.set_yticklabels([])

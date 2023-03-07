@@ -551,7 +551,7 @@ def mask_unw_errors(i):
     mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
 
     title3 = ['Original unw', 'Correction', 'Corrected IFG']
-    mask_lib.make_unw_npi_mask_png([unw, correction, corr_unw], os.path.join(ifgdir, date, date + '.corr.png'), [insar, 'tab20c', insar], title3)
+    mask_lib.make_unw_mask_corr_png([unw, correction, corr_unw], os.path.join(ifgdir, date, date + '.corr.png'), [insar, 'tab20c', insar], title3)
 
     # %% Save Masked UNW to save time in corrections
     # If working with full res data, load in the ml IFG to be masked
