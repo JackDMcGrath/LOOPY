@@ -79,9 +79,11 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
 import os
 import re
 import sys
+import SCM
 import time
 import glob
 import getopt
+import shutil
 import numpy as np
 import multiprocessing as multi
 import LOOPY_mask_lib as mask_lib
@@ -96,7 +98,6 @@ from scipy.ndimage import binary_closing, binary_opening, binary_dilation, binar
 from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import mode
 from skimage import filters
-
 
 insar = tools_lib.get_cmap('SCM.romaO')
 
@@ -261,8 +262,9 @@ def mode_filter(data, filtSize=11):
 
     # Filter image, convert back to np.array, and repopulate with nans
     im_mode = im.filter(ImageFilter.ModeFilter(size=filtSize))
-    dataMode = (np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min
+    dataMode = ((np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min).round()
     dataMode[np.where(np.isnan(data))] = np.nan
+    dataMode[np.where(dataMode == npi_min)] = np.nan
 
     return dataMode
 
@@ -271,6 +273,7 @@ def mode_filter(data, filtSize=11):
 i = 0
 begin = time.time()
 date = '20161116_20161122'
+date = '20141115_20150303'
 # date = '20150327_20151216'
 # date = '20161128_20161228'
 
@@ -321,7 +324,7 @@ if i == v:
 
 # Interpolate IFG to entire frame
 filled_ifg = NN_interp(ifg)
-breakpoint()
+# breakpoint()
 if plot_figures:
     loop_lib.plotmask(filled_ifg, centerz=False, title='Filled IFG')
     if focus:
@@ -398,6 +401,7 @@ if i == v:
 # Add up all filters. Class anywhere boundary in all three as an error
 boundary_tot = sobel0 + sobelp1 + sobelm1
 boundary_err = (boundary_tot == 3).astype('int')
+boundary_err = binary_dilation(boundary_err, iterations=5)
 # err_2 = binary_closing(boundary_err)
 # boundary_err = binary_dilation(boundary_err)
 
@@ -407,13 +411,13 @@ if plot_figures:
 if plot_figures:
     loop_lib.plotmask(boundary_err[y1:y2, x1:x2], centerz=False, title='Boundary Err', cmap='gray')
 
-#boundary_err = binary_opening(boundary_err).astype('int')  # Erosion -> dilation
-if plot_figures:
-    loop_lib.plotmask(boundary_err[y1:y2, x1:x2], centerz=False, title='Boundary Err Binary Opening', cmap='gray')
+# boundary_err = binary_opening(boundary_err).astype('int')  # Erosion -> dilation
+# if plot_figures:
+#    loop_lib.plotmask(boundary_err[y1:y2, x1:x2], centerz=False, title='Boundary Err Binary Opening', cmap='gray')
 
 if i == v:
     print('        Boundaries Classified {:.2f}'.format(time.time() - begin))
-
+# %%
 # Add error lines to the original IFG, and interpolate with these values to
 # create IFG split up by unwrapping error boundaries
 ifg2 = unw.copy()
@@ -443,12 +447,24 @@ if i == v:
 
 # Label the binary IFG into connected regions
 regions, count = label(filled_ifg2)
+regions = regions.astype('float32')
+regionId, regionSize = np.unique(regions, return_counts=True)
 
 if plot_figures:
     loop_lib.plotmask(regions, centerz=False, title='Regions')
 
 if i == v:
     print('        Added to IFG {:.2f}'.format(time.time() - begin))
+
+# Set a minimum size of region to be corrected
+min_corr_size = ml_factor * ml_factor * 10  # 10 pixels at final ml size
+
+# Region IDs to small to corrected
+drop_regions = regionId[np.where(regionSize < min_corr_size)]
+regions[np.where(np.isin(regions, np.append(drop_regions, 0)))] = np.nan
+
+# Reinterpolate without tiny regions
+regions = NN_interp(regions)
 
 # Find region number of reference pixel. All pixels in this region to be
 # considered unw error free. Mask where 1 == good pixel, 0 == bad
@@ -462,10 +478,44 @@ if plot_figures:
 
 if i == v:
     print('        Mask made {:.2f}'.format(time.time() - begin))
-breakpoint()
-title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
 
+# Make an array exclusively holding the good values
+good_vals = np.zeros(mask.shape) * np.nan
+good_vals[mask] = npi_og[mask]
+
+# Make an array to hold the correction
+correction = np.zeros(mask.shape)
+
+# Boolean array of the outside boundary of the good mask
+good_border = filters.sobel(mask).astype('bool')
+corr_regions = np.unique(regions[good_border])
+corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
+
+for corrIx in corr_regions:
+    # Make map only of the border regions
+    border_regions = np.zeros(mask.shape)
+    border_regions[good_border] = regions[good_border]
+
+    # Plot boundary in isolation
+    border = np.zeros(mask.shape).astype('int')
+    border[np.where(border_regions == corrIx)] = 1
+    # Dilate boundary so it crosses into both regions
+    border_dil = binary_dilation(border).astype('int')
+    av_err = mode(npi_og[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
+    av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
+
+    correction[np.where(regions == corrIx)] = (av_good - av_err) * 2 * np.pi
+
+# Apply correction to original version of IFG
+corr_unw = unw.copy()
+corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
+
+# %% Make PNGs
+title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
 mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
+
+title3 = ['Original unw', 'Correction', 'Corrected IFG']
+mask_lib.make_unw_npi_mask_png([unw, correction, corr_unw], os.path.join(ifgdir, date, date + '.corr.png'), [insar, 'tab20c', insar], title3)
 
 # %% Save Masked UNW to save time in corrections
 masked_ifg = unw.copy().astype('float32')
@@ -487,6 +537,7 @@ if fullres:
 #    if i == v:
 #        print('        Mask re-binarised {:.2f}'.format(time.time() - begin))
     masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1)
+    corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, 0.1)
     unw = tools_lib.multilook(unw, ml_factor, ml_factor, 0.1)
     if i == v:
         print('        Masked IFG multilooked {:.2f}'.format(time.time() - begin))
@@ -498,8 +549,18 @@ if fullres:
 # Flip round now, so 1 = bad pixel, 0 = good pixel
 mask = (mask == 0).astype('int')
 mask[np.where(np.isnan(unw))] = 0
-# mask.astype('bool').tofile(os.path.join(ifgdir, date, date + '.mask'))
-# masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))
+
+# Backup original unw file and loop png
+shutil.move(os.path.join(ifgdir, date, date + '.unw'), os.path.join(ifgdir, date, date + '_uncorr.unw'))
+shutil.move(os.path.join(ifgdir, date, date + '.unw.png'), os.path.join(ifgdir, date, date + '_uncorr.unw.png'))
+title = '{} ({}pi/cycle)'.format(date, 3 * 2)
+plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(ifgdir, date, date + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
+
+# Make new unw file from corrected data and new loop png
+corr_unw.tofile(os.path.join(ifgdir, date, date + '.unw'))
+
+mask.astype('bool').tofile(os.path.join(ifgdir, date, date + '.mask'))
+masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))
 
 if plot_figures:
     loop_lib.plotmask(mask, centerz=False, title='Inverted Mask')
