@@ -145,6 +145,7 @@ def reset_masks(ifgdir):
     for root, dirs, files in os.walk(ifgdir):
         for dir_name in dirs:
             raw_ifg = os.path.join(root, dir_name, dir_name + '_uncorr.unw')
+            raw_png = os.path.join(root, dir_name, dir_name + '_uncorr.unw.png')
             mask_file = os.path.join(root, dir_name, dir_name + '.mask')
             mask = os.path.join(root, dir_name, dir_name + '.unw_mask')
             corrpng = os.path.join(root, dir_name, dir_name + '.corr.png')
@@ -153,6 +154,9 @@ def reset_masks(ifgdir):
 
             if os.path.exists(raw_ifg):
                 shutil.move(raw_ifg, os.path.join(ifgdir, dir_name, dir_name + '.unw'))
+
+            if os.path.exists(raw_png):
+                shutil.move(raw_png, os.path.join(ifgdir, dir_name, dir_name + '.unw.png'))
 
             if os.path.exists(mask_file):
                 os.remove(mask_file)
