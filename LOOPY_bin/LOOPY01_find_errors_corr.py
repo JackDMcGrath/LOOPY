@@ -92,6 +92,7 @@ import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_plot_lib as plot_lib
 from osgeo import gdal
 from PIL import Image, ImageFilter
+from skimage.filters.rank import modal
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation
 from scipy.interpolate import NearestNDInterpolator
@@ -618,9 +619,24 @@ def NN_interp(data):
     interped_data[interp_to] = nearest_data
     return interped_data
 
+# %% Function to modally filter arrays using Scikit
+def mode_filter(data, filtSize=21):
+    npi_min = np.nanmin(data) - 1
+    npi_range = np.nanmax(data) - npi_min
 
-# %% Function to modally filter arrays using PIL
-def mode_filter(data, filtSize=11):
+    # Convert array into 0-255 range
+    greyscale = ((data - npi_min) / npi_range) * 255
+
+    # Filter image, convert back to np.array, and repopulate with nans
+    im_mode = modal(greyscale.astype('uint8'), np.ones([filtSize, filtSize]))
+    dataMode = ((np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min).round()
+    dataMode[np.where(np.isnan(data))] = np.nan
+    dataMode[np.where(dataMode == npi_min)] = np.nan
+
+    return dataMode
+
+# %% Function to modally filter arrays using PIL (40% slower than scikit)
+def mode_filterPIL(data, filtSize=11):
     npi_min = np.nanmin(data) - 1
     npi_range = np.nanmax(data) - npi_min
 

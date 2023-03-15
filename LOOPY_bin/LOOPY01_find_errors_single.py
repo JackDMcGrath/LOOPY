@@ -98,6 +98,7 @@ from scipy.ndimage import binary_closing, binary_opening, binary_dilation, binar
 from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import mode
 from skimage import filters
+from numba import jit
 
 insar = tools_lib.get_cmap('SCM.romaO')
 
@@ -105,7 +106,8 @@ global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
     length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir
 
 # %% Set default
-ifgdir = os.path.join('D:\\', 'LiCSBAS_singleFrames', '073D_13256_001823', 'GEOCml10')
+frame = '073D_13256_001823'  # '073D_13256_001823' '023A_13470_171714'
+ifgdir = os.path.join('D:\\', 'LiCSBAS_singleFrames', frame, 'GEOCml10')
 tsadir = []
 ml_factor = 10  # Amount to multilook the resulting masks
 fullres = True
@@ -269,15 +271,75 @@ def mode_filter(data, filtSize=11):
     return dataMode
 
 
+
+def mode_filter2(data, filtSize=21):
+    npi_min = np.nanmin(data) - 1
+    npi_range = np.nanmax(data) - npi_min
+    # Convert array into 0-255 range
+    greyscale = ((data - npi_min) / npi_range) * 255
+    # Filter image, convert back to np.array, and repopulate with nans
+    im_mode = modal(greyscale.astype('uint8'), np.ones([filtSize, filtSize]))
+    dataMode = ((np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min).round()
+    dataMode[np.where(np.isnan(data))] = np.nan
+    dataMode[np.where(dataMode == npi_min)] = np.nan
+    # return data:
+    return dataMode
+
+# %%
+@jit(nopython=True)
+def numbaMode(buffer, minData, nData, iY, iX, filtSize):
+    modeArray = np.zeros(nData)
+
+    for ii in range(nData):
+        area = buffer[iY[ii]:iY[ii] + filtSize, iX[ii]:iX[ii] + filtSize]
+        a = np.array([val for val in area.flatten() if val != minData])
+
+        maxCount = 0
+        modeVal = minData
+
+        for val in set(a):
+            if len(np.where(a == val)) > maxCount:
+                maxCount = len(np.where(a == val))
+                modeVal = val
+
+        modeArray[ii] = modeVal
+
+    return modeArray
+
+
+# %
+def numba_filter(data, filtSize=21):
+    begin = time.time()
+    nonNany, nonNanx = np.where(~np.isnan(data))
+    halfFilt = np.floor(filtSize / 2).astype('int')
+    dataMode = np.zeros((data.shape)) * np.nan
+    minData = np.nanmin(data) - 20
+
+    buffer = np.zeros((data.shape[0] + filtSize - 1, data.shape[1] + filtSize - 1)) * np.nan
+    buffer[halfFilt:-halfFilt, halfFilt:-halfFilt] = data
+    buffer[np.where(np.isnan(buffer))] = minData
+
+    length, width = data.shape
+    nData = len(nonNany)
+    numbaTime = time.time()
+    modeArray = numbaMode(buffer, minData, nData, nonNany, nonNanx, filtSize)
+    numbaElapse = time.time() - numbaTime
+    print('Numba Time = {:.2f} s'.format(numbaElapse))
+    dataMode[nonNany, nonNanx] = modeArray
+    print('Rest time = {:.2f} s'.format(time.time() - begin - numbaElapse))
+    return dataMode
+
+
 # %% Function to mask unwrapping errors
 i = 0
 begin = time.time()
-date = '20161116_20161122'
-date = '20141115_20150303'
-# date = '20150327_20151216'
-# date = '20161128_20161228'
+date = '20161116_20161122'  # 073D
+date = '20141115_20150303'  # 073D
+# date = '20150327_20151216'  # 073D
+# date = '20161128_20161228'  # 073D
+# date = '20170118_20181227'  # 023A
 
-focus = True
+focus = False
 if not fullres:
     focus = False
 if focus:
@@ -341,23 +403,45 @@ npi_p1 = ((filled_ifg + np.pi) / (2 * np.pi)).round()
 npi_m1 = ((filled_ifg - np.pi) / (2 * np.pi)).round()
 
 if plot_figures:
-    loop_lib.plotmask(npi_og[y1:y2, x1:x2], centerz=False, title='N 2PI', cmap='tab20c', vmin=-4.75, vmax=4.75)
+    loop_lib.plotmask(npi_og, centerz=False, title='N 2PI', cmap='tab20c', vmin=-4.75, vmax=4.75)
 
 if i == v:
     print('        npi_calculated {:.2f}'.format(time.time() - begin))
 
+# npi_numba = numba_filter(np.ones((5, 5)), filtSize=3)
+# npi_numba = numba_filter(npi_og, filtSize=21)
+if i == v:
+    print('        numba filtered {:.2f}'.format(time.time() - begin))
+start = time.time()
 # Modal filtering of npi images
-npi_og = mode_filter(npi_og, filtSize=21)
+npi_og1 = mode_filter(npi_og, filtSize=21)
+if i == v:
+    print('        PIL filtered {:.2f} ({:.2f} s)'.format(time.time() - begin, time.time() - start))
+
+# Modal filtering of npi images
+start = time.time()
+npi_og2 = mode_filter2(npi_og, filtSize=21)
+if i == v:
+    print('        Scipy filtered {:.2f} ({:.2f} s)'.format(time.time() - begin, time.time() - start))
+breakpoint()
 if plot_figures:
     loop_lib.plotmask(npi_og, centerz=False, title='NPI filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
     if focus:
         loop_lib.plotmask(npi_og[y1:y2, x1:x2], centerz=False, title='NPI filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
 if i == v:
     print('            npi 0 filter  {:.2f}'.format(time.time() - begin))
-# npi_p1 = mode_filter(npi_p1)
+npi_p1 = mode_filter(npi_p1)
+if plot_figures:
+    loop_lib.plotmask(npi_p1, centerz=False, title='NPI +pi filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
+    if focus:
+        loop_lib.plotmask(npi_p1[y1:y2, x1:x2], centerz=False, title='NPI +pi filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
 if i == v:
     print('            npi p1 filter  {:.2f}'.format(time.time() - begin))
-# npi_m1 = mode_filter(npi_m1)
+npi_m1 = mode_filter(npi_m1)
+if plot_figures:
+    loop_lib.plotmask(npi_m1, centerz=False, title='NPI -pi filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
+    if focus:
+        loop_lib.plotmask(npi_m1[y1:y2, x1:x2], centerz=False, title='NPI -pi filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
 if i == v:
     print('            npi m1 filter  {:.2f}'.format(time.time() - begin))
 
@@ -377,7 +461,7 @@ if i == v:
     sobeltime = time.time()
 sobel0[sobel0 > 0] = 1
 if plot_figures:
-    loop_lib.plotmask(sobel0[y1:y2, x1:x2], centerz=False, title='sobel0', cmap='gray')
+    loop_lib.plotmask(sobel0, centerz=False, title='sobel0', cmap='gray')
 if i == v:
     print('        Sobel0 binarized {:.2f}'.format(time.time() - sobeltime))
     sobeltime = time.time()
@@ -386,6 +470,8 @@ if i == v:
     print('        Sobelp1 {:.2f}'.format(time.time() - sobeltime))
     sobeltime = time.time()
 sobelp1[sobelp1 > 0] = 1
+if plot_figures:
+    loop_lib.plotmask(sobelp1, centerz=False, title='sobelp1', cmap='gray')
 if i == v:
     print('        Sobelp1 binarized {:.2f}'.format(time.time() - sobeltime))
     sobeltime = time.time()
@@ -394,10 +480,13 @@ if i == v:
     print('        Sobelm1 {:.2f}'.format(time.time() - sobeltime))
     sobeltime = time.time()
 sobelm1[sobelm1 > 0] = 1
+if plot_figures:
+    loop_lib.plotmask(sobelm1, centerz=False, title='sobelm1', cmap='gray')
 if i == v:
     print('        Sobelm1 binarized {:.2f}'.format(time.time() - sobeltime))
     print('        Sobelled {:.2f}'.format(time.time() - begin))
 
+del graynpi0, graynpip1, graynpim1
 # Add up all filters. Class anywhere boundary in all three as an error
 boundary_tot = sobel0 + sobelp1 + sobelm1
 boundary_err = (boundary_tot == 3).astype('int')
@@ -406,10 +495,10 @@ boundary_err = binary_dilation(boundary_err, iterations=5)
 # boundary_err = binary_dilation(boundary_err)
 
 if plot_figures:
-    loop_lib.plotmask(boundary_tot[y1:y2, x1:x2], centerz=False, title='Tot', cmap='tab20c')
+    loop_lib.plotmask(boundary_tot, centerz=False, title='Tot', cmap='tab20c')
 
 if plot_figures:
-    loop_lib.plotmask(boundary_err[y1:y2, x1:x2], centerz=False, title='Boundary Err', cmap='gray')
+    loop_lib.plotmask(boundary_err, centerz=False, title='Boundary Err', cmap='gray')
 
 # boundary_err = binary_opening(boundary_err).astype('int')  # Erosion -> dilation
 # if plot_figures:
@@ -473,7 +562,8 @@ ref_region = mode(regions[refy1:refy2, refx1:refx2].flatten(), keepdims=True)[0]
 mask = regions == ref_region
 
 if plot_figures:
-    loop_lib.plotmask(mask[y1:y2, x1:x2], centerz=False, title='Mask')
+    if focus:
+        loop_lib.plotmask(mask[y1:y2, x1:x2], centerz=False, title='Mask')
     loop_lib.plotmask(mask, centerz=False, title='Mask')
 
 if i == v:
@@ -506,6 +596,7 @@ for corrIx in corr_regions:
 
     correction[np.where(regions == corrIx)] = (av_good - av_err) * 2 * np.pi
 
+del border, border_dil, good_border
 # Apply correction to original version of IFG
 corr_unw = unw.copy()
 corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
@@ -567,3 +658,42 @@ if plot_figures:
 
 if i == v:
     print('        Saved {:.2f}'.format(time.time() - begin))
+
+
+def modeFilterLambda(data, filtSize=21):
+    if filtSize % 2 == 0:
+        filtSize += 1
+    halfFilt = filtSize // 2
+    length, width = data.shape
+    nonNany, nonNanx = np.where(~np.isnan(data))
+
+    dataMode = np.zeros(data.shape) * np.nan
+    nPx = len(nonNany)
+    print('{:.0f} pixels to test'.format(nPx))
+    begin = time.time()
+    for ii in range(len(nonNany)):
+        if ii % 1e5 == 0:
+            if ii != 0:
+                elapsed = time.time() - begin
+                print('{:.0f} pixels complete in {:.2f} seconds. ETC = {:.0f}'.format(ii, time.time() - begin, elapsed / ii * nPx))
+        if nonNany[ii] < halfFilt:
+            startY = 0
+        else:
+            startY = nonNany[ii] - halfFilt
+        if nonNany[ii] > length - halfFilt:
+            endY = length
+        else:
+            endY = nonNany[ii] + halfFilt
+        if nonNanx[ii] < halfFilt:
+            startX = 0
+        else:
+            startX = nonNanx[ii] - halfFilt
+        if nonNanx[ii] > width - halfFilt:
+            endX = width
+        else:
+            endX = nonNanx[ii] + halfFilt
+
+        area = list(data[startY:endY,startX:endX].flatten())
+        dataMode[nonNany[ii], nonNanx[ii]] = max(map(lambda val: (area.count(val), val),set(area)))[1]
+
+    print('Finished {:.2f}'.format(time.time() - begin))
