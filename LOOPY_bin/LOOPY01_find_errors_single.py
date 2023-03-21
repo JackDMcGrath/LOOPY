@@ -99,6 +99,7 @@ from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import mode
 from skimage import filters
 from numba import jit
+from skimage.filters.rank import modal
 
 insar = tools_lib.get_cmap('SCM.romaO')
 
@@ -106,7 +107,7 @@ global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
     length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir
 
 # %% Set default
-frame = '073D_13256_001823'  # '073D_13256_001823' '023A_13470_171714'
+frame = '023A_13470_171714'  # '073D_13256_001823' '023A_13470_171714'
 ifgdir = os.path.join('D:\\', 'LiCSBAS_singleFrames', frame, 'GEOCml10')
 tsadir = []
 ml_factor = 10  # Amount to multilook the resulting masks
@@ -253,26 +254,26 @@ def NN_interp(data):
     return interped_data
 
 
-# %% Function to modally filter arrays using PIL
-def mode_filter(data, filtSize=11):
-    npi_min = np.nanmin(data) - 1
-    npi_range = np.nanmax(data) - npi_min
+# # %% Function to modally filter arrays using PIL
+# def mode_filter(data, filtSize=11):
+#     npi_min = np.nanmin(data) - 1
+#     npi_range = np.nanmax(data) - npi_min
 
-    # Convert array into 0-255 range
-    greyscale = ((data - npi_min) / npi_range) * 255
-    im = Image.fromarray(greyscale.astype('uint8'))
+#     # Convert array into 0-255 range
+#     greyscale = ((data - npi_min) / npi_range) * 255
+#     im = Image.fromarray(greyscale.astype('uint8'))
 
-    # Filter image, convert back to np.array, and repopulate with nans
-    im_mode = im.filter(ImageFilter.ModeFilter(size=filtSize))
-    dataMode = ((np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min).round()
-    dataMode[np.where(np.isnan(data))] = np.nan
-    dataMode[np.where(dataMode == npi_min)] = np.nan
+#     # Filter image, convert back to np.array, and repopulate with nans
+#     im_mode = im.filter(ImageFilter.ModeFilter(size=filtSize))
+#     dataMode = ((np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min).round()
+#     dataMode[np.where(np.isnan(data))] = np.nan
+#     dataMode[np.where(dataMode == npi_min)] = np.nan
 
-    return dataMode
+#     return dataMode
 
 
-
-def mode_filter2(data, filtSize=21):
+# %% Function to modally filter arrays using skilearn
+def mode_filter(data, filtSize=21):
     npi_min = np.nanmin(data) - 1
     npi_range = np.nanmax(data) - npi_min
     # Convert array into 0-255 range
@@ -334,10 +335,12 @@ def numba_filter(data, filtSize=21):
 i = 0
 begin = time.time()
 date = '20161116_20161122'  # 073D
-date = '20141115_20150303'  # 073D
+# date = '20141115_20150303'  # 073D
+# date = '20160226_20161116'  # 073D
 # date = '20150327_20151216'  # 073D
 # date = '20161128_20161228'  # 073D
 # date = '20170118_20181227'  # 023A
+date = '20150920_20151014'  # 023A
 
 focus = False
 if not fullres:
@@ -414,34 +417,29 @@ if i == v:
     print('        numba filtered {:.2f}'.format(time.time() - begin))
 start = time.time()
 # Modal filtering of npi images
-npi_og1 = mode_filter(npi_og, filtSize=21)
-if i == v:
-    print('        PIL filtered {:.2f} ({:.2f} s)'.format(time.time() - begin, time.time() - start))
+npi_og = mode_filter(npi_og, filtSize=21)
 
-# Modal filtering of npi images
-start = time.time()
-npi_og2 = mode_filter2(npi_og, filtSize=21)
 if i == v:
     print('        Scipy filtered {:.2f} ({:.2f} s)'.format(time.time() - begin, time.time() - start))
-breakpoint()
+
 if plot_figures:
-    loop_lib.plotmask(npi_og, centerz=False, title='NPI filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
+    loop_lib.plotmask(npi_og, centerz=False, title='NPI filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
     if focus:
-        loop_lib.plotmask(npi_og[y1:y2, x1:x2], centerz=False, title='NPI filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
+        loop_lib.plotmask(npi_og[y1:y2, x1:x2], centerz=False, title='NPI filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
 if i == v:
     print('            npi 0 filter  {:.2f}'.format(time.time() - begin))
 npi_p1 = mode_filter(npi_p1)
 if plot_figures:
-    loop_lib.plotmask(npi_p1, centerz=False, title='NPI +pi filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
+    loop_lib.plotmask(npi_p1, centerz=False, title='NPI +pi filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
     if focus:
-        loop_lib.plotmask(npi_p1[y1:y2, x1:x2], centerz=False, title='NPI +pi filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
+        loop_lib.plotmask(npi_p1[y1:y2, x1:x2], centerz=False, title='NPI +pi filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
 if i == v:
     print('            npi p1 filter  {:.2f}'.format(time.time() - begin))
 npi_m1 = mode_filter(npi_m1)
 if plot_figures:
-    loop_lib.plotmask(npi_m1, centerz=False, title='NPI -pi filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
+    loop_lib.plotmask(npi_m1, centerz=False, title='NPI -pi filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
     if focus:
-        loop_lib.plotmask(npi_m1[y1:y2, x1:x2], centerz=False, title='NPI -pi filter', cmap='tab20c', vmin=-4.75, vmax=4.75)
+        loop_lib.plotmask(npi_m1[y1:y2, x1:x2], centerz=False, title='NPI -pi filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
 if i == v:
     print('            npi m1 filter  {:.2f}'.format(time.time() - begin))
 
@@ -506,6 +504,7 @@ if plot_figures:
 
 if i == v:
     print('        Boundaries Classified {:.2f}'.format(time.time() - begin))
+breakpoint()
 # %%
 # Add error lines to the original IFG, and interpolate with these values to
 # create IFG split up by unwrapping error boundaries

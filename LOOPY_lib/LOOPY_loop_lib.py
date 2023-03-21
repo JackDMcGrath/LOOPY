@@ -1036,13 +1036,14 @@ def loop_closure_4th_wrapper(Aloop, length, width, ifgdates, ifgdir, bad_ifg_all
 
     return ns_loop_err1
 #%%
-def plotmask(data,centerz=True,title='',cmap='viridis',vmin=None,vmax=None):
+def plotmask(data,centerz=True,title='',cmap='viridis',vmin=None,vmax=None, interp='antialiased'):
     # cmap_wrap = tools_lib.get_cmap('SCM.romaO')
     plt.figure()
     if centerz:
-        plt.imshow(data,vmin=-(np.nanmax(abs(data))), vmax=(np.nanmax(abs(data))),cmap=cmap)#, cmap=cmap_wrap)
-    else:
-        plt.imshow(data,cmap=cmap,vmin=vmin,vmax=vmax)
+        vmin=-(np.nanmax(abs(data)))
+        vmax=(np.nanmax(abs(data)))
+
+    plt.imshow(data,cmap=cmap,vmin=vmin,vmax=vmax, interpolation=interp)
     plt.colorbar(**{'format': '%.1f'})
     plt.title(title)
     plt.show()
