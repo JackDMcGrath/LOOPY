@@ -18,3 +18,4 @@ dependencies:
   - scikit-image
   - numba
   - pillow
+  - cvxopt
