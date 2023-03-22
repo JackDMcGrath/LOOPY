@@ -509,6 +509,9 @@ def mask_unw_errors(i):
         good_border = filters.sobel(mask).astype('bool')
         corr_regions = np.unique(regions[good_border])
         corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
+
+        if i == v:
+            print('       Preparing Corrections {:.2f}'.format(time.time() - begin))
     # %%
         for ii, corrIx in enumerate(corr_regions):
             # Make map only of the border regions
@@ -525,12 +528,14 @@ def mask_unw_errors(i):
 
             corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
             correction[np.where(regions == corrIx)] = corr_val
-            print('Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
+            if i == v:
+                print('Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
 
     # Apply correction to original version of IFG
     corr_unw = unw.copy()
     corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
-
+    if i == v:
+        print('       Correction Applied {:.2f}'.format(time.time() - begin))
     # %% Make PNGs
     title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
     mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
