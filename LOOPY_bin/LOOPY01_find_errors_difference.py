@@ -514,28 +514,14 @@ def mask_unw_errors(i):
             # Make map only of the border regions
             start = time.time()
             border_regions = np.zeros(mask.shape)
-            if ii % 50 == 0:
-                print('1 {:.2f}'.format(time.time() - start))
             border_regions[good_border] = regions[good_border]
-            if ii % 50 == 0:
-                print('2 {:.2f}'.format(time.time() - start))
             # Plot boundary in isolation
             border = np.zeros(mask.shape).astype('int')
-            if ii % 50 == 0:
-                print('3 {:.2f}'.format(time.time() - start))
             border[np.where(border_regions == corrIx)] = 1
-            if ii % 50 == 0:
-                print('4 {:.2f}'.format(time.time() - start))
             # Dilate boundary so it crosses into both regions
             border_dil = binary_dilation(border).astype('int')
-            if ii % 50 == 0:
-                print('5 {:.2f}'.format(time.time() - start))
             av_err = mode(npi_og[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
-            if ii % 50 == 0:
-                print('6 {:.2f}'.format(time.time() - start))
             av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
-            if ii % 50 == 0:
-                print('7 {:.2f}'.format(time.time() - start))
 
             corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
             correction[np.where(regions == corrIx)] = corr_val
