@@ -307,6 +307,12 @@ def main(argv=None):
             unw = np.array(p.map(read_unw, range(n_ifg)))
         p.close()
 
+    elapsed_time = time.time() - start
+    hour = int(elapsed_time / 3600)
+    minute = int(np.mod((elapsed_time / 60), 60))
+    sec = int(np.mod(elapsed_time, 60))
+    print("\nUNW Loaded: {0:02}h {1:02}m {2:02}s".format(hour, minute, sec))
+
     n_pt_all = length * width
     unw = unw.reshape((n_ifg, n_pt_all)).transpose()  # (n_pt_all, n_ifg)
 
@@ -351,7 +357,12 @@ def main(argv=None):
         else:
             correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
         p.close()
-        print('{:.0f} secs'.format(time.time() - begin))
+
+    elapsed_time = time.time() - start
+    hour = int(elapsed_time / 3600)
+    minute = int(np.mod((elapsed_time / 60), 60))
+    sec = int(np.mod(elapsed_time, 60))
+    print("\nCorrections Calculated: {0:02}h {1:02}m {2:02}s".format(hour, minute, sec))
 
     corrFull[ix_unnan_pt] = correction
     corrFull = corrFull.transpose().reshape(n_ifg, length, width)
@@ -380,6 +391,12 @@ def main(argv=None):
             unw = np.array(p.map(read_unw, range(n_ifg)))
         p.close()
 
+    elapsed_time = time.time() - start
+    hour = int(elapsed_time / 3600)
+    minute = int(np.mod((elapsed_time / 60), 60))
+    sec = int(np.mod(elapsed_time, 60))
+    print("\nUNW re-loaded: {0:02}h {1:02}m {2:02}s".format(hour, minute, sec))
+
     print("  Applying Corrections and making pngs...", flush=True)
     if not windows_multi and n_para != 1:
         print('with {} parallel processing...'.format(_n_para), flush=True)
@@ -391,6 +408,7 @@ def main(argv=None):
         for ii in range(n_ifg):
             apply_correction(ii)
 
+    print("\nCorrection Applied")
     # %% Finish
     elapsed_time = time.time() - start
     hour = int(elapsed_time / 3600)
@@ -440,8 +458,8 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
 
 
 def unw_loop_corr(i):
-    # if (i + 1) % 100 == 0:
-    #     print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
+    if (i + 1) % 1000 == 0:
+        print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
 
     disp = unw[i, :]
     corr = np.zeros(disp.shape)
