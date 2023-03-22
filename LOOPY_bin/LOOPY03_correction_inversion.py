@@ -54,6 +54,7 @@ import sys
 import re
 import time
 import psutil
+import shutil
 import numpy as np
 import multiprocessing as multi
 import SCM
@@ -88,14 +89,16 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     # For parallel processing
-    global n_para_gap, G, Aloop, unwpatch, imdates, incdir, ifgdir, length, width,\
+    global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
-        cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2
+        cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
+        n_ifg, corrFull
 
     # %% Set default
     ifgdir = []
     tsadir = []
     v = -1
+    reset = True
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -106,6 +109,7 @@ def main(argv=None):
     # Because np.linalg.lstsq use full CPU but not much faster than 1CPU.
     # Instead parallelize by multiprocessing
 
+    memory_size = 8000
     gamma = 0.001
     n_unw_r_thre = []
 
@@ -118,7 +122,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:v:",
-                                       ["help", "gamma=",
+                                       ["help", "--mem_size", "--reset", "gamma=",
                                         "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -132,6 +136,10 @@ def main(argv=None):
                 tsadir = a
             elif o == '-v':
                 v = float(a)
+            elif o == '--mem_size':
+                memory_size = float(a)
+            elif o == '--reset':
+                reset = True
             elif o == '--gamma':
                 gamma = float(a)
             elif o == '--n_unw_r_thre':
@@ -154,10 +162,11 @@ def main(argv=None):
 
     if sys.platform == "linux" or sys.platform == "linux2":
         q = multi.get_context('fork')
+        windows_multi = False
     elif sys.platform == "win32":
         q = multi.get_context('spawn')
-        n_para = 1
-        print('WINDOWS CANNOT USE GLOBAL VARIABLES IN MULTIPROCEESSING. SETTING N_PARA to 1')
+        windows_multi = True
+        import functools
 
     # %% Directory settings
     ifgdir = os.path.abspath(ifgdir)
@@ -193,6 +202,12 @@ def main(argv=None):
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         return 2
 
+    # %% Reset previous corrections
+    if reset:
+        print('Resetting Previous Corrections')
+        l1_lib.reset_corrections(ifgdir)
+
+
     # %% Set preliminaly reference
     with open(reffile, "r") as f:
         refarea = f.read().split()[0]  # str, x1/x2/y1/y2
@@ -206,7 +221,6 @@ def main(argv=None):
     speed_of_light = 299792458  # m/s
     radar_frequency = float(io_lib.get_param_par(mlipar, 'radar_frequency'))  # Hz
     wavelength = speed_of_light / radar_frequency  # meter
-    coef_r2m = -wavelength / 4 / np.pi * 1000  # rad -> mm, positive is -LOS
 
     # Set n_unw_r_thre and cycle depending on L- or C-band
     if wavelength > 0.2:  # L-band
@@ -287,83 +301,95 @@ def main(argv=None):
         print('with {} parallel processing...'.format(_n_para), flush=True)
         # Parallel processing
         p = q.Pool(_n_para)
-        unw = np.array(p.map(read_unw, range(n_ifg)))
+        if windows_multi:
+            unw = np.array(p.map(functools.partial(read_unw_win, ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir), range(n_ifg)))
+        else:
+            unw = np.array(p.map(read_unw, range(n_ifg)))
         p.close()
 
+    n_pt_all = length * width
+    unw = unw.reshape((n_ifg, n_pt_all)).transpose()  # (n_pt_all, n_ifg)
 
-    # # %% For each patch
-    # for i_patch, rows in enumerate(patchrow):
-    #     print('\nProcess {0}/{1}th line ({2}/{3}th patch)...'.format(rows[1], patchrow[-1][-1], i_patch + 1, n_patch), flush=True)
-    #     start2 = time.time()
+    # %% For each pixel
+    # %% Remove points with less valid data than n_unw_thre
+    ix_unnan_pt = np.where(np.sum(~np.isnan(unw), axis=1) > n_unw_thre)[0]
+    n_pt_unnan = len(ix_unnan_pt)
+    corrFull = np.zeros(unw.shape) * np.nan
+    unw = unw[ix_unnan_pt, :]  # keep only data for pixels where n_unw > n_unw_thre
+    correction = np.zeros(unw.shape) * np.nan
 
-    #     # %% Read data
-    #     # Allocate memory
-    #     lengththis = rows[1] - rows[0]
-    #     n_pt_all = lengththis * width
-    #     unwpatch = np.zeros((n_ifg, lengththis, width), dtype=np.float32)
+    print('  {} / {} points removed due to not enough ifg data...'.format(n_pt_all - n_pt_unnan, n_pt_all), flush=True)
+    # breakpoint()
+    wrap = 2 * np.pi
 
-    #     # For each ifg
-    #     print("  Reading {0} ifg's unw data...".format(n_ifg), flush=True)
-    #     countf = width * rows[0]
-    #     countl = width * lengththis
-    #     for i, ifgd in enumerate(ifgdates):
-    #         unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
-    #         f = open(unwfile, 'rb')
-    #         f.seek(countf * 4, os.SEEK_SET)  # Seek for >=2nd patch, 4 means byte
+    # %% Sort Memory for patches
+    # Check RAM
+    mem_avail = (psutil.virtual_memory().available) / 2**20  # MB (bytes to megabytes)
+    if memory_size > mem_avail / 2:
+        print('\nNot enough memory available compared to mem_size ({} MB).'.format(memory_size))
+        print('Reduce mem_size automatically to {} MB.'.format(int(mem_avail / 2)))
+        memory_size = int(mem_avail / 2)
 
-    #         # Read unw data (mm) at patch area
-    #         unw = np.fromfile(f, dtype=np.float32, count=countl).reshape((lengththis, width)) * coef_r2m
-    #         unw[unw == 0] = np.nan  # Fill 0 with nan
-    #         unw = unw - ref_unw[i]
-    #         unwpatch[i] = unw
-    #         f.close()
+    # %% Unwrapping corrections in a pixel by pixel basis (to be parallelised)
+    print('\n Unwrapping Correction inversion for {0:.0f} pixels in {1} loops...\n'.format(n_pt_unnan, n_loop), flush=True)
 
-    #     unwpatch = unwpatch.reshape((n_ifg, n_pt_all)).transpose()  # (n_pt_all, n_ifg)
+    if n_para == 1:
+        print('with no parallel processing...', flush=True)
+        begin = time.time()
+        for ii in range(n_pt_unnan):
+            if (ii + 1) % 1000 == 0:
+                elapse = time.time() - begin
+                print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / ii) * n_pt_unnan))
+            correction[ii, :] = unw_loop_corr(ii)
+    else:
+        print('with {} parallel processing...'.format(_n_para), flush=True)
+        # Parallel processing
+        begin = time.time()
+        p = q.Pool(_n_para)
+        if windows_multi:
+            correction = np.array(p.map(functools.partial(unw_loop_corr_win, n_pt_unnan, Aloop, wrap, unw), range(n_pt_unnan)))
+        else:
+            correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
+        p.close()
+        print('{:.0f} secs'.format(time.time() - begin))
 
-    #     # %% Remove points with less valid data than n_unw_thre
-    #     ix_unnan_pt = np.where(np.sum(~np.isnan(unwpatch), axis=1) > n_unw_thre)[0]
-    #     n_pt_unnan = len(ix_unnan_pt)
-    #     corrFull = np.zeros(unwpatch.shape) * np.nan
-    #     unwpatch = unwpatch[ix_unnan_pt, :]  # keep only unnan data
-    #     corrpatch = np.zeros(unwpatch.shape) * np.nan
+    corrFull[ix_unnan_pt] = correction
+    corrFull = corrFull.transpose().reshape(n_ifg, length, width)
 
-    #     print('  {} / {} points removed due to not enough ifg data...'.format(n_pt_all - n_pt_unnan, n_pt_all), flush=True)
-    #     # breakpoint()
-    #     wrap = 2 * np.pi
+    # %% Apply Correction to all IFGS
+    # Reload unw for application of correction
 
-    #     # %% Compute number of gaps, ifg_noloop, maxTlen point-by-point
-    #     if n_pt_unnan != 0:
-    #         # %% Unwrapping corrections in a pixel by pixel basis (to be parallelised)
-    #         print('\n Unwrapping Correction inversion for {:.0f} pixels...\n'.format(n_pt_unnan), flush=True)
-    #         start2 = time.time()
-    #         # for ii in range(n_pt_unnan):
-    #         for ix, ii in enumerate(np.random.permutation(n_pt_unnan)):
-    #             if (ix + 1) % 1000 == 0:
-    #                 print('\t\t{:.0f}/{:.0f} in {:.2f} secs (ETC: {:.0f} secs)\n'.format(ix + 1, n_pt_unnan, time.time() - start2, (time.time() - start2) / (ix + 1) * n_pt_unnan))
-    #             if (ix + 1) % 10000 == 0:
-    #                 corrFull[ix_unnan_pt] = corrpatch
-    #                 correction = corrFull.transpose().reshape(n_ifg, length, width)
-    #                 loop_lib.plotmask(correction[96, :, :], centerz=True, title='Correction {} {:.0f}%'.format(ifgdates[96], 100 * ix / n_pt_unnan), interp='Nearest')
+    print("  Reloading {0} ifg's unw data...".format(n_ifg), flush=True)
 
-    #             disp = unwpatch[ii, :]
-    #             # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
-    #             nonNan = np.where(~np.isnan(disp))[0]
-    #             nanDat = np.where(np.isnan(disp))[0]
-    #             nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
-    #             G = Aloop[nonNanLoop, :][:, nonNan]
-    #             closure = (np.dot(G, disp[nonNan]) / wrap).round()
-    #             G = matrix(G)
-    #             d = matrix(closure)
-    #             corrpatch[ii, nonNan] = np.array(l1_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+    # Allocate memory
+    unw = np.zeros((n_ifg, length, width), dtype=np.float32)
 
-    #         corrFull[ix_unnan_pt] = corrpatch
-    #         correction = corrFull.transpose().reshape(n_ifg, length, width)
-    #     # %% Finish patch
-    #     elapsed_time2 = int(time.time() - start2)
-    #     hour2 = int(elapsed_time2 / 3600)
-    #     minite2 = int(np.mod((elapsed_time2 / 60), 60))
-    #     sec2 = int(np.mod(elapsed_time2, 60))
-    #     print("  Elapsed time for {0}th patch: {1:02}h {2:02}m {3:02}s".format(i_patch + 1, hour2, minite2, sec2), flush=True)
+    if n_para == 1:
+        print('with no parallel processing...', flush=True)
+
+        for ii in range(n_ifg):
+            unw[ii, :, :] = read_unw(ii)
+
+    else:
+        print('with {} parallel processing...'.format(_n_para), flush=True)
+        # Parallel processing
+        p = q.Pool(_n_para)
+        if windows_multi:
+            unw = np.array(p.map(functools.partial(read_unw_win, ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir), range(n_ifg)))
+        else:
+            unw = np.array(p.map(read_unw, range(n_ifg)))
+        p.close()
+
+    print("  Applying Corrections and making pngs...", flush=True)
+    if not windows_multi and n_para != 1:
+        print('with {} parallel processing...'.format(_n_para), flush=True)
+        # Parallel processing
+        p = q.Pool(_n_para)
+        p.map(apply_correction, range(n_ifg))
+        p.close()
+    else:
+        for ii in range(n_ifg):
+            apply_correction(ii)
 
     # %% Finish
     elapsed_time = time.time() - start
@@ -373,12 +399,12 @@ def main(argv=None):
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour, minute, sec))
 
     print('\n{} Successfully finished!!\n'.format(os.path.basename(argv[0])))
-    # print('Output directory: {}\n'.format(os.path.relpath(tsadir)))
+    print('Output directory: {}\n'.format(tsadir))
 
 
 # %% Function to read IFGs to array
 def read_unw(i):
-    print(ifgdates[i])
+    print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
     # Read unw data (radians) at patch area
     unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
@@ -393,6 +419,92 @@ def read_unw(i):
     unw1 = unw1 - ref_unw
 
     return unw1
+
+
+def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i):
+    print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
+    unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
+    # Read unw data (radians) at patch area
+    unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
+    unw1[unw1 == 0] = np.nan  # Fill 0 with nan
+    ref_unw = []
+    buff = 0  # Buffer to increase reference area until a value is found
+    while not ref_unw:
+        try:
+            ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
+        except RuntimeWarning:
+            buff += 1
+    unw1 = unw1 - ref_unw
+
+    return unw1
+
+
+def unw_loop_corr(i):
+    # if (i + 1) % 100 == 0:
+    #     print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
+
+    disp = unw[i, :]
+    corr = np.zeros(disp.shape)
+    # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
+    nonNan = np.where(~np.isnan(disp))[0]
+    nanDat = np.where(np.isnan(disp))[0]
+    nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
+    G = Aloop[nonNanLoop, :][:, nonNan]
+    closure = (np.dot(G, disp[nonNan]) / wrap).round()
+    G = matrix(G)
+    d = matrix(closure)
+    corr[nonNan] = np.array(l1_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+
+    return corr
+
+
+def unw_loop_corr_win(n_pt_unnan, Aloop, wrap, unw, i):
+    if (i + 1) % 1000 == 0:
+        print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
+
+    disp = unw[i, :]
+    corr = np.zeros(disp.shape)
+    # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
+    nonNan = np.where(~np.isnan(disp))[0]
+    nanDat = np.where(np.isnan(disp))[0]
+    nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
+    G = Aloop[nonNanLoop, :][:, nonNan]
+    closure = (np.dot(G, disp[nonNan]) / wrap).round()
+    G = matrix(G)
+    d = matrix(closure)
+    corr[nonNan] = np.array(l1_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+
+    return corr
+
+
+def apply_correction(i):
+    """
+    Apply Correction to UNW ifg, and save outputs, preserving the original data
+    """
+    print('{0}/{1} {2}'.format(i + 1, n_ifg, ifgdates[i]))
+    unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
+    unwpngfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw.png')
+    uncorrfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw_uncorr')
+    uncorrpngfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw_uncorr.png')
+    corrcomppng = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.L1_compare.png')
+    corrfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.L1_corr')
+    # Move uncorrected data to backup
+    shutil.move(unwfile, uncorrfile)
+    shutil.move(unwpngfile, uncorrpngfile)
+    # Convert correction to radians
+    unw1 = unw[i, :, :]
+    npi = (unw1 / np.pi).round()
+    correction = corrFull[i, :, :] * wrap
+    corr_unw = unw[i, :, :] - correction
+    corr_unw.tofile(unwfile)
+    correction.tofile(corrfile)
+    # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
+    titles4 = ['{} Uncorrected'.format(ifgdates[i]),
+               '{} Corrected'.format(ifgdates[i]),
+               'Modulo nPi',
+               'L1 Correction (nPi)']
+    l1_lib.make_loop_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
+    plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 
 # %% main

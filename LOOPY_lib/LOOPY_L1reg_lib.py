@@ -22,9 +22,12 @@ v1.0.0 20230321 Jack McGrath, Uni of Leeds
  - Initial implementation based of LiCSBAS13_invert_small_baselines.py
 '''
 
-
-import numpy as np
+import os
 import math
+import shutil
+import numpy as np
+import LiCSBAS_tools_lib as tools_lib
+import matplotlib.pyplot as plt
 
 from cvxopt import (
     blas,
@@ -37,6 +40,8 @@ from cvxopt import (
     sqrt,
 )
 
+cmap_wrap = tools_lib.get_cmap('SCM.romaO')
+cmap_corr = tools_lib.get_cmap('SCM.vik')
 
 def l1regls(A, y, alpha=1.0, show_progress=1):
     """
@@ -141,8 +146,8 @@ def l1regls(A, y, alpha=1.0, show_progress=1):
         def g(x, y, z):
 
             x[:n] = 0.5 * (x[:n] - mul(d3, x[n:]) +
-                           mul(d1, z[:n] + mul(d3, z[:n])) - mul(d2, z[n:] -
-                                                                   mul(d3, z[n:])) )
+                           mul(d1, z[:n] + mul(d3, z[:n])) -
+                           mul(d2, z[n:] - mul(d3, z[n:])))
             x[:n] = div(x[:n], ds)
 
             # Solve
@@ -174,66 +179,124 @@ def l1regls(A, y, alpha=1.0, show_progress=1):
     return solvers.coneqp(P, q, G, h, kktsolver=Fkkt)['x'][:n]
 
 
+# %%
+def get_patchpix(n_pt_unnan, n_ifg, n_loop, memory_size, n_para, extra=5):
+    """
+    Get patch number of pixels for memory size (in MB). 1 data point if 4 bytes
+    for float32. Take availiable amount of memory, divide between n_para, and
+    see how many pixels can be inverted at once, given G = (mxn) * n_pt_unnan and
+    d = (m*n_pt_unnan)x1 for all data
 
+    Returns:
+        n_patch : Number of patches (int)
+        patchrow : List of the number of pixels for each patch
+                ex) [[0, 1234], [1235, 2469],... ]
+    """
+    data_max = np.sqrt((memory_size / 4) * (2 ** 20) / n_ifg / n_loop / n_para / extra)  # from MB to bytes, 4byte floats
+    n_patch = int(np.ceil(n_pt_unnan / data_max))  # Number of patches needed
+
+    patchpix = []
+    for i in range(n_patch):
+        pixspacing = int(np.ceil(n_pt_unnan / n_patch))
+        patchpix.append([i * pixspacing, (i + 1) * pixspacing])
+        if i == n_patch - 1:
+            patchpix[-1][-1] = n_pt_unnan
+
+    return n_patch, patchpix
+
+
+# %%
+def reset_corrections(ifgdir):
+    """
+    Remove previous corrections
+    """
+    if os.path.exists(os.path.join(ifgdir, 'L1_correction_png')):
+        shutil.rmtree(os.path.join(ifgdir, 'L1_correction_png'))
+
+    for root, dirs, files in os.walk(ifgdir):
+        for dir_name in dirs:
+            unwfile = os.path.join(root, dir_name, dir_name + '.unw')
+            unwpngfile = os.path.join(root, dir_name, dir_name + '.unw.png')
+            uncorrfile = os.path.join(root, dir_name, dir_name + '.unw_uncorr')
+            uncorrpngfile = os.path.join(root, dir_name, dir_name + '.unw_uncorr.png')
+            corrcomppng = os.path.join(root, dir_name, dir_name + '.L1_compare.png')
+            corrfile = os.path.join(root, dir_name, dir_name + '.L1_corr')
+            if os.path.exists(uncorrfile):
+                # Remove correction files
+                if os.path.exists(unwfile):
+                    os.remove(unwfile)
+                if os.path.exists(unwpngfile):
+                    os.remove(unwpngfile)
+                if os.path.exists(corrcomppng):
+                    os.remove(corrcomppng)
+                if os.path.exists(corrfile):
+                    os.remove(corrfile)
+                # Rename uncorrected files
+                shutil.move(uncorrfile, unwfile)
+            if os.path.exists(uncorrpngfile):
+                shutil.move(uncorrpngfile, unwpngfile)
+
+
+# %%
+def make_loop_png(uncorr, corrunw, npi, corr, png, titles4, cycle):
+
+    # Settings
+    plt.rcParams['axes.titlesize'] = 10
+    ifg = [uncorr, corrunw]
+
+    length, width = uncorr.shape
+    if length > width:
+        figsize_y = 10
+        figsize_x = int((figsize_y - 1) * width / length)
+        if figsize_x < 5:
+            figsize_x = 5
+    else:
+        figsize_x = 10
+        figsize_y = int(figsize_x * length / width + 1)
+        if figsize_y < 3:
+            figsize_y = 3
+
+    # Plot
+    fig = plt.figure(figsize=(figsize_x, figsize_y))
+
+    # Original and Corrected unw
+    for i in range(2):
+        data_wrapped = np.angle(np.exp(1j * (ifg[i] / cycle)) * cycle)
+        ax = fig.add_subplot(2, 2, i + 1)  # index start from 1
+        im = ax.imshow(data_wrapped, vmin=-np.pi, vmax=+np.pi, cmap=cmap_wrap,
+                       interpolation='nearest')
+        ax.set_title('{}'.format(titles4[i]))
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        cax = plt.colorbar(im)
+        cax.set_ticks([])
+
+    # npi
+    ax = fig.add_subplot(2, 2, 3)  # index start from 1
+    im = ax.imshow(npi, cmap='tab20c', interpolation='nearest')
+    ax.set_title('{}'.format(titles4[2]))
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    cax = plt.colorbar(im)
+
+    # Correction
+    ax = fig.add_subplot(2, 2, 4)  # index start from 1
+    im = ax.imshow(corr, vmin=-np.nanmax(abs(corr)), vmax=np.nanmax(abs(corr)),
+                   cmap=cmap_corr, interpolation='nearest')
+    ax.set_title('{}'.format(titles4[3]))
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    cax = plt.colorbar(im)
+
+    plt.tight_layout()
+    plt.savefig(png)
+    plt.close()
+
+
+# %%
 def linsolve(G, d):
     """
-    Simple BLUE estimator
+    Simple BLUE estimator (BAD - only using for mapping testing)
     """
     m = np.matmul(np.matmul(np.linalg.matrix_power(np.matmul(G.T, G), -1), G.T), d)
     return m
-
-
-def makeLoopClosure(nIfg, nepoch, epoch_ix, ifg_ix, ifg_disp, wrap):
-    """
-    Calculate the loops and loop closure values for a pixel in of all IFGs in SB network 
-
-    Parameters
-    ----------
-    nIfg : Float
-        Number of IFGs.
-    nepoch : float
-        Number of Epochs.
-    epoch_ix : nepoch x 1 Array
-        Array of epoch indicies (where epoch 1 is 1)
-    ifg_ix : nIFg x 2 array
-        Array containing the epoch indicies of each IFG
-    ifg_disp : nIFG x 1 array
-        Displacement of each IFG 
-    wrap : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    loop : TYPE
-        DESCRIPTION.
-    closure : TYPE
-        DESCRIPTION.
-
-    """
-    loop = np.zeros((1, nIfg))
-    closure = np.array([0])
-    # modDisp = (ifg_disp / wrap).round()  # Modulo 2 pi displacements
-    modDisp = ifg_disp.copy()
-
-    for ii in range(0, nepoch):
-        e1 = epoch_ix[ii] + 1
-        ifg1 = np.where(ifg_ix[:, 0] == e1)[0]
-        for jj in range(0, ifg1.shape[0]):
-            e2 = ifg_ix[ifg1[jj], 1]
-            ifg2 = np.where(ifg_ix[:, 0] == e2)[0]
-            for kk in range(0, ifg2.shape[0]):
-                e3 = ifg_ix[ifg2[kk], 1]
-                if np.where((ifg_ix == (e1, e3)).all(axis=1))[0].size:
-                    newloop = np.zeros((1, nIfg))
-                    ifg12 = np.where((ifg_ix == (e1, e2)).all(axis=1))[0][0]
-                    ifg13 = np.where((ifg_ix == (e1, e3)).all(axis=1))[0][0]
-                    ifg23 = np.where((ifg_ix == (e2, e3)).all(axis=1))[0][0]
-                    newloop[0, np.array([ifg12, ifg23, ifg13])] = [1, 1, -1]
-                    loop = np.vstack([loop, newloop])
-                    closure = np.vstack([closure, modDisp[ifg12] + modDisp[ifg23] - modDisp[ifg13]])
-
-    loop = np.delete(loop, 0, axis=0)
-    closure = np.delete(closure, 0, axis=0)
-    closure = (closure / wrap).round()
-
-    return loop, closure
