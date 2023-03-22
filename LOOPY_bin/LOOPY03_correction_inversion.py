@@ -365,7 +365,7 @@ def main(argv=None):
     print("\nCorrections Calculated: {0:02}h {1:02}m {2:02}s".format(hour, minute, sec))
 
     corrFull[ix_unnan_pt] = correction
-    corrFull = corrFull.transpose().reshape(n_ifg, length, width)
+    corrFull = corrFull.transpose().reshape(n_ifg, length, width).astype('float32')
 
     # %% Apply Correction to all IFGS
     # Reload unw for application of correction
