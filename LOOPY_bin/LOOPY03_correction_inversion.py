@@ -514,7 +514,12 @@ def apply_correction(i):
     npi = (unw1 / np.pi).round()
     correction = corrFull[i, :, :] * wrap
     corr_unw = unw[i, :, :] - correction
-    breakpoint()
+    print('UNW1 data type: {}'.format(unw1.dtype))
+    print('UNW1 length: {0}, Width: {1}'.format(unw1.shape[0], unw1.shape[1]))
+    print('correction data type: {}'.format(correction.dtype))
+    print('correction length: {0}, Width: {1}'.format(correction.shape[0], correction.shape[1]))
+    print('corr_unw data type: {}'.format(corr_unw.dtype))
+    print('corr_unw length: {0}, Width: {1}'.format(corr_unw.shape[0], corr_unw.shape[1]))
     corr_unw.tofile(unwfile)
     correction.tofile(corrfile)
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
