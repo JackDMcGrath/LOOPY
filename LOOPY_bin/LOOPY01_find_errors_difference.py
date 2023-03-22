@@ -380,6 +380,7 @@ def mask_unw_errors(i):
     if fullres:
         unw = gdal.Open(os.path.join(geocdir, date, date + '.geo.unw.tif')).ReadAsArray()
         unw[unw == 0] = np.nan
+
     else:
         unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width)
 
@@ -387,16 +388,17 @@ def mask_unw_errors(i):
         print('        UNW Loaded {:.2f}'.format(time.time() - begin))
 
     # Find Reference Value, and reference all IFGs to same value
-    ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
-    if np.isnan(ref):
-        print('Invalid Ref Value found. Setting to 0')
+    try:
+        ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
+    except 'RunTimeWarning':
+        print('Invalid Ref Value found for IFG {}. Setting to 0'.format(date))
         ref = 0
 
     ifg = unw.copy()
     ifg = ifg - ref  # Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
     if i == v:
         print('        Reffed {:.2f}'.format(time.time() - begin))
-
+    # %%
     # Interpolate IFG to entire frame
     filled_ifg = NN_interp(ifg)
 
@@ -405,67 +407,42 @@ def mask_unw_errors(i):
 
     # Find modulo 2pi values for original IFG, and after adding and subtracting 1pi
     # Use round rather than // to account for slight noise
-    npi_og = (filled_ifg / (2 * np.pi)).round()
-    npi_p1 = ((filled_ifg + np.pi) / (2 * np.pi)).round()
-    npi_m1 = ((filled_ifg - np.pi) / (2 * np.pi)).round()
+    nPi = 1
+    npi_og = (filled_ifg / (nPi * np.pi)).round()
 
     if i == v:
         print('        npi_calculated {:.2f}'.format(time.time() - begin))
 
     # Modal filtering of npi images
-    npi_og = mode_filter(npi_og)
-    if i == v:
-        print('            npi 0 filter  {:.2f}'.format(time.time() - begin))
-    npi_p1 = mode_filter(npi_p1)
-    if i == v:
-        print('            npi p1 filter  {:.2f}'.format(time.time() - begin))
-    npi_m1 = mode_filter(npi_m1)
-    if i == v:
-        print('            npi m1 filter  {:.2f}'.format(time.time() - begin))
-
-    # Create greyscale images for filtering
-    graynpi0 = (npi_og - np.nanmin(npi_og) + 1) / (np.nanmax(npi_og) - np.nanmin(npi_og) + 1)
-    graynpip1 = (npi_p1 - np.nanmin(npi_p1) + 1) / (np.nanmax(npi_p1) - np.nanmin(npi_p1) + 1)
-    graynpim1 = (npi_m1 - np.nanmin(npi_m1) + 1) / (np.nanmax(npi_m1) - np.nanmin(npi_m1) + 1)
+    start = time.time()
+    npi_og = mode_filter(npi_og, filtSize=21)
 
     if i == v:
-        print('        Greyscale {:.2f}'.format(time.time() - begin))
+        print('        Scipy filtered {:.2f} ({:.2f} s)'.format(time.time() - begin, time.time() - start))
 
-    # Run Sobel filter for edge detection. Set any edges to 0
-    sobeltime = time.time()
-    sobel0 = filters.sobel(graynpi0)
-    if i == v:
-        print('        Sobel0 {:.2f}'.format(time.time() - sobeltime))
-        sobeltime = time.time()
-    sobel0[sobel0 > 0] = 1
-    if i == v:
-        print('        Sobel0 binarized {:.2f}'.format(time.time() - sobeltime))
-        sobeltime = time.time()
-    sobelp1 = filters.sobel(graynpip1)
-    if i == v:
-        print('        Sobelp1 {:.2f}'.format(time.time() - sobeltime))
-        sobeltime = time.time()
-    sobelp1[sobelp1 > 0] = 1
-    if i == v:
-        print('        Sobelp1 binarized {:.2f}'.format(time.time() - sobeltime))
-        sobeltime = time.time()
-    sobelm1 = filters.sobel(graynpim1)
-    if i == v:
-        print('        Sobelm1 {:.2f}'.format(time.time() - sobeltime))
-        sobeltime = time.time()
-    sobelm1[sobelm1 > 0] = 1
-    if i == v:
-        print('        Sobelm1 binarized {:.2f}'.format(time.time() - sobeltime))
-        print('        Sobelled {:.2f}'.format(time.time() - begin))
+    # %%
+    errors = np.zeros(npi_og.shape) * np.nan
+    errors[np.where(~np.isnan(npi_og))] = 0
 
-    # Add up all filters. Class anywhere boundary in all three as an error
-    boundary_tot = sobel0 + sobelp1 + sobelm1
-    boundary_err = (boundary_tot == 3).astype('int')
-    boundary_err = binary_dilation(boundary_err, iterations=5)
+    # Compare with 1 row below
+    error_rows, error_cols = np.where((np.abs(npi_og[:-1, :] - npi_og[1:, :]) > 1))
+    errors[error_rows, error_cols] = 1
 
+    # Compare with 1 row above
+    error_rows, error_cols = np.where((np.abs(npi_og[1:, :] - npi_og[:-1, :]) > 1))
+    errors[error_rows + 1, error_cols] = 1
+
+    # Compare to column to the left
+    error_rows, error_cols = np.where((np.abs(npi_og[:, 1:] - npi_og[:, :-1]) > 1))
+    errors[error_rows, error_cols] = 1
+
+    # Compare to column to the right
+    error_rows, error_cols = np.where((np.abs(npi_og[:, :-1] - npi_og[:, 1:]) > 1))
+    errors[error_rows, error_cols + 1] = 1
     if i == v:
         print('        Boundaries Classified {:.2f}'.format(time.time() - begin))
 
+    # %%
     # Add error lines to the original IFG, and interpolate with these values to
     # create IFG split up by unwrapping error boundaries
     ifg2 = unw.copy()
@@ -474,7 +451,7 @@ def mask_unw_errors(i):
     err_val = 10 * np.nanmax(ifg2)
     if i == v:
         print('        err_val set {:.2f}'.format(time.time() - begin))
-    ifg2[np.where(boundary_err == 1)] = err_val
+    ifg2[np.where(errors == 1)] = err_val
     if i == v:
         print('        Boundaries added {:.2f}'.format(time.time() - begin))
     filled_ifg2 = NN_interp(ifg2)
@@ -505,44 +482,64 @@ def mask_unw_errors(i):
     drop_regions = regionId[np.where(regionSize < min_corr_size)]
     regions[np.where(np.isin(regions, np.append(drop_regions, 0)))] = np.nan
 
-    # Reinterpolate without tiny regions
-    regions = NN_interp(regions)
+    # Cease if there are no regions left to be checked
+    if drop_regions.shape[0] == regionId.shape[0]:
+        correction = np.zeros(unw.shape)
+    else:
+        # Reinterpolate without tiny regions
+        regions = NN_interp(regions)
 
-    # Find region number of reference pixel. All pixels in this region to be
-    # considered unw error free. Mask where 1 == good pixel, 0 == bad
-    # Use mode incase ref area is > 1 pixel (eg if working at full res)
-    ref_region = mode(regions[refy1:refy2, refx1:refx2].flatten(), keepdims=True)[0][0]
-    mask = regions == ref_region
+        # Find region number of reference pixel. All pixels in this region to be
+        # considered unw error free. Mask where 1 == good pixel, 0 == bad
+        # Use mode incase ref area is > 1 pixel (eg if working at full res)
+        ref_region = mode(regions[refy1:refy2, refx1:refx2].flatten(), keepdims=True)[0][0]
+        mask = regions == ref_region
 
-    if i == v:
-        print('        Mask made {:.2f}'.format(time.time() - begin))
+        if i == v:
+            print('        Mask made {:.2f}'.format(time.time() - begin))
+        # breakpoint()
+        # Make an array exclusively holding the good values
+        good_vals = np.zeros(mask.shape) * np.nan
+        good_vals[mask] = npi_og[mask]
 
-    # Make an array exclusively holding the good values
-    good_vals = np.zeros(mask.shape) * np.nan
-    good_vals[mask] = npi_og[mask]
+        # Make an array to hold the correction
+        correction = np.zeros(mask.shape)
 
-    # Make an array to hold the correction
-    correction = np.zeros(mask.shape)
+        # Boolean array of the outside boundary of the good mask
+        good_border = filters.sobel(mask).astype('bool')
+        corr_regions = np.unique(regions[good_border])
+        corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
+    # %%
+        for ii, corrIx in enumerate(corr_regions):
+            # Make map only of the border regions
+            start = time.time()
+            border_regions = np.zeros(mask.shape)
+            if ii % 50 == 0:
+                print('1 {:.2f}'.format(time.time() - start))
+            border_regions[good_border] = regions[good_border]
+            if ii % 50 == 0:
+                print('2 {:.2f}'.format(time.time() - start))
+            # Plot boundary in isolation
+            border = np.zeros(mask.shape).astype('int')
+            if ii % 50 == 0:
+                print('3 {:.2f}'.format(time.time() - start))
+            border[np.where(border_regions == corrIx)] = 1
+            if ii % 50 == 0:
+                print('4 {:.2f}'.format(time.time() - start))
+            # Dilate boundary so it crosses into both regions
+            border_dil = binary_dilation(border).astype('int')
+            if ii % 50 == 0:
+                print('5 {:.2f}'.format(time.time() - start))
+            av_err = mode(npi_og[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
+            if ii % 50 == 0:
+                print('6 {:.2f}'.format(time.time() - start))
+            av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
+            if ii % 50 == 0:
+                print('7 {:.2f}'.format(time.time() - start))
 
-    # Boolean array of the outside boundary of the good mask
-    good_border = filters.sobel(mask).astype('bool')
-    corr_regions = np.unique(regions[good_border])
-    corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
-
-    for corrIx in corr_regions:
-        # Make map only of the border regions
-        border_regions = np.zeros(mask.shape)
-        border_regions[good_border] = regions[good_border]
-
-        # Plot boundary in isolation
-        border = np.zeros(mask.shape).astype('int')
-        border[np.where(border_regions == corrIx)] = 1
-        # Dilate boundary so it crosses into both regions
-        border_dil = binary_dilation(border).astype('int')
-        av_err = mode(npi_og[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
-        av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
-
-        correction[np.where(regions == corrIx)] = (av_good - av_err) * 2 * np.pi
+            corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
+            correction[np.where(regions == corrIx)] = corr_val
+            print('Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
 
     # Apply correction to original version of IFG
     corr_unw = unw.copy()
@@ -556,41 +553,34 @@ def mask_unw_errors(i):
     mask_lib.make_unw_mask_corr_png([unw, correction, corr_unw], os.path.join(ifgdir, date, date + '.corr.png'), [insar, 'tab20c', insar], title3)
 
     # %% Save Masked UNW to save time in corrections
-    # If working with full res data, load in the ml IFG to be masked
-    if fullres:
-        masked_ifg = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length, width)
-        n_px = sum(sum(~np.isnan(masked_ifg)))
-        if i == v:
-            print('        Loaded ML{} IFG {:.2f}'.format(ml_factor, time.time() - begin))
+    masked_ifg = unw.copy().astype('float32')
+    masked_ifg[mask == 0] = np.nan
+    if i == v:
+        print('        IFG masked {:.2f}'.format(time.time() - begin))
 
-        mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.5)
-        corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, 0.1)
+    unmasked_percent = sum(sum(~np.isnan(masked_ifg))) / sum(sum(~np.isnan(unw)))
+    mask_coverage = sum(sum(mask == 1))  # Number of pixels that are unmasked
+    if i == v:
+        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), sum(sum(~np.isnan(unw))), unmasked_percent, time.time() - begin))
+
+    # %% Multilook mask if required
+    if fullres:
+        mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool').astype('int')
         if i == v:
             print('        Mask multilooked {:.2f}'.format(time.time() - begin))
-        mask = (mask > 0.5)
+        masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1)
+        corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, 0.1)
+        unw = tools_lib.multilook(unw, ml_factor, ml_factor, 0.1)
         if i == v:
-            print('        Mask re-binarised {:.2f}'.format(time.time() - begin))
-
-        masked_ifg[np.where(mask == 0)] = np.nan
-        if i == v:
-            print('        IFG masked {:.2f}'.format(time.time() - begin))
-
+            print('        Masked IFG multilooked {:.2f}'.format(time.time() - begin))
         titles = ['UNW', 'ML{} Mask'.format(ml_factor)]
         mask_lib.make_npi_mask_png([unw, mask], os.path.join(ifgdir, date, date + '.ml_mask.png'), [insar, 'viridis'], titles)
         if i == v:
             print('        Multilooked png made {:.2f}'.format(time.time() - begin))
 
-    else:
-        masked_ifg = unw.copy().astype('float32')
-        n_px = sum(sum(~np.isnan(masked_ifg)))
-        masked_ifg[mask == 0] = np.nan
-        if i == v:
-            print('        IFG masked {:.2f}'.format(time.time() - begin))
-
-    unmasked_percent = sum(sum(~np.isnan(masked_ifg))) / n_px
-    mask_coverage = sum(sum(mask == 1))  # Number of pixels that are unmasked
-    if i == v:
-        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), n_px, unmasked_percent, time.time() - begin))
+    # Flip round now, so 1 = bad pixel, 0 = good pixel
+    mask = (mask == 0).astype('int')
+    mask[np.where(np.isnan(unw))] = 0
 
     # Backup original unw file and loop png
     shutil.move(os.path.join(ifgdir, date, date + '.unw'), os.path.join(ifgdir, date, date + '_uncorr.unw'))
@@ -601,7 +591,7 @@ def mask_unw_errors(i):
     # Make new unw file from corrected data and new loop png
     corr_unw.tofile(os.path.join(ifgdir, date, date + '.unw'))
 
-    mask.tofile(os.path.join(ifgdir, date, date + '.mask'))
+    mask.astype('bool').tofile(os.path.join(ifgdir, date, date + '.mask'))
     masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))
 
     if i == v:
