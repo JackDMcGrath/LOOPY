@@ -458,7 +458,7 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
 
 
 def unw_loop_corr(i):
-    if (i + 1) % 1000 == 0:
+    if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
         print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
 
     disp = unw[i, :]
