@@ -477,8 +477,8 @@ def unw_loop_corr(i):
 
 
 def unw_loop_corr_win(n_pt_unnan, Aloop, wrap, unw, i):
-    if (i + 1) % 1000 == 0:
-        print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
+    if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
+        print('{:.0f}\t/ {:.0f}'.format(i + 1, n_pt_unnan))
 
     disp = unw[i, :]
     corr = np.zeros(disp.shape)
@@ -514,6 +514,7 @@ def apply_correction(i):
     npi = (unw1 / np.pi).round()
     correction = corrFull[i, :, :] * wrap
     corr_unw = unw[i, :, :] - correction
+    breakpoint()
     corr_unw.tofile(unwfile)
     correction.tofile(corrfile)
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)

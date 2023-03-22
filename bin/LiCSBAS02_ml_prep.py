@@ -437,6 +437,8 @@ def convert_wrapper(i):
         cc = tools_lib.multilook(cc, nlook, nlook, n_valid_thre)
 
     ### Output float
+    print('UNW data type: {}'.format(unw.dtype))
+    print('UNW length: {0}, Width: {1}'.format(unw.shape[0], unw.shape[1]))
     unw.tofile(unwfile)
     cc = cc.astype(np.uint8) ##nan->0, max255, auto-floored
     cc.tofile(ccfile)
@@ -451,4 +453,3 @@ def convert_wrapper(i):
 #%% main
 if __name__ == "__main__":
     sys.exit(main())
-
