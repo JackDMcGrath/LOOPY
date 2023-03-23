@@ -130,7 +130,7 @@ def main(argv=None):
     # %% Set default
     ifgdir = []
     tsadir = []
-    corr_dir = []
+    corrdir = []
     ml_factor = []  # Amount to multilook the resulting masks
     fullres = False
     reset = False
