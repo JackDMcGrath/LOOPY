@@ -559,16 +559,16 @@ def mask_unw_errors(i):
     # Flip round now, so 1 = bad pixel, 0 = good pixel
     mask = (mask == 0).astype('int')
     mask[np.where(np.isnan(unw))] = 0
-
+    print('Mask inted')
     # Backup original unw file and loop png
     title = '{} ({}pi/cycle)'.format(date, 3 * 2)
     plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
-
+    print('unw im made')
     # Make new unw file from corrected data and new loop png
     corr_unw.tofile(os.path.join(corrdir, date, date + '.unw'))
-
+    print('corr to file')
     mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
-
+    print('mask to file')
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     corrcomppng = os.path.join(corrdir, date, date + '.maskcorr.png')
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
