@@ -124,13 +124,15 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
-        length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir, corrdir
+        length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir, \
+        corrdir, bool_mask
 
     # %% Set default
     ifgdir = []
     tsadir = []
     corrdir = []
     ml_factor = []  # Amount to multilook the resulting masks
+    errorfile = []  # File to hold lines containing known errors
     fullres = False
     reset = False
     plot_figures = False
@@ -150,7 +152,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:v:", ["help", "reset", "n_para=", "fullres"])
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:", ["help", "reset", "n_para=", "fullres"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -165,6 +167,8 @@ def main(argv=None):
                 corrdir = a
             elif o == '-m':
                 ml_factor = int(a)
+            elif o == '-e':
+                errorfile = a
             elif o == '-v':
                 v = int(a) - 1
             elif o == '--reset':
@@ -234,6 +238,7 @@ def main(argv=None):
     # %% File Setting
     ref_file = os.path.join(infodir, '12ref.txt')
     mlipar = os.path.join(ifgdir, 'slc.mli.par')
+    print(mlipar)
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
 
@@ -272,6 +277,46 @@ def main(argv=None):
             ref_type = 'MLI'
 
         coh = io_lib.read_img(cohfile, length=length, width=width)
+
+    if fullres:
+        geotiff = gdal.Open(mlitif)
+        widthtiff = geotiff.RasterXSize
+        lengthtiff = geotiff.RasterYSize
+        bool_mask = np.zeros((lengthtiff, widthtiff))
+    else:
+        bool_mask = np.zeros((length, width))
+
+    if errorfile:
+        print('Reading known errors')
+        with open(errorfile) as f:
+            poly_strings_all = f.readlines()
+
+        if fullres:
+            lon_w_p, postlon, _, lat_n_p, _, postlat = geotiff.GetGeoTransform()
+            # lat lon are in pixel registration. dlat is negative
+            lon1 = lon_w_p + postlon / 2
+            lat1 = lat_n_p + postlat / 2
+            lat2 = lat1 + postlat * (lengthtiff - 1)  # south
+            lon2 = lon1 + postlon * (widthtiff - 1)  # east
+            lon, lat = np.linspace(lon1, lon2, widthtiff), np.linspace(lat1, lat2, lengthtiff)
+        else:
+            dempar = os.path.join(ifgdir, 'EQA.dem_par')
+            lat1 = float(io_lib.get_param_par(dempar, 'corner_lat'))  # north
+            lon1 = float(io_lib.get_param_par(dempar, 'corner_lon'))  # west
+            postlat = float(io_lib.get_param_par(dempar, 'post_lat'))  # negative
+            postlon = float(io_lib.get_param_par(dempar, 'post_lon'))  # positive
+            lat2 = lat1 + postlat * (length - 1)  # south
+            lon2 = lon1 + postlon * (width - 1)  # east
+            lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
+
+        for poly_str in poly_strings_all:
+            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat)
+
+        bool_mask[np.where(bool_mask != 0)] = 1
+        bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3))).astype('int')
+        title = 'Known UNW error Locations)'
+        plot_lib.make_im_png(bool_mask, os.path.join(corrdir, 'known_errors.png'), 'viridis', title, 0, 1, cbar=False)
+        print('Map of known error locations made')
 
     # Find reference pixel. If none provided, use highest coherence pixel
     if os.path.exists(ref_file):
@@ -405,36 +450,36 @@ def mask_unw_errors(i):
     # Find modulo 2pi values for original IFG, and after adding and subtracting 1pi
     # Use round rather than // to account for slight noise
     nPi = 1
-    npi_og = (filled_ifg / (nPi * np.pi)).round()
+    npi = (filled_ifg / (nPi * np.pi)).round()
 
     if i == v:
         print('        npi_calculated {:.2f}'.format(time.time() - begin))
 
     # Modal filtering of npi images
     start = time.time()
-    npi_og = mode_filter(npi_og, filtSize=21)
+    npi = mode_filter(npi, filtSize=21)
 
     if i == v:
         print('        Scipy filtered {:.2f} ({:.2f} s)'.format(time.time() - begin, time.time() - start))
 
     # %%
-    errors = np.zeros(npi_og.shape) * np.nan
-    errors[np.where(~np.isnan(npi_og))] = 0
+    errors = np.zeros(npi.shape) * np.nan
+    errors[np.where(~np.isnan(npi))] = 0
 
     # Compare with 1 row below
-    error_rows, error_cols = np.where((np.abs(npi_og[:-1, :] - npi_og[1:, :]) > 1))
+    error_rows, error_cols = np.where((np.abs(npi[:-1, :] - npi[1:, :]) > 1))
     errors[error_rows, error_cols] = 1
 
     # Compare with 1 row above
-    error_rows, error_cols = np.where((np.abs(npi_og[1:, :] - npi_og[:-1, :]) > 1))
+    error_rows, error_cols = np.where((np.abs(npi[1:, :] - npi[:-1, :]) > 1))
     errors[error_rows + 1, error_cols] = 1
 
     # Compare to column to the left
-    error_rows, error_cols = np.where((np.abs(npi_og[:, 1:] - npi_og[:, :-1]) > 1))
+    error_rows, error_cols = np.where((np.abs(npi[:, 1:] - npi[:, :-1]) > 1))
     errors[error_rows, error_cols] = 1
 
     # Compare to column to the right
-    error_rows, error_cols = np.where((np.abs(npi_og[:, :-1] - npi_og[:, 1:]) > 1))
+    error_rows, error_cols = np.where((np.abs(npi[:, :-1] - npi[:, 1:]) > 1))
     errors[error_rows, error_cols + 1] = 1
     if i == v:
         print('        Boundaries Classified {:.2f}'.format(time.time() - begin))
@@ -449,6 +494,7 @@ def mask_unw_errors(i):
     if i == v:
         print('        err_val set {:.2f}'.format(time.time() - begin))
     ifg2[np.where(errors == 1)] = err_val
+    ifg2[np.where(bool_mask == 1)] = err_val
     if i == v:
         print('        Boundaries added {:.2f}'.format(time.time() - begin))
     filled_ifg2 = NN_interp(ifg2)
@@ -497,7 +543,7 @@ def mask_unw_errors(i):
         # breakpoint()
         # Make an array exclusively holding the good values
         good_vals = np.zeros(mask.shape) * np.nan
-        good_vals[mask] = npi_og[mask]
+        good_vals[mask] = npi[mask]
 
         # Make an array to hold the correction
         correction = np.zeros(mask.shape)
@@ -520,7 +566,7 @@ def mask_unw_errors(i):
             border[np.where(border_regions == corrIx)] = 1
             # Dilate boundary so it crosses into both regions
             border_dil = binary_dilation(border).astype('int')
-            av_err = mode(npi_og[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
+            av_err = mode(npi[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
             av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
 
             corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
@@ -572,8 +618,8 @@ def mask_unw_errors(i):
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
                '{} Corrected'.format(ifgdates[i]),
                'Modulo nPi',
-               'Mask Correction (nPi)']
-    loopy_lib.make_compare_png(unw, corr_unw, npi, correction, corrcomppng, titles4, 3)
+               'Mask Correction (n * 2Pi)']
+    loopy_lib.make_compare_png(unw, corr_unw, npi, correction / (2 * np.pi), corrcomppng, titles4, 3)
 
     if i == v:
         print('        pngs made {:.2f}'.format(time.time() - begin))
@@ -597,6 +643,7 @@ def NN_interp(data):
     interped_data[interp_to] = nearest_data
     return interped_data
 
+
 # %% Function to modally filter arrays using Scikit
 def mode_filter(data, filtSize=21):
     npi_min = np.nanmin(data) - 1
@@ -612,6 +659,7 @@ def mode_filter(data, filtSize=21):
     dataMode[np.where(dataMode == npi_min)] = np.nan
 
     return dataMode
+
 
 # %% Function to modally filter arrays using PIL (40% slower than scikit)
 def mode_filterPIL(data, filtSize=11):

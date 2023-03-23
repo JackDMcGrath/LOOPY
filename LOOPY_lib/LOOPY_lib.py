@@ -12,6 +12,7 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
  - Original implementation
 """
 import os
+import re
 import warnings
 import numpy as np
 import matplotlib as mpl
@@ -87,3 +88,5 @@ def make_compare_png(uncorr, corrunw, npi, corr, png, titles4, cycle):
     plt.tight_layout()
     plt.savefig(png)
     plt.close()
+
+#%%
