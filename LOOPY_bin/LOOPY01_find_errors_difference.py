@@ -489,6 +489,10 @@ def mask_unw_errors(i):
     # Compare to column to the right
     error_rows, error_cols = np.where((np.abs(npi[:, :-1] - npi[:, 1:]) > 1))
     errors[error_rows, error_cols + 1] = 1
+
+    # Add know error locations
+    errors[np.where(bool_mask == 1)] = 1
+
     if i == v:
         print('        Boundaries Classified {:.2f}'.format(time.time() - begin))
 
@@ -502,7 +506,6 @@ def mask_unw_errors(i):
     if i == v:
         print('        err_val set {:.2f}'.format(time.time() - begin))
     ifg2[np.where(errors == 1)] = err_val
-    ifg2[np.where(bool_mask == 1)] = err_val
     if i == v:
         print('        Boundaries added {:.2f}'.format(time.time() - begin))
     filled_ifg2 = NN_interp(ifg2)
@@ -609,13 +612,15 @@ def mask_unw_errors(i):
         corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, 0.1)
         if i == v:
             print('        Corrected IFG multilooked {:.2f}'.format(time.time() - begin))
+        errors = tools_lib.multilook(errors, ml_factor, ml_factor, 0.1)
+        if i == v:
+            print('        Error map multilooked {:.2f}'.format(time.time() - begin))
 
     # %% Make PNGs
 
     # Flip round now, so 1 = bad pixel, 0 = good pixel
     mask = (mask == 0).astype('int')
     mask[np.where(np.isnan(unw))] = 0
-    # Backup original unw file and loop png
     title = '{} ({}pi/cycle)'.format(date, 3 * 2)
     plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
     # Make new unw file from corrected data and new loop png
@@ -628,6 +633,9 @@ def mask_unw_errors(i):
                'Modulo nPi',
                'Mask Correction (n * 2Pi)']
     loopy_lib.make_compare_png(unw, corr_unw, npi, correction / (2 * np.pi), corrcomppng, titles4, 3)
+
+    title = 'Error Map'
+    plot_lib.make_im_png(errors, os.path.join(corrdir, date, date + '.errormap.png'), 'viridis', title, 0, 1, cbar=False)
 
     if i == v:
         print('        pngs made {:.2f}'.format(time.time() - begin))
