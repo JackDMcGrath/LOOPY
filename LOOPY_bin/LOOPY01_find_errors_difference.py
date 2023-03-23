@@ -600,6 +600,11 @@ def mask_unw_errors(i):
     if i == v:
         print('        Correction Applied {:.2f}'.format(time.time() - begin))
 
+    if i == v:
+        pltpi = npi.copy()
+        pltpi[np.where(errors == 1)] = 10
+        plot_lib.make_im_png(pltpi, os.path.join(corrdir, date, date + '.checkaim.png'), 'tab20c', 'Check Aim', -1, 10, cbar=False)
+
     # %% Multilook mask if required
     if fullres:
         unw = tools_lib.multilook(unw, ml_factor, ml_factor, 0.1)
