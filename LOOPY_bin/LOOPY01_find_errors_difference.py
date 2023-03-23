@@ -87,7 +87,7 @@ import getopt
 import shutil
 import numpy as np
 import multiprocessing as multi
-import LOOPY_mask_lib as mask_lib
+import LOOPY_lib as loopy_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_plot_lib as plot_lib
@@ -99,7 +99,6 @@ from scipy.ndimage import binary_dilation
 from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import mode
 from skimage import filters
-import LOOPY_L1reg_lib as l1_lib
 
 
 insar = tools_lib.get_cmap('SCM.romaO')
@@ -313,8 +312,6 @@ def main(argv=None):
 
     print('Ref point = [{}, {}]'.format(refy1, refx1))
     print('Mask Multilooking Factor = {}'.format(ml_factor))
-
-    n_px = sum(sum(~np.isnan(coh[:])))
 
     # %% Prepare variables
     # Get ifg dates
@@ -578,7 +575,12 @@ def mask_unw_errors(i):
                '{} Corrected'.format(ifgdates[i]),
                'Modulo nPi',
                'Mask Correction (nPi)']
-    l1_lib.make_loop_png(unw, corr_unw, npi, correction, corrcomppng, titles4, 3)
+    print('Data\tdtype\tLength\tWidth')
+    print('unw\t{}\t{}\t{}'.format(unw.dtype, unw.shape[0], unw.shape[1]))
+    print('corr_unw\t{}\t{}\t{}'.format(corr_unw.dtype, corr_unw.shape[0], corr_unw.shape[1]))
+    print('npi\t{}\t{}\t{}'.format(npi.dtype, npi.shape[0], npi.shape[1]))
+    print('correction\t{}\t{}\t{}'.format(correction.dtype, correction.shape[0], correction.shape[1]))
+    loopy_lib.make_compare_png(unw, corr_unw, npi, correction, corrcomppng, titles4, 3)
 
     if i == v:
         print('        pngs made {:.2f}'.format(time.time() - begin))
