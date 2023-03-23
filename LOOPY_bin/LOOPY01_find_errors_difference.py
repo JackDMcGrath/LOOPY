@@ -221,7 +221,6 @@ def main(argv=None):
     if not os.path.exists(resultsdir):
         os.mkdir(resultsdir)
 
-    #  #TODO: Ensure that the reset flag works following altering of this script
     if reset:
         print('Removing Previous Masks')
         # mask_lib.reset_masks(ifgdir)
@@ -234,7 +233,6 @@ def main(argv=None):
         os.mkdir(corrdir)
 
     # %% File Setting
-    # #TODO: Make sure that the ml10 reffile is adjusted for ml1 data
     ref_file = os.path.join(infodir, '12ref.txt')
     mlipar = os.path.join(ifgdir, 'slc.mli.par')
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
@@ -318,13 +316,6 @@ def main(argv=None):
 
     n_px = sum(sum(~np.isnan(coh[:])))
 
-    # Open file to store mask info
-    mask_info_file = os.path.join(infodir, 'mask_info.txt')
-    f = open(mask_info_file, 'w')
-    print('# Size: {0}({1}x{2}), n_valid: {3}'.format(width * length, width, length, n_px), file=f)
-    print('# ifg dates         mask_cov', file=f)
-    f.close()
-
     # %% Prepare variables
     # Get ifg dates
     ifgdates = tools_lib.get_ifgdates(ifgdir)
@@ -351,13 +342,8 @@ def main(argv=None):
 
         # Parallel processing
         p = q.Pool(_n_para)
-        mask_cov = np.array(p.map(mask_unw_errors, range(n_ifg)))
+        p.map(mask_unw_errors, range(n_ifg))
         p.close()
-
-    f = open(mask_info_file, 'a')
-    for i in range(n_ifg):
-        print('{0}  {1:6.2f}'.format(ifgdates[i], mask_cov[i] / n_px), file=f)
-    f.close()
 
     # %% Finish
     print('\nCheck network/*, 11bad_ifg_ras/* and 11ifg_ras/* in TS dir.')
@@ -382,9 +368,6 @@ def mask_unw_errors(i):
         print('        Starting')
     if os.path.exists(os.path.join(corrdir, date, date + '.unw')):
         print('    ({}/{}): {}  Mask Exists. Skipping'.format(i + 1, n_ifg, date))
-        # #TODO: Rather than set to zero find old mask coverage script and get details from there
-        mask_coverage = 0
-        return mask_coverage
     else:
         print('    ({}/{}): {}'.format(i + 1, n_ifg, date))
 
@@ -556,8 +539,6 @@ def mask_unw_errors(i):
     if i == v:
         print('       Correction Applied {:.2f}'.format(time.time() - begin))
 
-    mask_coverage = sum(sum(mask == 1))  # Number of pixels that are unmasked
-
     # %% Multilook mask if required
     if fullres:
         unw = tools_lib.multilook(unw, ml_factor, ml_factor, 0.1)
@@ -569,7 +550,7 @@ def mask_unw_errors(i):
         npi = tools_lib.multilook((filled_ifg / (np.pi)).round(), ml_factor, ml_factor, 0.1)
         if i == v:
             print('        Modulo NPI multilooked {:.2f}'.format(time.time() - begin))
-        correction = tools_lib.multilook(correction, ml_factor, ml_factor, 0.1).astype('int')
+        correction = tools_lib.multilook(correction, ml_factor, ml_factor, 0.1)
         if i == v:
             print('        Correction multilooked {:.2f}'.format(time.time() - begin))
         corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, 0.1)
@@ -608,7 +589,7 @@ def mask_unw_errors(i):
     if i == v:
         print('        Saved {:.2f}'.format(time.time() - begin))
 
-    return mask_coverage
+    return
 
 
 # %% Function to carry out nearest neighbour interpolation
