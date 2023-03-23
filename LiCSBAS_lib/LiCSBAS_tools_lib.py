@@ -8,6 +8,8 @@ Python3 library of time series analysis tools for LiCSBAS.
 =========
 Changelog
 =========
+20230323, Jack McGrath
+ - add line option to polymask
 20220121, Andrew Watson
  - added poly_mask function (in progres)
 
@@ -599,15 +601,23 @@ def read_range_geo(range_str, width, length, lat1, postlat, lon1, postlon):
     return [x1, x2, y1, y2]
 
 #%%
-def poly_mask(poly_str, lon, lat):
+def poly_mask(poly_str, lon, lat, polygon=True):
     """
     lat lon values are in grid registration
     poly coords in long lat
+    polygon True for polygonal areas (eg. masking)
+    polygon False for linear features (eg. error lines)
+    (closes the loop by offsetting the line by 2 pixels in x and y)
     """
 
     # read coord string and split into numpy arrays
     coord_str = [float(s) for s in re.split('[,]', poly_str)]
     lon_poly, lat_poly = np.asarray(coord_str[::2]), np.asarray(coord_str[1::2])
+    if not polygon:
+        dlon = lon[2] - lon[0]
+        dlat = lat[2] - lat[1]
+        lon_poly = np.concatenate([lon_poly, np.flip(lon_poly - dlon)])
+        lat_poly = np.concatenate([lat_poly, np.flip(lat_poly - dlat)])
 
     # generate coordinate mesh
     lon_grid, lat_grid = np.meshgrid(lon, lat)

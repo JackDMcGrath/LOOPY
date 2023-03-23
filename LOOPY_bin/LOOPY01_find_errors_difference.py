@@ -252,7 +252,7 @@ def main(argv=None):
         mlitif = glob.glob(os.path.join(geocdir, '*.geo.mli.tif'))
         if len(mlitif) > 0:
             mlitif = mlitif[0]  # First one
-            coh = np.float32(gdal.Open(mlitif).ReadAsArray())  # Coh due to previous use of coherence to find IFG limits
+            coh = gdal.Open(mlitif).ReadAsArray().astype(np.float32)  # Coh due to previous use of coherence to find IFG limits
             coh[coh == 0] = np.nan
 
             mlifile = os.path.join(geocdir, 'slc.mli')
@@ -310,12 +310,17 @@ def main(argv=None):
             lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
 
         for poly_str in poly_strings_all:
-            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat)
+            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat, polygon=False)
 
         bool_mask[np.where(bool_mask != 0)] = 1
-        bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3))).astype('int')
+        bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3))).astype('float32')
+        bool_plot = bool_mask.copy()
+        bool_plot[np.where(np.isnan(coh))] = np.nan
+
+        if fullres:
+            bool_plot = tools_lib.multilook(bool_plot, ml_factor, ml_factor, 0.1)
         title = 'Known UNW error Locations)'
-        plot_lib.make_im_png(bool_mask, os.path.join(corrdir, 'known_errors.png'), 'viridis', title, 0, 1, cbar=False)
+        plot_lib.make_im_png(bool_plot, os.path.join(corrdir, 'known_errors.png'), 'viridis', title, 0, 1, cbar=False)
         print('Map of known error locations made')
 
     # Find reference pixel. If none provided, use highest coherence pixel
