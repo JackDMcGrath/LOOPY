@@ -314,7 +314,7 @@ def main(argv=None):
 
         bool_mask[np.where(bool_mask != 0)] = 1
         if fullres:
-            bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3)), iterations=np.ceil(ml_factor / 2)).astype('float32')
+            bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3)), iterations=int(np.ceil(ml_factor / 2))).astype('float32')
         else:
             bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3))).astype('float32')
         bool_plot = bool_mask.copy()
