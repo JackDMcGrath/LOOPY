@@ -196,14 +196,13 @@ def main(argv=None):
 
     # %% Directory setting
     ifgdir = os.path.abspath(ifgdir)
-    print(tsadir)
+
     if not tsadir:
         tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_' + os.path.basename(ifgdir))
-    print(tsadir)
-    print(corrdir)
+
     if not corrdir:
-        corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename + 'LoopMask')
-    print(corrdir)
+        corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
+
     if not os.path.exists(tsadir):
         os.mkdir(tsadir)
 
