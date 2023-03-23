@@ -536,12 +536,6 @@ def mask_unw_errors(i):
     corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
     if i == v:
         print('       Correction Applied {:.2f}'.format(time.time() - begin))
-    # %% Make PNGs
-    title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
-    mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
-
-    title3 = ['Original unw', 'Correction', 'Corrected IFG']
-    mask_lib.make_unw_mask_corr_png([unw, correction, corr_unw], os.path.join(ifgdir, date, date + '.corr.png'), [insar, 'tab20c', insar], title3)
 
     # %% Save Masked UNW to save time in corrections
     masked_ifg = unw.copy().astype('float32')
@@ -556,18 +550,35 @@ def mask_unw_errors(i):
 
     # %% Multilook mask if required
     if fullres:
+        unw = tools_lib.multilook(unw, ml_factor, ml_factor, 0.1)
+        if i == v:
+            print('        Original IFG multilooked {:.2f}'.format(time.time() - begin))
         mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool').astype('int')
         if i == v:
             print('        Mask multilooked {:.2f}'.format(time.time() - begin))
         masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1)
-        corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, 0.1)
-        unw = tools_lib.multilook(unw, ml_factor, ml_factor, 0.1)
         if i == v:
             print('        Masked IFG multilooked {:.2f}'.format(time.time() - begin))
-        titles = ['UNW', 'ML{} Mask'.format(ml_factor)]
-        mask_lib.make_npi_mask_png([unw, mask], os.path.join(ifgdir, date, date + '.ml_mask.png'), [insar, 'viridis'], titles)
+        npi = tools_lib.multilook((filled_ifg / (np.pi)).round(), ml_factor, ml_factor, 0.1).astype('int')
         if i == v:
-            print('        Multilooked png made {:.2f}'.format(time.time() - begin))
+            print('        Modulo NPI multilooked {:.2f}'.format(time.time() - begin))
+        correction = tools_lib.multilook(correction, ml_factor, ml_factor, 0.1).astype('int')
+        if i == v:
+            print('        Correction multilooked {:.2f}'.format(time.time() - begin))
+        corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, 0.1)
+        if i == v:
+            print('        Corrected IFG multilooked {:.2f}'.format(time.time() - begin))
+
+    # %% Make PNGs
+    title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
+    mask_lib.make_unw_npi_mask_png([unw, npi, mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
+    if i == v:
+        print('        UNW - Interp UNW - Mask png made {:.2f}'.format(time.time() - begin))
+
+    title3 = ['Original unw', 'Correction', 'Corrected IFG']
+    mask_lib.make_unw_mask_corr_png([unw, correction, corr_unw], os.path.join(ifgdir, date, date + '.corr.png'), [insar, 'tab20c', insar], title3)
+    if i == v:
+        print('        UNW - Correction - Corrected UNW png made {:.2f}'.format(time.time() - begin))
 
     # Flip round now, so 1 = bad pixel, 0 = good pixel
     mask = (mask == 0).astype('int')
