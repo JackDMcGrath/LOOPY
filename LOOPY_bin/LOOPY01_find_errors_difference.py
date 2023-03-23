@@ -363,7 +363,7 @@ def mask_unw_errors(i):
     date = ifgdates[i]
     if i == v:
         print('        Starting')
-    if not os.path.join(corrdir, date):
+    if not os.path.exists(corrdir, date):
         os.mkdir(os.path.join(corrdir, date))
     if os.path.exists(os.path.join(corrdir, date, date + '.unw')):
         print('    ({}/{}): {}  Mask Exists. Skipping'.format(i + 1, n_ifg, date))
@@ -561,7 +561,6 @@ def mask_unw_errors(i):
     # Flip round now, so 1 = bad pixel, 0 = good pixel
     mask = (mask == 0).astype('int')
     mask[np.where(np.isnan(unw))] = 0
-    print('Mask inted')
     # Backup original unw file and loop png
     title = '{} ({}pi/cycle)'.format(date, 3 * 2)
     plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
