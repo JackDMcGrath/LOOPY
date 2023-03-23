@@ -363,6 +363,8 @@ def mask_unw_errors(i):
     date = ifgdates[i]
     if i == v:
         print('        Starting')
+    if not os.path.join(corrdir, date):
+        os.mkdir(os.path.join(corrdir, date))
     if os.path.exists(os.path.join(corrdir, date, date + '.unw')):
         print('    ({}/{}): {}  Mask Exists. Skipping'.format(i + 1, n_ifg, date))
     else:
@@ -534,7 +536,7 @@ def mask_unw_errors(i):
         print('        UNW copied {:.2f}'.format(time.time() - begin))
     corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
     if i == v:
-        print('       Correction Applied {:.2f}'.format(time.time() - begin))
+        print('        Correction Applied {:.2f}'.format(time.time() - begin))
 
     # %% Multilook mask if required
     if fullres:
@@ -562,25 +564,16 @@ def mask_unw_errors(i):
     print('Mask inted')
     # Backup original unw file and loop png
     title = '{} ({}pi/cycle)'.format(date, 3 * 2)
-    print('corr_unw\t{}\t{}\t{}'.format(corr_unw.dtype, corr_unw.shape[0], corr_unw.shape[1]))
     plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
-    print('unw im made')
     # Make new unw file from corrected data and new loop png
     corr_unw.tofile(os.path.join(corrdir, date, date + '.unw'))
-    print('corr to file')
     mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
-    print('mask to file')
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     corrcomppng = os.path.join(corrdir, date, date + '.maskcorr.png')
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
                '{} Corrected'.format(ifgdates[i]),
                'Modulo nPi',
                'Mask Correction (nPi)']
-    print('Data\tdtype\tLength\tWidth')
-    print('unw\t{}\t{}\t{}'.format(unw.dtype, unw.shape[0], unw.shape[1]))
-    print('corr_unw\t{}\t{}\t{}'.format(corr_unw.dtype, corr_unw.shape[0], corr_unw.shape[1]))
-    print('npi\t{}\t{}\t{}'.format(npi.dtype, npi.shape[0], npi.shape[1]))
-    print('correction\t{}\t{}\t{}'.format(correction.dtype, correction.shape[0], correction.shape[1]))
     loopy_lib.make_compare_png(unw, corr_unw, npi, correction, corrcomppng, titles4, 3)
 
     if i == v:
