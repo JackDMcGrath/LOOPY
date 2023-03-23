@@ -511,7 +511,7 @@ def mask_unw_errors(i):
         corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
 
         if i == v:
-            print('       Preparing Corrections {:.2f}'.format(time.time() - begin))
+            print('        Preparing Corrections {:.2f}'.format(time.time() - begin))
     # %%
         for ii, corrIx in enumerate(corr_regions):
             # Make map only of the border regions
@@ -529,10 +529,14 @@ def mask_unw_errors(i):
             corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
             correction[np.where(regions == corrIx)] = corr_val
             if i == v:
-                print('Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
+                print('            Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
+        if i == v:
+            print('        Correction Calculated {:.2f}'.format(time.time() - begin))
 
     # Apply correction to original version of IFG
     corr_unw = unw.copy()
+    if i == v:
+        print('        UNW copied {:.2f}'.format(time.time() - begin))
     corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
     if i == v:
         print('       Correction Applied {:.2f}'.format(time.time() - begin))
