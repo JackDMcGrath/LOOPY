@@ -99,6 +99,7 @@ from scipy.ndimage import binary_dilation
 from scipy.interpolate import NearestNDInterpolator
 from scipy.stats import mode
 from skimage import filters
+import LOOPY_L1reg_lib as l1_lib
 
 
 insar = tools_lib.get_cmap('SCM.romaO')
@@ -124,11 +125,12 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
-        length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir
+        length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir, corrdir
 
     # %% Set default
     ifgdir = []
     tsadir = []
+    corr_dir = []
     ml_factor = []  # Amount to multilook the resulting masks
     fullres = False
     reset = False
@@ -149,7 +151,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:m:v:", ["help", "reset", "n_para=", "fullres"])
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:v:", ["help", "reset", "n_para=", "fullres"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -160,6 +162,8 @@ def main(argv=None):
                 ifgdir = a
             elif o == '-t':
                 tsadir = a
+            elif o == '-c':
+                corrdir = a
             elif o == '-m':
                 ml_factor = int(a)
             elif o == '-v':
@@ -196,8 +200,14 @@ def main(argv=None):
     if not tsadir:
         tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_' + os.path.basename(ifgdir))
 
+    if not corrdir:
+        corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename + 'LoopMask')
+
     if not os.path.exists(tsadir):
         os.mkdir(tsadir)
+
+    if not os.path.exists(corrdir):
+        os.mkdir(corrdir)
 
     netdir = os.path.join(tsadir, 'network')
     if not os.path.exists(netdir):
@@ -214,9 +224,14 @@ def main(argv=None):
     #  #TODO: Ensure that the reset flag works following altering of this script
     if reset:
         print('Removing Previous Masks')
-        mask_lib.reset_masks(ifgdir)
+        # mask_lib.reset_masks(ifgdir)
+        if os.path.exists(corrdir):
+            shutil.rmtree(corrdir)
     else:
         print('Preserving Premade Masks')
+
+    if not os.path.exists(corrdir):
+        os.mkdir(corrdir)
 
     # %% File Setting
     # #TODO: Make sure that the ml10 reffile is adjusted for ml1 data
@@ -365,7 +380,7 @@ def mask_unw_errors(i):
     date = ifgdates[i]
     if i == v:
         print('        Starting')
-    if os.path.exists(os.path.join(ifgdir, date, date + '.unw_mask')):
+    if os.path.exists(os.path.join(corrdir, date, date + '.unw')):
         print('    ({}/{}): {}  Mask Exists. Skipping'.format(i + 1, n_ifg, date))
         # #TODO: Rather than set to zero find old mask coverage script and get details from there
         mask_coverage = 0
@@ -541,16 +556,7 @@ def mask_unw_errors(i):
     if i == v:
         print('       Correction Applied {:.2f}'.format(time.time() - begin))
 
-    # %% Save Masked UNW to save time in corrections
-    masked_ifg = unw.copy().astype('float32')
-    masked_ifg[mask == 0] = np.nan
-    if i == v:
-        print('        IFG masked {:.2f}'.format(time.time() - begin))
-
-    unmasked_percent = sum(sum(~np.isnan(masked_ifg))) / sum(sum(~np.isnan(unw)))
     mask_coverage = sum(sum(mask == 1))  # Number of pixels that are unmasked
-    if i == v:
-        print('        {}/{} pixels unmasked ({}) {:.2f}'.format(sum(sum(~np.isnan(masked_ifg))), sum(sum(~np.isnan(unw))), unmasked_percent, time.time() - begin))
 
     # %% Multilook mask if required
     if fullres:
@@ -560,10 +566,7 @@ def mask_unw_errors(i):
         mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool').astype('int')
         if i == v:
             print('        Mask multilooked {:.2f}'.format(time.time() - begin))
-        masked_ifg = tools_lib.multilook(masked_ifg, ml_factor, ml_factor, 0.1)
-        if i == v:
-            print('        Masked IFG multilooked {:.2f}'.format(time.time() - begin))
-        npi = tools_lib.multilook((filled_ifg / (np.pi)).round(), ml_factor, ml_factor, 0.1).astype('int')
+        npi = tools_lib.multilook((filled_ifg / (np.pi)).round(), ml_factor, ml_factor, 0.1)
         if i == v:
             print('        Modulo NPI multilooked {:.2f}'.format(time.time() - begin))
         correction = tools_lib.multilook(correction, ml_factor, ml_factor, 0.1).astype('int')
@@ -574,31 +577,33 @@ def mask_unw_errors(i):
             print('        Corrected IFG multilooked {:.2f}'.format(time.time() - begin))
 
     # %% Make PNGs
-    title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
-    mask_lib.make_unw_npi_mask_png([unw, npi, mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
-    if i == v:
-        print('        UNW - Interp UNW - Mask png made {:.2f}'.format(time.time() - begin))
-
-    title3 = ['Original unw', 'Correction', 'Corrected IFG']
-    mask_lib.make_unw_mask_corr_png([unw, correction, corr_unw], os.path.join(ifgdir, date, date + '.corr.png'), [insar, 'tab20c', insar], title3)
-    if i == v:
-        print('        UNW - Correction - Corrected UNW png made {:.2f}'.format(time.time() - begin))
 
     # Flip round now, so 1 = bad pixel, 0 = good pixel
     mask = (mask == 0).astype('int')
     mask[np.where(np.isnan(unw))] = 0
 
     # Backup original unw file and loop png
-    shutil.move(os.path.join(ifgdir, date, date + '.unw'), os.path.join(ifgdir, date, date + '_uncorr.unw'))
-    shutil.move(os.path.join(ifgdir, date, date + '.unw.png'), os.path.join(ifgdir, date, date + '_uncorr.unw.png'))
     title = '{} ({}pi/cycle)'.format(date, 3 * 2)
-    plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(ifgdir, date, date + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
+    plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
 
     # Make new unw file from corrected data and new loop png
-    corr_unw.tofile(os.path.join(ifgdir, date, date + '.unw'))
+    corr_unw.tofile(os.path.join(corrdir, date, date + '.unw'))
 
-    mask.astype('bool').tofile(os.path.join(ifgdir, date, date + '.mask'))
-    masked_ifg.tofile(os.path.join(ifgdir, date, date + '.unw_mask'))
+    mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
+
+    # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
+    corrcomppng = os.path.join(corrdir, date, date + '.maskcorr.png')
+    titles4 = ['{} Uncorrected'.format(ifgdates[i]),
+               '{} Corrected'.format(ifgdates[i]),
+               'Modulo nPi',
+               'Mask Correction (nPi)']
+    l1_lib.make_loop_png(unw, corr_unw, npi, correction, corrcomppng, titles4, 3)
+
+    if i == v:
+        print('        pngs made {:.2f}'.format(time.time() - begin))
+
+    # Link to the cc file
+    os.symlink(os.path.relpath(os.path.join(ifgdir, date, date + '.cc'), corrdir), os.path.join(corrdir, date, date + '.cc'))
 
     if i == v:
         print('        Saved {:.2f}'.format(time.time() - begin))
