@@ -562,6 +562,7 @@ def mask_unw_errors(i):
     print('Mask inted')
     # Backup original unw file and loop png
     title = '{} ({}pi/cycle)'.format(date, 3 * 2)
+    print('corr_unw\t{}\t{}\t{}'.format(corr_unw.dtype, corr_unw.shape[0], corr_unw.shape[1]))
     plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
     print('unw im made')
     # Make new unw file from corrected data and new loop png
