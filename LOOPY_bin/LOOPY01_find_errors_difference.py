@@ -583,6 +583,11 @@ def mask_unw_errors(i):
             corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
             correction[np.where(regions == corrIx)] = corr_val
             if i == v:
+                print('AV ERR')
+                print(np.unique(npi[np.where(border == 1)], return_counts=True))
+                print('AV GOOD')
+                print(np.unique(npi[np.where(border_dil == 1)], return_counts=True))
+            if i == v:
                 print('            Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
         if i == v:
             print('        Correction Calculated {:.2f}'.format(time.time() - begin))
@@ -641,7 +646,8 @@ def mask_unw_errors(i):
         print('        pngs made {:.2f}'.format(time.time() - begin))
 
     # Link to the cc file
-    os.symlink(os.path.relpath(os.path.join(ifgdir, date, date + '.cc'), corrdir), os.path.join(corrdir, date, date + '.cc'))
+    if sys.platform != "win32":
+        os.symlink(os.path.relpath(os.path.join(ifgdir, date, date + '.cc'), corrdir), os.path.join(corrdir, date, date + '.cc'))
 
     if i == v:
         print('        Saved {:.2f}'.format(time.time() - begin))
