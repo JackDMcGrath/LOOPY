@@ -233,16 +233,11 @@ def get_param_par(mlipar, field):
      - azimuth_pixel_spacing (m)
      - radar_frequency  (Hz)
     """
-#    value = subp.check_output(['grep', field,mlipar]).decode().split()[1].strip()
-    field_length = len(field)
-    with open(mlipar) as f:
-        par = f.readlines()
-    
-    for x in par:
-        entry = x[0:field_length]
-        if entry == field:
-            value = x.split()[1]
-            break
+    try:
+        value = subp.check_output(['grep', field,mlipar]).decode().split()[1].strip()
+    except FileNotFoundError:  # Sometimes subp is failing to read files on different drives
+        with open(mlipar) as f:
+            param = f.readlines()
+        value = [val.split()[1] for val in param if field in val][0]
 
     return value
-

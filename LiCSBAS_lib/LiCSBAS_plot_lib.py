@@ -33,7 +33,7 @@ import warnings
 import matplotlib as mpl
 with warnings.catch_warnings(): ## To silence user warning
     warnings.simplefilter('ignore', UserWarning)
-    # mpl.use('Agg')
+    mpl.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import dates as mdates
 
@@ -70,11 +70,7 @@ def make_im_png(data, pngfile, cmap, title, vmin=None, vmax=None, cbar=True):
     ax.set_title(title)
     if cbar: fig.colorbar(im)
 
-    try:
-        plt.savefig(pngfile)
-    except:
-        print('ERROR: Mask Comparison Figure Failed to Save. Error usually\n    MemoryError: Unable to allocate [X] MiB for an array with shape (Y, Z) and data type int64.\nSkipping')
-        breakpoint()
+    plt.savefig(pngfile)
     plt.close()
     
     return
@@ -116,41 +112,6 @@ def make_3im_png(data3, pngfile, cmap, title3, vmin=None, vmax=None, cbar=True):
    
     return 
 
-#%%
-def make_3im_png_corr(data3, pngfile, cmap, title3, vmin=None, vmax=None, cbar=True):
-    """
-    Make png with 3 images for comparison.
-    data3 and title3 must be list with 3 elements.
-    cmap can be 'insar'. To wrap data, np.angle(np.exp(1j*x/cycle)*cycle)
-    """
-    ### Plot setting
-    if cmap=='insar':
-        cdict = tools_lib.cmap_insar()
-        plt.register_cmap(cmap=mpl.colors.LinearSegmentedColormap('insar', cdict))
-        interp = 'nearest'
-    else:
-        interp = 'nearest' #'antialiased'
-
-    length, width = data3[0].shape
-    figsizex = 12
-    xmergin = 4 if cbar else 0
-    figsizey = int((figsizex-xmergin)/3*length/width)+2
-    
-    fig = plt.figure(figsize = (figsizex, figsizey))
-
-    for i in range(3):
-        ax = fig.add_subplot(1, 3, i+1) #index start from 1
-        im = ax.imshow(data3[i], vmin=vmin[i], vmax=vmax[i], cmap=cmap, interpolation=interp)
-        ax.set_title(title3[i])
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        if cbar: fig.colorbar(im, ax=ax)
-
-    plt.tight_layout()
-    plt.savefig(pngfile)
-    plt.close()
-   
-    return 
 
 #%% 
 def plot_gacos_info(gacos_infofile, pngfile):
@@ -246,8 +207,9 @@ def plot_hgt_corr(data_bf, fit_hgt, hgt, title, pngfile):
 
     return 
 
-#%% 
-def plot_cand_network(ifgdates, bperp, rm_ifgdates, pngfile, ifg_cands=[], plot_bad=True):
+
+#%%
+def plot_network(ifgdates, bperp, rm_ifgdates, pngfile, ifg_cands=[], plot_bad=True):
     """
     Plot network of interferometric pairs.
     
@@ -265,13 +227,12 @@ def plot_cand_network(ifgdates, bperp, rm_ifgdates, pngfile, ifg_cands=[], plot_
     ifgdates = list(set(ifgdates)-set(rm_ifgdates)-set(ifg_cands))
     ifgdates.sort()
     imdates = tools_lib.ifgdates2imdates(ifgdates)
+    n_im = len(imdates)
     imdates_dt = np.array(([dt.datetime.strptime(imd, '%Y%m%d') for imd in imdates])) ##datetime
     
     ### Identify gaps    
     G = inv_lib.make_sb_matrix(ifgdates)
-    ixs_inc_gap = np.where(G.sum(axis=0)==0)[0] # Gaps in the good IFG network
-    G = inv_lib.make_sb_matrix(list(set(ifgdates))+list(set(ifg_cands)))
-    ixs_inc_cands_gap = np.where(G.sum(axis=0)==0)[0] # Gaps in the good and candidate IFG network
+    ixs_inc_gap = np.where(G.sum(axis=0)==0)[0]
     
     ### Plot fig
     figsize_x = np.round(((imdates_dt_all[-1]-imdates_dt_all[0]).days)/80)+2
@@ -294,14 +255,16 @@ def plot_cand_network(ifgdates, bperp, rm_ifgdates, pngfile, ifg_cands=[], plot_
             label = 'Removed IFG' if i==0 else '' #label only first
             plt.plot([imdates_dt_all[ix_m], imdates_dt_all[ix_s]], [bperp[ix_m],
                     bperp[ix_s]], color='r', alpha=0.6, zorder=6, label=label)
-        
+           
+    ### IFG bad candidates green lines
+    if plot_bad:
         for i, ifgd in enumerate(ifg_cands):
             ix_m = imdates_all.index(ifgd[:8])
             ix_s = imdates_all.index(ifgd[-8:])
             label = 'Bad Cands IFG' if i==0 else '' #label only first
             plt.plot([imdates_dt_all[ix_m], imdates_dt_all[ix_s]], [bperp[ix_m],
                     bperp[ix_s]], color='g', alpha=0.6, zorder=6, label=label)
-
+           
     ### Image points and dates
     ax.scatter(imdates_dt_all, bperp, alpha=0.6, zorder=4)
     for i in range(n_im_all):
@@ -311,21 +274,13 @@ def plot_cand_network(ifgdates, bperp, rm_ifgdates, pngfile, ifg_cands=[], plot_
                     (imdates_dt_all[i], bperp[i]), ha='center', va=va, zorder=8)
 
     ### gaps
-    if len(ixs_inc_gap)!=0: # Gaps in good network
+    if len(ixs_inc_gap)!=0:
         gap_dates_dt = []
         for ix_gap in ixs_inc_gap:
             ddays_td = imdates_dt[ix_gap+1]-imdates_dt[ix_gap]
             gap_dates_dt.append(imdates_dt[ix_gap]+ddays_td/2)
         plt.vlines(gap_dates_dt, 0, 1, transform=ax.get_xaxis_transform(),
-                   zorder=1, label='Gap (good IFG network)', alpha=0.6, colors='k', linewidth=3, linestyles='dashed')
-    
-    if len(ixs_inc_cands_gap)!=0: # Gaps in good and candidate network
-        gap_dates_dt = []
-        for ix_gap in ixs_inc_gap:
-            ddays_td = imdates_dt[ix_gap+1]-imdates_dt[ix_gap]
-            gap_dates_dt.append(imdates_dt[ix_gap]+ddays_td/2)
-        plt.vlines(gap_dates_dt, 0, 1, transform=ax.get_xaxis_transform(),
-                   zorder=1, label='Gap', alpha=0.6, colors='k', linewidth=3, linestyles='solid')
+                   zorder=1, label='Gap', alpha=0.6, colors='k', linewidth=3)
         
     ### Locater        
     loc = ax.xaxis.set_major_locator(mdates.AutoDateLocator())
@@ -359,98 +314,3 @@ def plot_cand_network(ifgdates, bperp, rm_ifgdates, pngfile, ifg_cands=[], plot_
     plt.close()
 
 
-# #%% ORIGNAL
-def plot_network(ifgdates, bperp, rm_ifgdates, pngfile, plot_bad=True):
-    """
-    Plot network of interferometric pairs.
-    
-    bperp can be dummy (-1~1).
-    Suffix of pngfile can be png, ps, pdf, or svg.
-    plot_bad
-        True  : Plot bad ifgs by red lines
-        False : Do not plot bad ifgs
-    """
-
-    imdates_all = tools_lib.ifgdates2imdates(ifgdates)
-    n_im_all = len(imdates_all)
-    imdates_dt_all = np.array(([dt.datetime.strptime(imd, '%Y%m%d') for imd in imdates_all])) ##datetime
-
-    ifgdates = list(set(ifgdates)-set(rm_ifgdates))
-    ifgdates.sort()
-    imdates = tools_lib.ifgdates2imdates(ifgdates)
-    n_im = len(imdates)
-    imdates_dt = np.array(([dt.datetime.strptime(imd, '%Y%m%d') for imd in imdates])) ##datetime
-    
-    ### Identify gaps    
-    G = inv_lib.make_sb_matrix(ifgdates)
-    ixs_inc_gap = np.where(G.sum(axis=0)==0)[0]
-    
-    ### Plot fig
-    figsize_x = np.round(((imdates_dt_all[-1]-imdates_dt_all[0]).days)/80)+2
-    fig = plt.figure(figsize=(figsize_x, 6))
-    ax = fig.add_axes([0.06, 0.12, 0.92,0.85])
-    
-    ### IFG blue lines
-    for i, ifgd in enumerate(ifgdates):
-        ix_m = imdates_all.index(ifgd[:8])
-        ix_s = imdates_all.index(ifgd[-8:])
-        label = 'IFG' if i==0 else '' #label only first
-        plt.plot([imdates_dt_all[ix_m], imdates_dt_all[ix_s]], [bperp[ix_m],
-                bperp[ix_s]], color='b', alpha=0.6, zorder=2, label=label)
-
-    ### IFG bad red lines
-    if plot_bad:
-        for i, ifgd in enumerate(rm_ifgdates):
-            ix_m = imdates_all.index(ifgd[:8])
-            ix_s = imdates_all.index(ifgd[-8:])
-            label = 'Removed IFG' if i==0 else '' #label only first
-            plt.plot([imdates_dt_all[ix_m], imdates_dt_all[ix_s]], [bperp[ix_m],
-                    bperp[ix_s]], color='r', alpha=0.6, zorder=6, label=label)
-
-    ### Image points and dates
-    ax.scatter(imdates_dt_all, bperp, alpha=0.6, zorder=4)
-    for i in range(n_im_all):
-        if bperp[i] > np.median(bperp): va='bottom'
-        else: va = 'top'
-        ax.annotate(imdates_all[i][4:6]+'/'+imdates_all[i][6:],
-                    (imdates_dt_all[i], bperp[i]), ha='center', va=va, zorder=8)
-
-    ### gaps
-    if len(ixs_inc_gap)!=0:
-        gap_dates_dt = []
-        for ix_gap in ixs_inc_gap:
-            ddays_td = imdates_dt[ix_gap+1]-imdates_dt[ix_gap]
-            gap_dates_dt.append(imdates_dt[ix_gap]+ddays_td/2)
-        plt.vlines(gap_dates_dt, 0, 1, transform=ax.get_xaxis_transform(),
-                    zorder=1, label='Gap', alpha=0.6, colors='k', linewidth=3)
-        
-    ### Locater        
-    loc = ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-    try:  # Only support from Matplotlib 3.1
-        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
-    except:
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m/%d'))
-        for label in ax.get_xticklabels():
-            label.set_rotation(20)
-            label.set_horizontalalignment('right')
-    ax.grid(b=True, which='major')
-
-    ### Add bold line every 1yr
-    ax.xaxis.set_minor_locator(mdates.YearLocator())
-    ax.grid(b=True, which='minor', linewidth=2)
-
-    ax.set_xlim((imdates_dt_all[0]-dt.timedelta(days=10),
-                  imdates_dt_all[-1]+dt.timedelta(days=10)))
-
-    ### Labels and legend
-    plt.xlabel('Time')
-    if np.all(np.abs(np.array(bperp))<=1): ## dummy
-        plt.ylabel('dummy')
-    else:
-        plt.ylabel('Bperp [m]')
-    
-    plt.legend()
-
-    ### Save
-    plt.savefig(pngfile)
-    plt.close()

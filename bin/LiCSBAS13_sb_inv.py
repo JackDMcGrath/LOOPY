@@ -64,6 +64,8 @@ LiCSBAS13_sb_inv.py -d ifgdir [-t tsadir] [--inv_alg LS|WLS] [--mem_size float] 
    LS :       NSBAS Least Square with no weight
    WLS:       NSBAS Weighted Least Square (not well tested)
               Weight (variance) is calculated by (1-coh**2)/(2*coh**2)
+   WLS_rms    NSBAS Weighted Least Square (added by Andrew)
+              Weight (variance) is RMS of interferograms
  --mem_size   Max memory size for each patch in MB. (Default: 8000)
  --gamma      Gamma value for NSBAS inversion (Default: 0.0001)
  --n_para     Number of parallel processing (Default: # of usable CPU)
@@ -188,10 +190,7 @@ def main(argv=None):
     cmap_noise = 'viridis'
     cmap_noise_r = 'viridis_r'
     cmap_wrap = SCM.romaO
-    if sys.platform == "linux" or sys.platform == "linux2":
-        q = multi.get_context('fork')
-    elif sys.platform == "win32":
-        q = multi.get_context('spawn')
+    q = multi.get_context('fork')
     compress = 'gzip'
 
 
@@ -273,6 +272,15 @@ def main(argv=None):
     restxtfile = os.path.join(infodir,'13resid.txt')
 
     cumh5file = os.path.join(tsadir,'cum.h5')
+    
+    #if inv_alg in ('WLS', 'WLS_rms'):
+    modelvarfile = os.path.join(infodir, '13model_var.txt')
+
+    ### Read in ifg rms text file for WLS with rms weighting
+    if inv_alg == 'WLS_rms': 
+        rmsfile = os.path.join(ifgdir,'ifg_rms.txt')
+        rms_ifgs = np.loadtxt(rmsfile, dtype=str, usecols=0)
+        rms_vals = np.loadtxt(rmsfile, usecols=1)
 
     if n_para > 32:
         # Emprically >32 does not make much faster despite using large resource
@@ -530,6 +538,9 @@ def main(argv=None):
 
         if inv_alg == 'WLS':
             cohpatch = np.zeros((n_ifg, lengththis, width), dtype=np.float32)
+        
+        if inv_alg == 'WLS_rms':
+            rmspatch = np.zeros((n_ifg, lengththis, width), dtype=np.float32)
 
         ### For each ifg
         print("  Reading {0} ifg's unw data...".format(n_ifg), flush=True)
@@ -560,6 +571,10 @@ def main(argv=None):
                     cohpatch[i, :, :] = np.fromfile(f, dtype=np.float32, count=countl).reshape((lengththis, width))
                 cohpatch[cohpatch==0] = np.nan
 
+            ### Read ifg rms file from text file for WLS_rms
+            if inv_alg == 'WLS_rms':
+                rmspatch[i, :, :] = rms_vals[np.where(rms_ifgs == ifgd)[0][0]]
+
         unwpatch = unwpatch.reshape((n_ifg, n_pt_all)).transpose() #(n_pt_all, n_ifg)
 
         ### Calc variance from coherence for WLS
@@ -570,13 +585,16 @@ def main(argv=None):
             varpatch = (1-cohpatch**2)/(2*cohpatch**2)
             del cohpatch
 
+        if inv_alg == 'WLS_rms':
+            rmspatch = rmspatch.reshape((n_ifg, n_pt_all)).transpose() #(n_pt_all, n_ifg)
+            varpatch = rmspatch
 
         #%% Remove points with less valid data than n_unw_thre
         ix_unnan_pt = np.where(np.sum(~np.isnan(unwpatch), axis=1) > n_unw_thre)[0]
         n_pt_unnan = len(ix_unnan_pt)
 
         unwpatch = unwpatch[ix_unnan_pt,:] ## keep only unnan data
-        if inv_alg == 'WLS':
+        if inv_alg in ('WLS', 'WLS_rms'):
             varpatch = varpatch[ix_unnan_pt,:] ## keep only unnan data
 
         print('  {}/{} points removed due to not enough ifg data...'.format(n_pt_all-n_pt_unnan, n_pt_all), flush=True)
@@ -669,12 +687,21 @@ def main(argv=None):
 
             #%% Time series inversion
             print('\n  Small Baseline inversion by {}...\n'.format(inv_alg), flush=True)
-            if inv_alg == 'WLS':
+            if inv_alg in ('WLS', 'WLS_rms'):
                 inc_tmp, vel_tmp, vconst_tmp = inv_lib.invert_nsbas_wls(
                     unwpatch, varpatch, G, dt_cum, gamma, n_para_inv)
+
+                ### Estimate model variance
+                W = np.linalg.inv(np.diag(varpatch[0,:]))
+                Qd = np.linalg.inv(G.transpose()@W@G)
+                np.savetxt(modelvarfile, np.diag(Qd), fmt='%2.3f')
             else:
                 inc_tmp, vel_tmp, vconst_tmp = inv_lib.invert_nsbas(
                     unwpatch, G, dt_cum, gamma, n_para_inv, gpu)
+
+                ### Estimate model variance
+                Qd = np.linalg.inv(G.transpose()@G)
+                np.savetxt(modelvarfile, np.diag(Qd), fmt='%2.3f')
 
             ### Set to valuables
             inc_patch = np.zeros((n_im-1, n_pt_all), dtype=np.float32)*np.nan

@@ -143,14 +143,11 @@ def main(argv=None):
         n_para = len(os.sched_getaffinity(0))
     except:
         n_para = multi.cpu_count()
-    
+
     cycle = 3 # 2pi*3/cycle
     cmap_noise = 'viridis'
     cmap_noise_r = 'viridis_r'
-    if sys.platform == "linux" or sys.platform == "linux2":
-        q = multi.get_context('fork')
-    elif sys.platform == "win32":
-        q = multi.get_context('spawn')
+    q = multi.get_context('fork')
 
 
     #%% Read options
@@ -258,10 +255,6 @@ def main(argv=None):
     #%% Read date, network information and size
     ### Get dates
     ifgdates = tools_lib.get_ifgdates(ifgdir)
-    # idate = ifgdates.copy()
-    # for date in idate:
-    #     if int(date[9:]) < 20200911 or int(date[:8]) < 20200911:
-    #         ifgdates.remove(date)
 
     ### Read bad_ifg11 and rm_ifg
     bad_ifg11file = os.path.join(infodir, '11bad_ifg.txt')
@@ -290,7 +283,7 @@ def main(argv=None):
     ixs_ifg_no_loop = np.where(ns_loop4ifg==0)[0]
     no_loop_ifg = [ifgdates[ix] for ix in ixs_ifg_no_loop]
 
-    # breakpoint()
+
     #%% 1st loop closure check. First without reference
     _n_para = n_para if n_para < n_loop else n_loop
     print('\n1st Loop closure check and make png for all possible {} loops,'.format(n_loop), flush=True)
@@ -298,11 +291,12 @@ def main(argv=None):
 
     bad_ifg_cand = []
     good_ifg = []
-    
+
     ### Parallel processing
     p = q.Pool(_n_para)
     loop_ph_rms_ifg = np.array(p.map(loop_closure_1st_wrapper, range(n_loop)), dtype=np.float32)
     p.close()
+
 
     for i in range(n_loop):
         ### Find index of ifg
@@ -656,7 +650,7 @@ def main(argv=None):
     plot_lib.plot_network(ifgdates, bperp, [], pngfile)
 
     pngfile = os.path.join(netdir, 'network12.png')
-    plot_lib.plot_network(ifgdates, bperp, bad_ifg_all, pngfile)
+    plot_lib.plot_network(ifgdates, bperp, bad_ifg_all, pngfile, bad_ifg_cand_res)
 
     pngfile = os.path.join(netdir, 'network12_nobad.png')
     plot_lib.plot_network(ifgdates, bperp, bad_ifg_all, pngfile, plot_bad=False)

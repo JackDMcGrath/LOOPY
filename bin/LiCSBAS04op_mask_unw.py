@@ -32,13 +32,17 @@ LiCSBAS04op_mask_unw.py -i in_dir -o out_dir [-c coh_thre] [-r x1:x2/y1:y2] [-f 
  -r  Range to be masked. Index starts from 0.
      0 for x2/y2 means all. (i.e., 0:0/0:0 means whole area).
  -f  Text file of a list of ranges to be masked (format is x1:x2/y1:y2)
+ -p  Text file containing polygon coords to be masked 
  --n_para  Number of parallel processing (Default: # of usable CPU)
 
- Note: either -c, -r or -f must be specified.
+ Note: either -c, -r, -f, or -p must be specified.
 
 """
 #%% Change log
 '''
+20220121 Andrew Watson
+ - added option to mask polygons (in progress)
+
 v1.3.5 20210105 Yu Morishita, GSI
  - Fill 0 by nan in unw
 v1.3.4 20201119 Yu Morishita, GSI
@@ -100,6 +104,7 @@ def main(argv=None):
     coh_thre = []
     ex_range_str = []
     ex_range_file = []
+    poly_file = []
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
@@ -113,7 +118,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hi:o:c:r:f:", ["help", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hi:o:c:r:f:p:", ["help", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -130,6 +135,8 @@ def main(argv=None):
                 ex_range_str = a
             elif o == '-f':
                 ex_range_file = a
+            elif o == '-p':
+                poly_file = a
             elif o == '--n_para':
                 n_para = int(a)
 
@@ -137,8 +144,8 @@ def main(argv=None):
             raise Usage('No input directory given, -i is not optional!')
         if not out_dir:
             raise Usage('No output directory given, -o is not optional!')
-        if not coh_thre and not ex_range_str and not ex_range_file:
-            raise Usage('Neither -r nor -f option is given!')
+        if not coh_thre and not ex_range_str and not ex_range_file and not poly_file:
+            raise Usage('Neither -r, -f, nor -p option is given!')
         elif not os.path.isdir(in_dir):
             raise Usage('No {} dir exists!'.format(in_dir))
         elif not os.path.exists(os.path.join(in_dir, 'slc.mli.par')):
@@ -173,7 +180,7 @@ def main(argv=None):
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
-    bool_mask = np.zeros((length, width), dtype=np.bool)
+    bool_mask = np.zeros((length, width), dtype=bool)
 
 
     #%% Check and set pixels to be masked based on coherence
@@ -230,6 +237,25 @@ def main(argv=None):
                 x1, x2, y1, y2 = tools_lib.read_range(ex_range_str1, width, length)
                 bool_mask[y1:y2, x1:x2] = True
     
+    ### Read -p option
+    if poly_file:
+        
+        print('Masking using polygon file') 
+        with open(poly_file) as f:
+            poly_strings_all = f.readlines()
+
+        dempar = os.path.join(in_dir, 'EQA.dem_par')
+        lat1 = float(io_lib.get_param_par(dempar, 'corner_lat')) # north
+        lon1 = float(io_lib.get_param_par(dempar, 'corner_lon')) # west
+        postlat = float(io_lib.get_param_par(dempar, 'post_lat')) # negative
+        postlon = float(io_lib.get_param_par(dempar, 'post_lon')) # positive
+        lat2 = lat1+postlat*(length-1) # south
+        lon2 = lon1+postlon*(width-1) # east
+        #lon, lat = np.arange(lon1, lon2+postlon, postlon), np.arange(lat1, lat2+postlat, postlat)
+        lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
+        for poly_str in poly_strings_all:
+            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat)
+
     ### Save image of mask
     mask = np.float32(~bool_mask)
     maskfile = os.path.join(out_dir, 'mask')

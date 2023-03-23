@@ -2,9 +2,7 @@
 """
 v1.1.3 20210802 Yu Morishita, GSI
 
-This script decomposes 2 (or more) LOS displacement data to EW and UD components assuming no NS displacement (neglecting NS). 
-Positive values in the decomposed data mean eastward and upward displacement. 
-The multiple LOS input data can have different coverage and resolution as they are resampled to the common area and resolution during the processing.
+This script decomposes 2 (or more) LOS displacement data to EW and UD components assuming no NS displacement (neglecting NS). Positive values in the decomposed data mean eastward and upward displacement. The multiple LOS input data can have different coverage and resolution as they are resampled to the common area and resolution during the processing.
 
 Reference:
 - Wright et al. (2004) https://doi.org/10.1029/2003GL018827

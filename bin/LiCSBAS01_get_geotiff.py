@@ -66,7 +66,6 @@ v1.0 20190729 Yu Morishita, Uni of Leeds and GSI
 
 
 #%% Import
-
 import getopt
 import os
 import re

@@ -8,6 +8,9 @@ Python3 library of time series analysis tools for LiCSBAS.
 =========
 Changelog
 =========
+20220121, Andrew Watson
+ - added poly_mask function (in progres)
+
 v1.8 20210309 Yu Morishita, GSI
  - Add GPU option to fit2dh (but not recommended)
 v1.7 20210205 Yu Morishita, GSI
@@ -45,7 +48,7 @@ import numpy as np
 import warnings
 from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib import pyplot as plt
-
+import matplotlib.path as path
 
 #%%
 def bl2xy(lon, lat, width, length, lat1, postlat, lon1, postlon):
@@ -595,6 +598,25 @@ def read_range_geo(range_str, width, length, lat1, postlat, lon1, postlon):
 
     return [x1, x2, y1, y2]
 
+#%%
+def poly_mask(poly_str, lon, lat):
+    """
+    lat lon values are in grid registration
+    poly coords in long lat
+    """
+
+    # read coord string and split into numpy arrays
+    coord_str = [float(s) for s in re.split('[,]', poly_str)]
+    lon_poly, lat_poly = np.asarray(coord_str[::2]), np.asarray(coord_str[1::2])
+
+    # generate coordinate mesh
+    lon_grid, lat_grid = np.meshgrid(lon, lat)
+
+    # create poly from coords and return points within polygon
+    poly = path.Path(np.vstack((lon_poly, lat_poly)).T)
+    poly_mask = poly.contains_points(np.transpose([lon_grid.flatten(), lat_grid.flatten()])).reshape(np.shape(lon_grid))
+
+    return poly_mask
 
 #%%
 def read_range_line_geo(range_str, width, length, lat_n, postlat, lon_w, postlon):
