@@ -650,8 +650,7 @@ def mask_unw_errors(i):
         print('        pngs made {:.2f}'.format(time.time() - begin))
 
     # Link to the cc file
-    if sys.platform != "win32":
-        os.symlink(os.path.relpath(os.path.join(ifgdir, date, date + '.cc'), corrdir), os.path.join(corrdir, date, date + '.cc'))
+    shutil.copy(os.path.join(ifgdir, date, date + '.cc'), os.path.join(corrdir, date, date + '.cc'))
 
     if i == v:
         print('        Saved {:.2f}'.format(time.time() - begin))
