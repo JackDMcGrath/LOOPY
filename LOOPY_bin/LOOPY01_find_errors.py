@@ -261,6 +261,9 @@ def main(argv=None):
         if len(mlitif) > 0:
             mlitif = mlitif[0]  # First one
             coh = gdal.Open(mlitif).ReadAsArray()  # Coh due to previous use of coherence to find IFG limits
+            if isinstance(coh, type(None)):
+                print('Full Res Coherence == NoneType. Using hgt')
+                coh = gdal.Open(glob.glob(os.path.join(geocdir, '*.geo.hgt.tif'))[0]).ReadAsArray()
             coh[coh == 0] = np.nan
             mlifile = os.path.join(geocdir, 'slc.mli')
             coh.tofile(mlifile)
@@ -569,6 +572,7 @@ def mask_unw_errors(i):
             print('        Preparing Corrections {:.2f}'.format(time.time() - begin))
     # %%
         for ii, corrIx in enumerate(corr_regions):
+            breakpoint()
             # Make map only of the border regions
             start = time.time()
             border_regions = np.zeros(mask.shape)
