@@ -1,10 +1,12 @@
 LOOPY_lib/__pycache__
 LOOPY_bin/__pycache__
-LiCSBAS_lib/__pycache__/
+LiCSBAS_lib/__pycache__
 LiCSBAS_bin/__pycache__
+LOOPY_lib/LOOPY_lib.py
+LiCSBAS_lib/__pycache__/LiCSBAS_io_lib.cpython-39.pyc
+LiCSBAS_lib/__pycache__/LiCSBAS_plot_lib.cpython-39.pyc
+LiCSBAS_lib/__pycache__/LiCSBAS_tools_lib.cpython-39.pyc
 LOOPY_bin_miscTestingScripts
 LOOPY_bin/loopyl1regls.py
 LOOPY_bin/spatial_loopy_synth.py
 error_synth_testing
-LiCSBAS_lib/__pycache__
-LiCSBAS_lib/__pycache__/
