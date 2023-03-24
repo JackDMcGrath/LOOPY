@@ -89,16 +89,16 @@ import numpy as np
 import multiprocessing as multi
 import LOOPY_lib as loopy_lib
 import LiCSBAS_io_lib as io_lib
-import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_plot_lib as plot_lib
-from osgeo import gdal
+import LiCSBAS_tools_lib as tools_lib
 from PIL import Image, ImageFilter
-from skimage.filters.rank import modal
+from osgeo import gdal
+from scipy.stats import mode
 from scipy.ndimage import label
 from scipy.ndimage import binary_dilation
 from scipy.interpolate import NearestNDInterpolator
-from scipy.stats import mode
 from skimage import filters
+from skimage.filters.rank import modal
 
 
 insar = tools_lib.get_cmap('SCM.romaO')
@@ -228,19 +228,18 @@ def main(argv=None):
 
     if reset:
         print('Removing Previous Masks')
-        # mask_lib.reset_masks(ifgdir)
         if os.path.exists(corrdir):
             shutil.rmtree(corrdir)
     else:
         print('Preserving Premade Masks')
 
     if not os.path.exists(corrdir):
-        os.mkdir(corrdir)
+        loopy_lib.prepOutdir(corrdir, ifgdir)
 
     # %% File Setting
     ref_file = os.path.join(infodir, '12ref.txt')
     mlipar = os.path.join(ifgdir, 'slc.mli.par')
-    print(mlipar)
+
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
 
@@ -408,7 +407,7 @@ def main(argv=None):
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour, minute, sec))
 
     print('\n{} Successfully finished!!\n'.format(os.path.basename(argv[0])))
-    print('Output directory: {}\n'.format(os.path.relpath(ifgdir)))
+    print('Output directory: {}\n'.format(os.path.relpath(corrdir)))
 
 
 # %% Function to mask unwrapping errors
@@ -653,8 +652,7 @@ def mask_unw_errors(i):
         print('        pngs made {:.2f}'.format(time.time() - begin))
 
     # Link to the cc file
-    if sys.platform != "win32":
-        os.symlink(os.path.relpath(os.path.join(ifgdir, date, date + '.cc'), corrdir), os.path.join(corrdir, date, date + '.cc'))
+    shutil.copy(os.path.join(ifgdir, date, date + '.cc'), os.path.join(corrdir, date, date + '.cc'))
 
     if i == v:
         print('        Saved {:.2f}'.format(time.time() - begin))

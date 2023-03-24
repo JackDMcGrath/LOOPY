@@ -12,7 +12,8 @@ v1.0 20220608 Jack McGrath, Uni of Leeds
  - Original implementation
 """
 import os
-import re
+import glob
+import shutil
 import warnings
 import numpy as np
 import matplotlib as mpl
@@ -28,6 +29,24 @@ with warnings.catch_warnings():  # To silence user warning
 
 cmap_wrap = tools_lib.get_cmap('SCM.romaO')
 cmap_corr = tools_lib.get_cmap('SCM.vik')
+
+
+# %%
+def prepOutdir(out_dir, in_dir):
+    """
+    Script to create the new GEOC dir and move the correct files to it at the
+    start of LOOPY
+    """
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
+    files = glob.glob(os.path.join(in_dir, '*'))
+    for file in files:
+        if not os.path.isdir(file):  # not copy directory, only file
+            print('Copy {}'.format(os.path.basename(file)), flush=True)
+            shutil.copy(file, out_dir)
+
+    print('{} prepared...'.format(os.path.basename(out_dir)))
 
 
 # %%
@@ -88,5 +107,3 @@ def make_compare_png(uncorr, corrunw, npi, corr, png, titles4, cycle):
     plt.tight_layout()
     plt.savefig(png)
     plt.close()
-
-#%%
