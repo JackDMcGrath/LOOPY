@@ -125,7 +125,7 @@ def main(argv=None):
 
     global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
         length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir, \
-        corrdir, bool_mask
+        corrdir, bool_mask, cycle, n_valid_thre
 
     # %% Set default
     ifgdir = []
@@ -137,6 +137,8 @@ def main(argv=None):
     reset = False
     plot_figures = False
     v = -1
+    cycle = 3
+    n_valid_thre = 0.5
 
     # Parallel Processing options
     try:
@@ -327,7 +329,7 @@ def main(argv=None):
         bool_plot[np.where(np.isnan(coh))] = np.nan
 
         if fullres:
-            bool_plot = tools_lib.multilook(bool_plot, ml_factor, ml_factor, 0.1)
+            bool_plot = tools_lib.multilook(bool_plot, ml_factor, ml_factor, n_valid_thre=0.1)
         title = 'Known UNW error Locations)'
         plot_lib.make_im_png(bool_plot, os.path.join(corrdir, 'known_errors.png'), 'viridis', title, vmin=0, vmax=1, cbar=False)
         print('Map of known error locations made')
@@ -607,22 +609,22 @@ def mask_unw_errors(i):
 
     # %% Multilook mask if required
     if fullres:
-        unw = tools_lib.multilook(unw, ml_factor, ml_factor, 0.5)
+        unw = tools_lib.multilook(unw, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
         if i == v:
             print('        Original IFG multilooked {:.2f}'.format(time.time() - begin))
         mask = tools_lib.multilook(mask, ml_factor, ml_factor, 0.1).astype('bool').astype('int')
         if i == v:
             print('        Mask multilooked {:.2f}'.format(time.time() - begin))
-        npi = tools_lib.multilook((filled_ifg / (np.pi)).round(), ml_factor, ml_factor, 0.1)
+        npi = tools_lib.multilook((filled_ifg / (np.pi)).round(), ml_factor, ml_factor, n_valid_thre=0.1)
         if i == v:
             print('        Modulo NPI multilooked {:.2f}'.format(time.time() - begin))
-        correction = tools_lib.multilook(correction, ml_factor, ml_factor, 0.1)
+        correction = tools_lib.multilook(correction, ml_factor, ml_factor, n_valid_thre=0.1)
         if i == v:
             print('        Correction multilooked {:.2f}'.format(time.time() - begin))
-        corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, 0.1)
+        corr_unw = tools_lib.multilook(corr_unw, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
         if i == v:
             print('        Corrected IFG multilooked {:.2f}'.format(time.time() - begin))
-        errors = tools_lib.multilook(errors, ml_factor, ml_factor, 0.1)
+        errors = tools_lib.multilook(errors, ml_factor, ml_factor, n_valid_thre=0.1)
         if i == v:
             print('        Error map multilooked {:.2f}'.format(time.time() - begin))
 
@@ -631,8 +633,8 @@ def mask_unw_errors(i):
     # Flip round now, so 1 = bad pixel, 0 = good pixel
     mask = (mask == 0).astype('int')
     mask[np.where(np.isnan(unw))] = 0
-    title = '{} ({}pi/cycle)'.format(date, 3 * 2)
-    plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / 3) * 3), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, vmin=-np.pi, vmax=np.pi, cbar=False)
+    title = '{} ({}pi/cycle)'.format(date, cycle * 2)
+    plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / cycle) * cycle), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, vmin=-np.pi, vmax=np.pi, cbar=False)
     # Make new unw file from corrected data and new loop png
     corr_unw.tofile(os.path.join(corrdir, date, date + '.unw'))
     mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
