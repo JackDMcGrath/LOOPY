@@ -405,7 +405,7 @@ def main(argv=None):
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour, minute, sec))
 
     print('\n{} Successfully finished!!\n'.format(os.path.basename(argv[0])))
-    print('Output directory: {}\n'.format(os.path.relpath(ifgdir)))
+    print('Output directory: {}\n'.format(os.path.relpath(corrdir)))
 
 
 # %% Function to mask unwrapping errors
