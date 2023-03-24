@@ -247,7 +247,6 @@ def main(argv=None):
     # Get ifg dates
     ifgdates = tools_lib.get_ifgdates(ifgdir)
     n_ifg = len(ifgdates)
-    mask_cov = []
 
     # Find how far to interpolate IFG to
     if fullres:
@@ -386,8 +385,7 @@ def main(argv=None):
             print('In an overly verbose way for IFG {}'.format(v + 1))
 
         for i in range(n_ifg):
-            mask_cov_tmp = mask_unw_errors(i)
-            mask_cov.append(mask_cov_tmp)
+            mask_unw_errors(i)
 
     else:
         print('with {} parallel processing...'.format(_n_para), flush=True)
