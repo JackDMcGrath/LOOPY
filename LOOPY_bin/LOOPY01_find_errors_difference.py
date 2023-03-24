@@ -242,6 +242,12 @@ def main(argv=None):
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
 
+    # %% Prepare variables
+    # Get ifg dates
+    ifgdates = tools_lib.get_ifgdates(ifgdir)
+    n_ifg = len(ifgdates)
+    mask_cov = []
+
     # Find how far to interpolate IFG to
     if fullres:
         geocdir = os.path.abspath(os.path.join(ifgdir, '..', 'GEOC'))
@@ -249,12 +255,12 @@ def main(argv=None):
 
         # Create full res mli
         print('\nCreate slc.mli', flush=True)
+        cohfile = os.path.join(ifgdir, ifgdates[0], ifgdates[0])
         mlitif = glob.glob(os.path.join(geocdir, '*.geo.mli.tif'))
         if len(mlitif) > 0:
             mlitif = mlitif[0]  # First one
-            coh = gdal.Open(mlitif).ReadAsArray().astype(np.float32)  # Coh due to previous use of coherence to find IFG limits
+            coh = gdal.Open(mlitif).ReadAsArray()  # Coh due to previous use of coherence to find IFG limits
             coh[coh == 0] = np.nan
-
             mlifile = os.path.join(geocdir, 'slc.mli')
             coh.tofile(mlifile)
             mlipngfile = mlifile + '.png'
@@ -314,7 +320,7 @@ def main(argv=None):
 
         bool_mask[np.where(bool_mask != 0)] = 1
         if fullres:
-            bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3)), iterations=int(np.ceil(ml_factor / 2))).astype('float32')
+            bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3)), iterations=int(np.ceil((ml_factor * 3) / 2))).astype('float32')
         else:
             bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3))).astype('float32')
         bool_plot = bool_mask.copy()
@@ -365,12 +371,6 @@ def main(argv=None):
 
     print('Ref point = [{}, {}]'.format(refy1, refx1))
     print('Mask Multilooking Factor = {}'.format(ml_factor))
-
-    # %% Prepare variables
-    # Get ifg dates
-    ifgdates = tools_lib.get_ifgdates(ifgdir)
-    n_ifg = len(ifgdates)
-    mask_cov = []
 
     # %% Run correction in parallel
     _n_para = n_para if n_para < n_ifg else n_ifg
