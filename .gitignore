@@ -1,7 +1,8 @@
 LOOPY_lib/__pycache__
 LOOPY_bin/__pycache__
+LiCSBAS_lib/__pycache__
+LiCSBAS_bin/__pycache__
 LOOPY_bin_miscTestingScripts
 LOOPY_bin/loopyl1regls.py
 LOOPY_bin/spatial_loopy_synth.py
 error_synth_testing
-
