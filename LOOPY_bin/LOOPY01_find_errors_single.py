@@ -107,7 +107,7 @@ global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
     length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir
 
 # %% Set default
-frame = '023A_13470_171714'  # '073D_13256_001823' '023A_13470_171714'
+frame = '073D_13256_001823'  # '073D_13256_001823' '023A_13470_171714'
 ifgdir = os.path.join('D:\\', 'LiCSBAS_singleFrames', frame, 'GEOCml10')
 tsadir = []
 ml_factor = 10  # Amount to multilook the resulting masks
@@ -254,24 +254,6 @@ def NN_interp(data):
     return interped_data
 
 
-# # %% Function to modally filter arrays using PIL
-# def mode_filter(data, filtSize=11):
-#     npi_min = np.nanmin(data) - 1
-#     npi_range = np.nanmax(data) - npi_min
-
-#     # Convert array into 0-255 range
-#     greyscale = ((data - npi_min) / npi_range) * 255
-#     im = Image.fromarray(greyscale.astype('uint8'))
-
-#     # Filter image, convert back to np.array, and repopulate with nans
-#     im_mode = im.filter(ImageFilter.ModeFilter(size=filtSize))
-#     dataMode = ((np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min).round()
-#     dataMode[np.where(np.isnan(data))] = np.nan
-#     dataMode[np.where(dataMode == npi_min)] = np.nan
-
-#     return dataMode
-
-
 # %% Function to modally filter arrays using skilearn
 def mode_filter(data, filtSize=21):
     npi_min = np.nanmin(data) - 1
@@ -286,61 +268,19 @@ def mode_filter(data, filtSize=21):
     # return data:
     return dataMode
 
-# %%
-@jit(nopython=True)
-def numbaMode(buffer, minData, nData, iY, iX, filtSize):
-    modeArray = np.zeros(nData)
-
-    for ii in range(nData):
-        area = buffer[iY[ii]:iY[ii] + filtSize, iX[ii]:iX[ii] + filtSize]
-        a = np.array([val for val in area.flatten() if val != minData])
-
-        maxCount = 0
-        modeVal = minData
-
-        for val in set(a):
-            if len(np.where(a == val)) > maxCount:
-                maxCount = len(np.where(a == val))
-                modeVal = val
-
-        modeArray[ii] = modeVal
-
-    return modeArray
-
-
-# %
-def numba_filter(data, filtSize=21):
-    begin = time.time()
-    nonNany, nonNanx = np.where(~np.isnan(data))
-    halfFilt = np.floor(filtSize / 2).astype('int')
-    dataMode = np.zeros((data.shape)) * np.nan
-    minData = np.nanmin(data) - 20
-
-    buffer = np.zeros((data.shape[0] + filtSize - 1, data.shape[1] + filtSize - 1)) * np.nan
-    buffer[halfFilt:-halfFilt, halfFilt:-halfFilt] = data
-    buffer[np.where(np.isnan(buffer))] = minData
-
-    length, width = data.shape
-    nData = len(nonNany)
-    numbaTime = time.time()
-    modeArray = numbaMode(buffer, minData, nData, nonNany, nonNanx, filtSize)
-    numbaElapse = time.time() - numbaTime
-    print('Numba Time = {:.2f} s'.format(numbaElapse))
-    dataMode[nonNany, nonNanx] = modeArray
-    print('Rest time = {:.2f} s'.format(time.time() - begin - numbaElapse))
-    return dataMode
-
 
 # %% Function to mask unwrapping errors
 i = 0
 begin = time.time()
 date = '20161116_20161122'  # 073D
 # date = '20141115_20150303'  # 073D
-# date = '20160226_20161116'  # 073D
+date = '20160226_20161116'  # 073D
 # date = '20150327_20151216'  # 073D
 # date = '20161128_20161228'  # 073D
 # date = '20170118_20181227'  # 023A
-date = '20150920_20151014'  # 023A
+# date = '20160118_20171021'
+# date = '20150920_20151014'
+# date = '20170118_20181016'  # 023A
 
 focus = False
 if not fullres:
@@ -370,6 +310,17 @@ if i == v:
 if fullres:
     unw = gdal.Open(os.path.join(geocdir, date, date + '.geo.unw.tif')).ReadAsArray()
     unw[unw == 0] = np.nan
+    # loop_lib.plotmask(unw, centerz=False, title='Original IFG')
+
+    # cc_tiffile = os.path.join(geocdir, date, date + '.geo.cc.tif')
+    # cc = gdal.Open(cc_tiffile).ReadAsArray()
+    # if cc.dtype == 'uint8':
+    #     cc = cc / 255
+
+    # cc_thresh = 0.002
+    # unw[cc < cc_thresh] = np.nan
+    # loop_lib.plotmask(unw, centerz=False, title='CC-masked IFG {:.2f}'.format(cc_thresh))
+
 else:
     unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width)
 
@@ -377,16 +328,17 @@ if i == v:
     print('        UNW Loaded {:.2f}'.format(time.time() - begin))
 
 # Find Reference Value, and reference all IFGs to same value
-ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
-if np.isnan(ref):
-    print('Invalid Ref Value found. Setting to 0')
+try:
+    ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
+except 'RunTimeWarning':
+    print('Invalid Ref Value found for IFG {}. Setting to 0'.format(date))
     ref = 0
 
 ifg = unw.copy()
 ifg = ifg - ref  # Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
 if i == v:
     print('        Reffed {:.2f}'.format(time.time() - begin))
-
+# %%
 # Interpolate IFG to entire frame
 filled_ifg = NN_interp(ifg)
 # breakpoint()
@@ -401,12 +353,13 @@ if i == v:
 
 # Find modulo 2pi values for original IFG, and after adding and subtracting 1pi
 # Use round rather than // to account for slight noise
-npi_og = (filled_ifg / (2 * np.pi)).round()
-npi_p1 = ((filled_ifg + np.pi) / (2 * np.pi)).round()
-npi_m1 = ((filled_ifg - np.pi) / (2 * np.pi)).round()
+nPi = 1
+npi_og = (filled_ifg / (nPi * np.pi)).round()
 
 if plot_figures:
-    loop_lib.plotmask(npi_og, centerz=False, title='N 2PI', cmap='tab20c', vmin=-4.75, vmax=4.75)
+    maxpi = np.nanmax(npi_og)
+    minpi = np.nanmin(npi_og)
+    loop_lib.plotmask(npi_og, centerz=False, title='N {:.0f}PI'.format(nPi), cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
 
 if i == v:
     print('        npi_calculated {:.2f}'.format(time.time() - begin))
@@ -415,96 +368,42 @@ if i == v:
 # npi_numba = numba_filter(npi_og, filtSize=21)
 if i == v:
     print('        numba filtered {:.2f}'.format(time.time() - begin))
-start = time.time()
 # Modal filtering of npi images
+start = time.time()
 npi_og = mode_filter(npi_og, filtSize=21)
 
 if i == v:
     print('        Scipy filtered {:.2f} ({:.2f} s)'.format(time.time() - begin, time.time() - start))
 
 if plot_figures:
-    loop_lib.plotmask(npi_og, centerz=False, title='NPI filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
+    loop_lib.plotmask(npi_og, centerz=False, title='NPI filter', cmap='tab20c', vmin=minpi, vmax=maxpi)
     if focus:
         loop_lib.plotmask(npi_og[y1:y2, x1:x2], centerz=False, title='NPI filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
 if i == v:
     print('            npi 0 filter  {:.2f}'.format(time.time() - begin))
-npi_p1 = mode_filter(npi_p1)
-if plot_figures:
-    loop_lib.plotmask(npi_p1, centerz=False, title='NPI +pi filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
-    if focus:
-        loop_lib.plotmask(npi_p1[y1:y2, x1:x2], centerz=False, title='NPI +pi filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
-if i == v:
-    print('            npi p1 filter  {:.2f}'.format(time.time() - begin))
-npi_m1 = mode_filter(npi_m1)
-if plot_figures:
-    loop_lib.plotmask(npi_m1, centerz=False, title='NPI -pi filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
-    if focus:
-        loop_lib.plotmask(npi_m1[y1:y2, x1:x2], centerz=False, title='NPI -pi filter', cmap='tab20c')  # , vmin=-4.75, vmax=4.75)
-if i == v:
-    print('            npi m1 filter  {:.2f}'.format(time.time() - begin))
+# %%
+errors = np.zeros(npi_og.shape) * np.nan
+errors[np.where(~np.isnan(npi_og))] = 0
 
-# Create greyscale images for filtering
-graynpi0 = (npi_og - np.nanmin(npi_og) + 1) / (np.nanmax(npi_og) - np.nanmin(npi_og) + 1)
-graynpip1 = (npi_p1 - np.nanmin(npi_p1) + 1) / (np.nanmax(npi_p1) - np.nanmin(npi_p1) + 1)
-graynpim1 = (npi_m1 - np.nanmin(npi_m1) + 1) / (np.nanmax(npi_m1) - np.nanmin(npi_m1) + 1)
+# Compare with 1 row below
+error_rows, error_cols = np.where((np.abs(npi_og[:-1, :] - npi_og[1:, :]) > 1))
+errors[error_rows, error_cols] = 1
 
-if i == v:
-    print('        Greyscale {:.2f}'.format(time.time() - begin))
+# Compare with 1 row above
+error_rows, error_cols = np.where((np.abs(npi_og[1:, :] - npi_og[:-1, :]) > 1))
+errors[error_rows + 1, error_cols] = 1
 
-# Run Sobel filter for edge detection. Set any edges to 0
-sobeltime = time.time()
-sobel0 = filters.sobel(graynpi0)
-if i == v:
-    print('        Sobel0 {:.2f}'.format(time.time() - sobeltime))
-    sobeltime = time.time()
-sobel0[sobel0 > 0] = 1
-if plot_figures:
-    loop_lib.plotmask(sobel0, centerz=False, title='sobel0', cmap='gray')
-if i == v:
-    print('        Sobel0 binarized {:.2f}'.format(time.time() - sobeltime))
-    sobeltime = time.time()
-sobelp1 = filters.sobel(graynpip1)
-if i == v:
-    print('        Sobelp1 {:.2f}'.format(time.time() - sobeltime))
-    sobeltime = time.time()
-sobelp1[sobelp1 > 0] = 1
-if plot_figures:
-    loop_lib.plotmask(sobelp1, centerz=False, title='sobelp1', cmap='gray')
-if i == v:
-    print('        Sobelp1 binarized {:.2f}'.format(time.time() - sobeltime))
-    sobeltime = time.time()
-sobelm1 = filters.sobel(graynpim1)
-if i == v:
-    print('        Sobelm1 {:.2f}'.format(time.time() - sobeltime))
-    sobeltime = time.time()
-sobelm1[sobelm1 > 0] = 1
-if plot_figures:
-    loop_lib.plotmask(sobelm1, centerz=False, title='sobelm1', cmap='gray')
-if i == v:
-    print('        Sobelm1 binarized {:.2f}'.format(time.time() - sobeltime))
-    print('        Sobelled {:.2f}'.format(time.time() - begin))
+# Compare to column to the left
+error_rows, error_cols = np.where((np.abs(npi_og[:, 1:] - npi_og[:, :-1]) > 1))
+errors[error_rows, error_cols] = 1
 
-del graynpi0, graynpip1, graynpim1
-# Add up all filters. Class anywhere boundary in all three as an error
-boundary_tot = sobel0 + sobelp1 + sobelm1
-boundary_err = (boundary_tot == 3).astype('int')
-boundary_err = binary_dilation(boundary_err, iterations=5)
-# err_2 = binary_closing(boundary_err)
-# boundary_err = binary_dilation(boundary_err)
-
-if plot_figures:
-    loop_lib.plotmask(boundary_tot, centerz=False, title='Tot', cmap='tab20c')
-
-if plot_figures:
-    loop_lib.plotmask(boundary_err, centerz=False, title='Boundary Err', cmap='gray')
-
-# boundary_err = binary_opening(boundary_err).astype('int')  # Erosion -> dilation
-# if plot_figures:
-#    loop_lib.plotmask(boundary_err[y1:y2, x1:x2], centerz=False, title='Boundary Err Binary Opening', cmap='gray')
-
+# Compare to column to the right
+error_rows, error_cols = np.where((np.abs(npi_og[:, :-1] - npi_og[:, 1:]) > 1))
+errors[error_rows, error_cols + 1] = 1
+loop_lib.plotmask(errors, centerz=False, title='Error Boundaries')
 if i == v:
     print('        Boundaries Classified {:.2f}'.format(time.time() - begin))
-breakpoint()
+
 # %%
 # Add error lines to the original IFG, and interpolate with these values to
 # create IFG split up by unwrapping error boundaries
@@ -514,7 +413,7 @@ if i == v:
 err_val = 10 * np.nanmax(ifg2)
 if i == v:
     print('        err_val set {:.2f}'.format(time.time() - begin))
-ifg2[np.where(boundary_err == 1)] = err_val
+ifg2[np.where(errors == 1)] = err_val
 if i == v:
     print('        Boundaries added {:.2f}'.format(time.time() - begin))
 filled_ifg2 = NN_interp(ifg2)
@@ -551,55 +450,76 @@ min_corr_size = ml_factor * ml_factor * 10  # 10 pixels at final ml size
 drop_regions = regionId[np.where(regionSize < min_corr_size)]
 regions[np.where(np.isin(regions, np.append(drop_regions, 0)))] = np.nan
 
-# Reinterpolate without tiny regions
-regions = NN_interp(regions)
+# Cease if there are no regions left to be checked
+if drop_regions.shape[0] == regionId.shape[0]:
+    correction = np.zeros(unw.shape)
+else:
+    # Reinterpolate without tiny regions
+    regions = NN_interp(regions)
 
-# Find region number of reference pixel. All pixels in this region to be
-# considered unw error free. Mask where 1 == good pixel, 0 == bad
-# Use mode incase ref area is > 1 pixel (eg if working at full res)
-ref_region = mode(regions[refy1:refy2, refx1:refx2].flatten(), keepdims=True)[0][0]
-mask = regions == ref_region
+    # Find region number of reference pixel. All pixels in this region to be
+    # considered unw error free. Mask where 1 == good pixel, 0 == bad
+    # Use mode incase ref area is > 1 pixel (eg if working at full res)
+    ref_region = mode(regions[refy1:refy2, refx1:refx2].flatten(), keepdims=True)[0][0]
+    mask = regions == ref_region
 
-if plot_figures:
-    if focus:
-        loop_lib.plotmask(mask[y1:y2, x1:x2], centerz=False, title='Mask')
-    loop_lib.plotmask(mask, centerz=False, title='Mask')
+    if plot_figures:
+        if focus:
+            loop_lib.plotmask(mask[y1:y2, x1:x2], centerz=False, title='Mask')
+        loop_lib.plotmask(mask, centerz=False, title='Mask')
 
-if i == v:
-    print('        Mask made {:.2f}'.format(time.time() - begin))
+    if i == v:
+        print('        Mask made {:.2f}'.format(time.time() - begin))
+    # breakpoint()
+    # Make an array exclusively holding the good values
+    good_vals = np.zeros(mask.shape) * np.nan
+    good_vals[mask] = npi_og[mask]
 
-# Make an array exclusively holding the good values
-good_vals = np.zeros(mask.shape) * np.nan
-good_vals[mask] = npi_og[mask]
+    # Make an array to hold the correction
+    correction = np.zeros(mask.shape)
 
-# Make an array to hold the correction
-correction = np.zeros(mask.shape)
+    # Boolean array of the outside boundary of the good mask
+    good_border = filters.sobel(mask).astype('bool')
+    corr_regions = np.unique(regions[good_border])
+    corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
+#%%
+    for ii, corrIx in enumerate(corr_regions):
+        # Make map only of the border regions
+        start = time.time()
+        border_regions = np.zeros(mask.shape)
+        if ii % 50 == 0:
+            print('1 {:.2f}'.format(time.time() - start))
+        border_regions[good_border] = regions[good_border]
+        if ii % 50 == 0:
+            print('2 {:.2f}'.format(time.time() - start))
+        # Plot boundary in isolation
+        border = np.zeros(mask.shape).astype('int')
+        if ii % 50 == 0:
+            print('3 {:.2f}'.format(time.time() - start))
+        border[np.where(border_regions == corrIx)] = 1
+        if ii % 50 == 0:
+            print('4 {:.2f}'.format(time.time() - start))
+        # Dilate boundary so it crosses into both regions
+        border_dil = binary_dilation(border).astype('int')
+        if ii % 50 == 0:
+            print('5 {:.2f}'.format(time.time() - start))
+        av_err = mode(npi_og[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
+        if ii % 50 == 0:
+            print('6 {:.2f}'.format(time.time() - start))
+        av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
+        if ii % 50 == 0:
+            print('7 {:.2f}'.format(time.time() - start))
 
-# Boolean array of the outside boundary of the good mask
-good_border = filters.sobel(mask).astype('bool')
-corr_regions = np.unique(regions[good_border])
-corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
+        corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
+        correction[np.where(regions == corrIx)] = corr_val
+        print('Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
 
-for corrIx in corr_regions:
-    # Make map only of the border regions
-    border_regions = np.zeros(mask.shape)
-    border_regions[good_border] = regions[good_border]
-
-    # Plot boundary in isolation
-    border = np.zeros(mask.shape).astype('int')
-    border[np.where(border_regions == corrIx)] = 1
-    # Dilate boundary so it crosses into both regions
-    border_dil = binary_dilation(border).astype('int')
-    av_err = mode(npi_og[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
-    av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
-
-    correction[np.where(regions == corrIx)] = (av_good - av_err) * 2 * np.pi
-
-del border, border_dil, good_border
 # Apply correction to original version of IFG
+loop_lib.plotmask(correction / (2 * np.pi), centerz=False, title='Correction', cmap='tab20c')
+#%%
 corr_unw = unw.copy()
 corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
-
+breakpoint()
 # %% Make PNGs
 title3 = ['Original unw', 'Interpolated unw / pi', 'Unwrapping Error Mask']
 mask_lib.make_unw_npi_mask_png([unw, (filled_ifg / (np.pi)).round(), mask], os.path.join(ifgdir, date, date + '.mask.png'), [insar, 'tab20c', 'viridis'], title3)
@@ -657,42 +577,5 @@ if plot_figures:
 
 if i == v:
     print('        Saved {:.2f}'.format(time.time() - begin))
-
-
-def modeFilterLambda(data, filtSize=21):
-    if filtSize % 2 == 0:
-        filtSize += 1
-    halfFilt = filtSize // 2
-    length, width = data.shape
-    nonNany, nonNanx = np.where(~np.isnan(data))
-
-    dataMode = np.zeros(data.shape) * np.nan
-    nPx = len(nonNany)
-    print('{:.0f} pixels to test'.format(nPx))
-    begin = time.time()
-    for ii in range(len(nonNany)):
-        if ii % 1e5 == 0:
-            if ii != 0:
-                elapsed = time.time() - begin
-                print('{:.0f} pixels complete in {:.2f} seconds. ETC = {:.0f}'.format(ii, time.time() - begin, elapsed / ii * nPx))
-        if nonNany[ii] < halfFilt:
-            startY = 0
-        else:
-            startY = nonNany[ii] - halfFilt
-        if nonNany[ii] > length - halfFilt:
-            endY = length
-        else:
-            endY = nonNany[ii] + halfFilt
-        if nonNanx[ii] < halfFilt:
-            startX = 0
-        else:
-            startX = nonNanx[ii] - halfFilt
-        if nonNanx[ii] > width - halfFilt:
-            endX = width
-        else:
-            endX = nonNanx[ii] + halfFilt
-
-        area = list(data[startY:endY,startX:endX].flatten())
-        dataMode[nonNany[ii], nonNanx[ii]] = max(map(lambda val: (area.count(val), val),set(area)))[1]
 
     print('Finished {:.2f}'.format(time.time() - begin))
