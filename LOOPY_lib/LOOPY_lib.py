@@ -25,10 +25,25 @@ os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
 with warnings.catch_warnings():  # To silence user warning
     warnings.simplefilter('ignore', UserWarning)
-    mpl.use('Agg')
+    mpl.use('module://matplotlib_inline.backend_inline')
 
 cmap_wrap = tools_lib.get_cmap('SCM.romaO')
 cmap_corr = tools_lib.get_cmap('SCM.vik')
+
+
+# %% Inline plotting of the
+def plotim(data, centerz=True, title='', cmap='viridis', vmin=None, vmax=None, interp='antialiased', cbar=True):
+    # cmap_wrap = tools_lib.get_cmap('SCM.romaO')
+    plt.figure()
+    if centerz:
+        vmin = -(np.nanmax(abs(data)))
+        vmax = (np.nanmax(abs(data)))
+
+    plt.imshow(data, cmap=cmap, vmin=vmin, vmax=vmax, interpolation=interp)
+    if cbar:
+        plt.colorbar(**{'format': '%.0f'})
+    plt.title(title)
+    plt.show()
 
 
 # %%
