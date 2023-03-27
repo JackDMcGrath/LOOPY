@@ -604,7 +604,7 @@ def mask_unw_errors(i):
     corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
     if i == v:
         print('        Correction Applied {:.2f}'.format(time.time() - begin))
-        breakpoint()
+
     # %% Multilook mask if required
     if fullres:
         unw = tools_lib.multilook(unw, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
