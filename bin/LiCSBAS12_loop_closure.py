@@ -291,7 +291,6 @@ def main(argv=None):
 
     bad_ifg_cand = []
     good_ifg = []
-
     ### Parallel processing
     p = q.Pool(_n_para)
     loop_ph_rms_ifg = np.array(p.map(loop_closure_1st_wrapper, range(n_loop)), dtype=np.float32)
@@ -318,7 +317,7 @@ def main(argv=None):
 
     #%% Identify bad ifgs and output text
     bad_ifg1 = loop_lib.identify_bad_ifg(bad_ifg_cand, good_ifg)
-
+    bad_ifg1 = []  # Stop from removing bad interferograms after loop 1
     bad_ifgfile = os.path.join(loopdir, 'bad_ifg_loop.txt')
     with open(bad_ifgfile, 'w') as f:
         for i in bad_ifg1:
