@@ -1,6 +1,7 @@
 LOOPY_lib/__pycache__
 LOOPY_bin/__pycache__
 LiCSBAS_lib/__pycache__
+LiCSBAS_lib/__pycache__/
 LiCSBAS_bin/__pycache__
 LOOPY_lib/LOOPY_lib.py
 LiCSBAS_lib/__pycache__/LiCSBAS_io_lib.cpython-39.pyc
