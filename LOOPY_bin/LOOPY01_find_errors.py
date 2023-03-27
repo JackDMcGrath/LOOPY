@@ -87,7 +87,6 @@ import getopt
 import shutil
 import numpy as np
 import multiprocessing as multi
-import LOOPY_lib as loopy_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_plot_lib as plot_lib
 import LiCSBAS_tools_lib as tools_lib
@@ -227,7 +226,7 @@ def main(argv=None):
     if not os.path.exists(resultsdir):
         os.mkdir(resultsdir)
 
-    if reset and not debug:
+    if reset:
         print('Removing Previous Masks')
         if os.path.exists(corrdir):
             shutil.rmtree(corrdir)
@@ -417,7 +416,7 @@ def mask_unw_errors(i):
         print('        Starting')
     if not os.path.exists(os.path.join(corrdir, date)):
         os.mkdir(os.path.join(corrdir, date))
-    if os.path.exists(os.path.join(corrdir, date, date + '.unw')) and not debug:
+    if os.path.exists(os.path.join(corrdir, date, date + '.unw')):
         print('    ({}/{}): {}  Mask Exists. Skipping'.format(i + 1, n_ifg, date))
         return
     else:
@@ -605,12 +604,7 @@ def mask_unw_errors(i):
     corr_unw[np.where(~np.isnan(corr_unw))] = corr_unw[np.where(~np.isnan(corr_unw))] + correction[np.where(~np.isnan(corr_unw))]
     if i == v:
         print('        Correction Applied {:.2f}'.format(time.time() - begin))
-
-    if i == v:
-        pltpi = npi.copy()
-        pltpi[np.where(errors == 1)] = 10
-        plot_lib.make_im_png(pltpi, os.path.join(corrdir, date, date + '.checkaim.png'), 'tab20c', 'Check Aim', vmin=-1, vmax=10, cbar=False)
-
+        breakpoint()
     # %% Multilook mask if required
     if fullres:
         unw = tools_lib.multilook(unw, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
