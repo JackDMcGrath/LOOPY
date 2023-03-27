@@ -91,6 +91,7 @@ import LOOPY_lib as loopy_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_plot_lib as plot_lib
 import LiCSBAS_tools_lib as tools_lib
+import LOOPY_lib as loopy_lib
 from PIL import Image, ImageFilter
 from osgeo import gdal
 from scipy.stats import mode
@@ -154,7 +155,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:", ["help", "reset", "n_para=", "fullres"])
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:", ["help", "reset", "n_para=", "fullres", "debug"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -226,7 +227,7 @@ def main(argv=None):
     if not os.path.exists(resultsdir):
         os.mkdir(resultsdir)
 
-    if reset:
+    if reset and not debug:
         print('Removing Previous Masks')
         if os.path.exists(corrdir):
             shutil.rmtree(corrdir)
@@ -319,13 +320,9 @@ def main(argv=None):
             lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
 
         for poly_str in poly_strings_all:
-            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat, polygon=False)
+            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat, radius=2)
 
         bool_mask[np.where(bool_mask != 0)] = 1
-        if fullres:
-            bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3)), iterations=int(np.ceil((ml_factor * 3) / 2))).astype('float32')
-        else:
-            bool_mask = binary_dilation(bool_mask, structure=np.ones((3, 3))).astype('float32')
         bool_plot = bool_mask.copy()
         bool_plot[np.where(np.isnan(coh))] = np.nan
 
@@ -420,8 +417,9 @@ def mask_unw_errors(i):
         print('        Starting')
     if not os.path.exists(os.path.join(corrdir, date)):
         os.mkdir(os.path.join(corrdir, date))
-    if os.path.exists(os.path.join(corrdir, date, date + '.unw')):
+    if os.path.exists(os.path.join(corrdir, date, date + '.unw')) and not debug:
         print('    ({}/{}): {}  Mask Exists. Skipping'.format(i + 1, n_ifg, date))
+        return
     else:
         print('    ({}/{}): {}'.format(i + 1, n_ifg, date))
 
@@ -507,6 +505,7 @@ def mask_unw_errors(i):
     err_val = 10 * np.nanmax(ifg2)
     if i == v:
         print('        err_val set {:.2f}'.format(time.time() - begin))
+
     ifg2[np.where(errors == 1)] = err_val
     if i == v:
         print('        Boundaries added {:.2f}'.format(time.time() - begin))
@@ -542,7 +541,11 @@ def mask_unw_errors(i):
     if drop_regions.shape[0] == regionId.shape[0]:
         correction = np.zeros(unw.shape)
     else:
+        # Remove error areas and tiny regions from NPI so they match
+        npi_corr = npi.copy()
+        npi_corr[np.where(np.isnan(regions))] = np.nan
         # Reinterpolate without tiny regions
+        npi_corr = NN_interp(npi_corr)
         regions = NN_interp(regions)
 
         # Find region number of reference pixel. All pixels in this region to be
@@ -556,7 +559,7 @@ def mask_unw_errors(i):
         # breakpoint()
         # Make an array exclusively holding the good values
         good_vals = np.zeros(mask.shape) * np.nan
-        good_vals[mask] = npi[mask]
+        good_vals[mask] = npi_corr[mask]
 
         # Make an array to hold the correction
         correction = np.zeros(mask.shape)
@@ -570,7 +573,6 @@ def mask_unw_errors(i):
             print('        Preparing Corrections {:.2f}'.format(time.time() - begin))
     # %%
         for ii, corrIx in enumerate(corr_regions):
-            breakpoint()
             # Make map only of the border regions
             start = time.time()
             border_regions = np.zeros(mask.shape)
@@ -580,16 +582,17 @@ def mask_unw_errors(i):
             border[np.where(border_regions == corrIx)] = 1
             # Dilate boundary so it crosses into both regions
             border_dil = binary_dilation(border).astype('int')
-            av_err = mode(npi[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
+
+            av_err = mode(npi_corr[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
             av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
 
             corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
             correction[np.where(regions == corrIx)] = corr_val
             if i == v:
                 print('AV ERR')
-                print(np.unique(npi[np.where(border == 1)], return_counts=True))
+                print(np.unique(npi_corr[np.where(border == 1)], return_counts=True))
                 print('AV GOOD')
-                print(np.unique(npi[np.where(border_dil == 1)], return_counts=True))
+                print(np.unique(good_vals[np.where(border_dil == 1)], return_counts=True))
             if i == v:
                 print('            Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
         if i == v:
