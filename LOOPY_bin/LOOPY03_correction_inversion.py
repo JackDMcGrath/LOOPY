@@ -515,7 +515,7 @@ def apply_correction(i):
     print('{0}/{1} {2}'.format(i + 1, n_ifg, ifgdates[i]))
 
     if not os.path.exists(os.path.join(corrdir, ifgdates[i])):
-        os.makdir((os.path.join(corrdir, ifgdates[i])))
+        os.mkdir((os.path.join(corrdir, ifgdates[i])))
 
     unwfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw')
     unwpngfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw.png')
