@@ -3,62 +3,76 @@
 ========
 Overview
 ========
-This script identifies errors in unwrapped interferograms, and creates a mask
-that can be applied to these interferograms before they are then used to
-correct other IFGs. It is recommended that you run this script on an ml1
-dataset, and multilook the resulting masks.
+This script identifies errors in unwrapped interferograms, and aims to correct
+them. It must be run before the application of GACOS and LOOPY03 if being used
+on the ful resolution data (as recommended)
 
 1) Read in IFG, interpolate to full area, and find modulo 2pi values
 2) Carry out modal filtering to reduce noise
 3) Find difference between adjacent pixels
-4) Classify errors as any pixel that borders a pixel with > 1pi difference
-5) Add unwrapping errors back into original IFG, and re-interpolate
-6) Label regions split up by error lines. Classify any pixel not in the same
-   region as the reference pixel as an unwrapping error
-7) Look to correct any error region bordering the good region
+4) Classify an error boundary as anywhere between 2 pixels with a > modulo pi
+    difference
+5) Add unwrapping errors back into original IFG, and re-interpolate to create
+    an IFG seperated into distinct regions by unwrapping errors
+6) All pixels in the same region as the reference are to be considered good.
+    Correct all regions bordering this with a static correction to reduce the
+    difference to < 2pi
 
 Limitations:
     Can't identify regions that are correctly unwrapped, but isolated from main
     pixel, either by being an island, or because it's cut-off by another
     unwrapping error (Latter option would require iterations)
     Needs an unwrapping error to be complete enclosed in order to be masked
-    ('Twist' errors can't be IDd')
+    ('Twist' errors can't be identified')
 
-New modules needed:
+Additional modules to LiCSBAS needed:
 - scipy
 - skimage
-- PIL
 
 ===============
 Input & output files
 ===============
+If not working at full res:
 Inputs in GEOCml*/:
 - yyyymmdd_yyyymmdd/
- - yyyymmdd_yyyymmdd.unw[.png]
+ - yyyymmdd_yyyymmdd.unw
  - yyyymmdd_yyyymmdd.cc
 - slc.mli.par
 
 Inputs in TS_GEOCml */:
 - results/coh_avg  : Average coherence
 
-Outputs in GEOCml */:
+If working at full res:
+Inputs in GEOCml*/:
 - yyyymmdd_yyyymmdd/
-  - yyyymmdd_yyyymmdd.mask : Boolean Mask
-  - yyyymmdd_yyyymmdd.unw_mask : Masked unwrapped IFG
-  - yyyymmdd_yyyymmdd.unw_mask.png : png comparison of unw, npi and mask
 
-Outputs in TS_GEOCml*/:
-- info/
- - mask_info.txt : Basic stats of mask coverage
+Inputs in GEOC/:
+- yyyymmdd_yyyymmdd/
+ - yyyymmdd_yyyymmdd.geo.unw.tif
+ - yyyymmdd_yyyymmdd.geo.cc.tif
+- frame.geo.[E, N, U, hgt, mli]
+- slc.mli
+
+Outputs in GEOCml*LoopMask/:
+- yyyymmdd_yyyymmdd/
+  - yyyymmdd_yyyymmdd.unw[.png] : Corrected unw
+  - yyyymmdd_yyyymmdd.cc : Coherence file
+  - yyyymmdd_yyyymmdd.errormap.png : png of identified error boundaries
+  - yyyymmdd_yyyymmdd.npicorr.png : png of original + corrected unw, with npi maps
+  - yyyymmdd_yyyymmdd.maskcorr.png : png of original + corrected unw, original npi map, and correction
+- known_errors.png : png of the input know error mask
+- other metafiles produced by LiCSBAS02_ml_prep.py
 
 =====
 Usage
 =====
-LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [--full_res] [--reset] [--n_para]
+LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-e errorfile] [-v int] [--full_res] [--reset] [--n_para]
 
 -d        Path to the GEOCml* dir containing stack of unw data
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
--m        Output multilooking factor (Default: No multilooking of mask)
+-c        Path to the correction dierectory (Default: GEOCml*LoopMask)
+-m        Output multilooking factor (Default: No multilooking of mask, REQUIRED FOR FULL RES)
+-e        Text file, where each row is a known error location, in form lon1,lat1,....,lonn,latn
 -v        IFG to give verbose timings for (Development option, Default: -1 (not verbose))
 --fullres Create masks from full res data, and multilook to -m (ie. orginal geotiffs) (Assume in folder called GEOC)
 --reset   Remove previous corrections
@@ -91,7 +105,6 @@ import LiCSBAS_io_lib as io_lib
 import LiCSBAS_plot_lib as plot_lib
 import LiCSBAS_tools_lib as tools_lib
 import LOOPY_lib as loopy_lib
-from PIL import Image, ImageFilter
 from osgeo import gdal
 from scipy.stats import mode
 from scipy.ndimage import label
@@ -100,9 +113,7 @@ from scipy.interpolate import NearestNDInterpolator
 from skimage import filters
 from skimage.filters.rank import modal
 
-
 insar = tools_lib.get_cmap('SCM.romaO')
-
 
 class Usage(Exception):
     """Usage context manager"""
@@ -128,9 +139,9 @@ def main(argv=None):
         corrdir, bool_mask, cycle, n_valid_thre
 
     # %% Set default
-    ifgdir = []
-    tsadir = []
-    corrdir = []
+    ifgdir = []  # GEOCml* dir
+    tsadir = []  # TS_GEOCml* dir
+    corrdir = []  # Directory to hold the corrections
     ml_factor = []  # Amount to multilook the resulting masks
     errorfile = []  # File to hold lines containing known errors
     fullres = False
@@ -685,25 +696,6 @@ def mode_filter(data, filtSize=21):
     dataMode[np.where(dataMode == npi_min)] = np.nan
 
     return dataMode
-
-
-# %% Function to modally filter arrays using PIL (40% slower than scikit)
-def mode_filterPIL(data, filtSize=11):
-    npi_min = np.nanmin(data) - 1
-    npi_range = np.nanmax(data) - npi_min
-
-    # Convert array into 0-255 range
-    greyscale = ((data - npi_min) / npi_range) * 255
-    im = Image.fromarray(greyscale.astype('uint8'))
-
-    # Filter image, convert back to np.array, and repopulate with nans
-    im_mode = im.filter(ImageFilter.ModeFilter(size=filtSize))
-    dataMode = ((np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min).round()
-    dataMode[np.where(np.isnan(data))] = np.nan
-    dataMode[np.where(dataMode == npi_min)] = np.nan
-
-    return dataMode
-
 
 # %% main
 if __name__ == "__main__":
