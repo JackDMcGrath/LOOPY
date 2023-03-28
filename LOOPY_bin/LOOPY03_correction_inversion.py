@@ -308,7 +308,10 @@ def main(argv=None):
         print('with no parallel processing...', flush=True)
 
         print('Available memory = {:.0f}Mb'.format(psutil.virtual_memory().available / (2 ** 20)))
-        for ii in range(n_ifg):
+        for ii in range(10):
+            unw[ii, :, :] = read_unw_prof(ii)
+
+        for ii in range(10, n_ifg):
             unw[ii, :, :] = read_unw(ii)
 
     else:
@@ -349,7 +352,9 @@ def main(argv=None):
         print('with no parallel processing...', flush=True)
         print('Available memory = {:.0f}Mb'.format(psutil.virtual_memory().available / (2 ** 20)))
         begin = time.time()
-        for ii in range(n_pt_unnan):
+        for ii in range(10):
+            correction[ii, :] = unw_loop_corr_prof(ii)
+        for ii in range(10, n_pt_unnan):
             if (ii + 1) % 1000 == 0:
                 elapse = time.time() - begin
                 print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / ii) * n_pt_unnan))
@@ -451,6 +456,23 @@ def profile(func):
 
 # %% Function to read IFGs to array
 @profile
+def read_unw_prof(i):
+    print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
+    unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
+    # Read unw data (radians) at patch area
+    unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
+    unw1[unw1 == 0] = np.nan  # Fill 0 with nan
+    ref_unw = []
+    buff = 0  # Buffer to increase reference area until a value is found
+    while not ref_unw:
+        try:
+            ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
+        except RuntimeWarning:
+            buff += 1
+    unw1 = unw1 - ref_unw
+
+    return unw1
+
 def read_unw(i):
     print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
@@ -487,6 +509,25 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
     return unw1
 
 @profile
+def unw_loop_corr_prof(i):
+    if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
+        print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
+
+    disp = unw[i, :]
+    corr = np.zeros(disp.shape)
+    # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
+    nonNan = np.where(~np.isnan(disp))[0]
+    nanDat = np.where(np.isnan(disp))[0]
+    nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
+    G = Aloop[nonNanLoop, :][:, nonNan]
+    closure = (np.dot(G, disp[nonNan]) / wrap).round()
+    G = matrix(G)
+    d = matrix(closure)
+    corr[nonNan] = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+
+    return corr
+
+
 def unw_loop_corr(i):
     if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
         print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
