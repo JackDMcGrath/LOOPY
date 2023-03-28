@@ -433,13 +433,10 @@ def read_unw(i):
     # Read unw data (radians) at patch area
     unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
     unw1[unw1 == 0] = np.nan  # Fill 0 with nan
-    ref_unw = []
     buff = 0  # Buffer to increase reference area until a value is found
-    while not ref_unw:
-        try:
-            ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
-        except RuntimeWarning:
-            buff += 1
+    while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
+        buff += 1
+    ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
     unw1 = unw1 - ref_unw
 
     return unw1
