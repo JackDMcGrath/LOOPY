@@ -11,6 +11,8 @@ If this step is to be run on the fullres data, as recommended, then it must be r
 
 Linear Inversion of Loop Phase Closures looks to solve loop closures on a pixel by pixel basis, using a linear inversion with L1 Regularisation of the loop phase closures of a small-baseline network, as implemented by MintPy. Unlike LOOPY01, this can only be ran on multi-looked data, and can be carried out after LOOPY01, GACOS, masking and clipping. 
 
+Submit any issues in the issues tab
+
 THIS IS RESEARCH CODE PROVIDED TO YOU "AS IS" WITH NO WARRANTIES OF CORRECTNESS. USE AT YOUR OWN RISK.
 
 ## Citations
