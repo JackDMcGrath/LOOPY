@@ -62,6 +62,7 @@ import sys
 import re
 import time
 import shutil
+import psutil
 import numpy as np
 import multiprocessing as multi
 import SCM
@@ -306,6 +307,7 @@ def main(argv=None):
     if n_para == 1:
         print('with no parallel processing...', flush=True)
 
+        print('Available memory = {:.0f}Mb'.format(psutil.virtual_memory().available / (2 ** 20)))
         for ii in range(n_ifg):
             unw[ii, :, :] = read_unw(ii)
 
@@ -345,6 +347,7 @@ def main(argv=None):
 
     if n_para == 1:
         print('with no parallel processing...', flush=True)
+        print('Available memory = {:.0f}Mb'.format(psutil.virtual_memory().available / (2 ** 20)))
         begin = time.time()
         for ii in range(n_pt_unnan):
             if (ii + 1) % 1000 == 0:
@@ -424,7 +427,30 @@ def main(argv=None):
     print('Output directory: {}\n'.format(tsadir))
 
 
+# inner psutil function
+def process_memory():
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    return mem_info.rss
+
+
+# decorator function
+def profile(func):
+    def wrapper(*args, **kwargs):
+
+        mem_before = process_memory()
+        result = func(*args, **kwargs)
+        mem_after = process_memory()
+        print("{}:consumed memory: {:,}".format(
+            func.__name__,
+            mem_before, mem_after, mem_after - mem_before))
+
+        return result
+    return wrapper
+
+
 # %% Function to read IFGs to array
+@profile
 def read_unw(i):
     print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
@@ -460,7 +486,7 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
 
     return unw1
 
-
+@profile
 def unw_loop_corr(i):
     if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
         print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
