@@ -8,6 +8,16 @@ for each interferogram, then applies the correction, using the L1 Regularisation
 Parallised on a pixel-by-pixel basis, rather than patches, due to size of G-matrix
 that would be required by L1reg
 
+Limitations:
+    No garauntee that the correction is correct, especially in networks with
+    low redundancy
+    No effect on no-loop IFGs
+    Each pixel is considered independently. No spatial correlation of the errors
+
+
+Additional modules to LiCSBAS needed:
+- cvxopt
+
 ===============
 Input & output files
 ===============
@@ -17,29 +27,27 @@ Inputs in GEOCml*/:
  -EQA.dem_par
  -slc.mli.par
 
-Inputs in TS_GEOCml*/ :
- -info/
-   -11bad_ifg.txt
-   -ref.txt (if non-supplied, it searches for 13ref.txt then 12ref.txt)
-[-results/]
-[  -coh_avg]
+Outputs in GEOCml*LoopMask/:
+- yyyymmdd_yyyymmdd/
+  - yyyymmdd_yyyymmdd.unw[.png] : Corrected unw
+  - yyyymmdd_yyyymmdd.cc : Coherence file
+  - yyyymmdd_yyyymmdd.L1compare.png : png of original + corrected unw, original npi map, and correction
+- other metafiles produced by LiCSBAS02_ml_prep.py
 
 =====
 Usage
 =====
-LOOPY03_correction_inversion.py -d ifgdir [-t tsadir] [--mem_size float] [--gamma float] [--n_para int] [--n_unw_r_thre float]
+LOOPY03_correction_inversion.py -d ifgdir [-t tsadir] [-c corrdir] [--gamma float] [--n_para int] [--n_unw_r_thre float]
 
- -d  Path to the GEOCml* dir containing stack of unw data
- -t  Path to the output TS_GEOCml* dir.
- --mem_size   Max memory size for each patch in MB. (Default: 8000)
- --gamma      Gamma value for L1 Regulariastion (Default: 0.001)
- --n_para     Number of parallel processing (Default:  # of usable CPU)
- --n_unw_r_thre
-     Threshold of n_unw (number of used unwrap data)
-     (Note this value is ratio to the number of images; i.e., 1.5*n_im)
-     Larger number (e.g. 2.5) makes processing faster but result sparser.
-     (Default: 1 and 0.5 for C- and L-band, respectively)
-
+-d             Path to the GEOCml* dir containing stack of unw data
+-t             Path to the output TS_GEOCml* dir
+-c             Path to the correction dierectory (Default: GEOCml*L1)
+--gamma        Gamma value for L1 Regulariastion (Default: 0.001)
+--n_para       Number of parallel processing (Default:  # of usable CPU)
+--n_unw_r_thre Threshold of n_unw (number of used unwrap data) (Note this value
+               is ratio to the number of images; i.e., 1.5*n_im) Larger number
+               (e.g. 2.5) makes processing faster but result sparser.
+               (Default: 1 and 0.5 for C- and L-band, respectively)
 """
 # %% Change log
 '''
@@ -53,7 +61,6 @@ import os
 import sys
 import re
 import time
-import psutil
 import shutil
 import numpy as np
 import multiprocessing as multi
@@ -98,7 +105,6 @@ def main(argv=None):
     ifgdir = []
     corrdir = []
     tsadir = []
-    v = -1
     reset = True
 
     try:
@@ -110,20 +116,17 @@ def main(argv=None):
     # Because np.linalg.lstsq use full CPU but not much faster than 1CPU.
     # Instead parallelize by multiprocessing
 
-    memory_size = 8000
     gamma = 0.001
     n_unw_r_thre = []
 
     cmap_vel = SCM.roma.reversed()
-    cmap_noise = 'viridis'
-    cmap_noise_r = 'viridis_r'
     cmap_wrap = SCM.romaO
 
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:v:",
-                                       ["help", "--mem_size", "--reset", "gamma=",
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:",
+                                       ["help", "--reset", "gamma=",
                                         "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -137,10 +140,6 @@ def main(argv=None):
                 tsadir = a
             elif o == '-c':
                 corrdir = a
-            elif o == '-v':
-                v = float(a)
-            elif o == '--mem_size':
-                memory_size = float(a)
             elif o == '--reset':
                 reset = True
             elif o == '--gamma':
@@ -340,14 +339,6 @@ def main(argv=None):
     print('  {} / {} points removed due to not enough ifg data...'.format(n_pt_all - n_pt_unnan, n_pt_all), flush=True)
     # breakpoint()
     wrap = 2 * np.pi
-
-    # %% Sort Memory for patches
-    # Check RAM
-    mem_avail = (psutil.virtual_memory().available) / 2**20  # MB (bytes to megabytes)
-    if memory_size > mem_avail / 2:
-        print('\nNot enough memory available compared to mem_size ({} MB).'.format(memory_size))
-        print('Reduce mem_size automatically to {} MB.'.format(int(mem_avail / 2)))
-        memory_size = int(mem_avail / 2)
 
     # %% Unwrapping corrections in a pixel by pixel basis (to be parallelised)
     print('\n Unwrapping Correction inversion for {0:.0f} pixels in {1} loops...\n'.format(n_pt_unnan, n_loop), flush=True)
