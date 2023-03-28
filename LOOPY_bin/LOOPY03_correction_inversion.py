@@ -517,6 +517,9 @@ def apply_correction(i):
     if not os.path.exists(os.path.join(corrdir, ifgdates[i])):
         os.mkdir((os.path.join(corrdir, ifgdates[i])))
 
+    if not os.path.exists(os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.cc')):
+        shutil.copy(os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.cc'), os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.cc'))
+
     unwfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw')
     unwpngfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw.png')
     corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.L1_compare.png')
