@@ -100,7 +100,7 @@ def main(argv=None):
     global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull, corrdir
+        n_ifg, corrFull, corrdir, begin
 
     # %% Set default
     ifgdir = []
@@ -308,10 +308,10 @@ def main(argv=None):
         print('with no parallel processing...', flush=True)
 
         print('Available memory = {:.0f}Mb'.format(psutil.virtual_memory().available / (2 ** 20)))
-        for ii in range(10):
+        for ii in range(1):
             unw[ii, :, :] = read_unw_prof(ii)
 
-        for ii in range(10, n_ifg):
+        for ii in range(1, n_ifg):
             unw[ii, :, :] = read_unw(ii)
 
     else:
@@ -352,9 +352,9 @@ def main(argv=None):
         print('with no parallel processing...', flush=True)
         print('Available memory = {:.0f}Mb'.format(psutil.virtual_memory().available / (2 ** 20)))
         begin = time.time()
-        for ii in range(10):
+        for ii in range(1):
             correction[ii, :] = unw_loop_corr_prof(ii)
-        for ii in range(10, n_pt_unnan):
+        for ii in range(1, n_pt_unnan):
             if (ii + 1) % 1000 == 0:
                 elapse = time.time() - begin
                 print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / ii) * n_pt_unnan))
@@ -473,6 +473,7 @@ def read_unw_prof(i):
 
     return unw1
 
+
 def read_unw(i):
     print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
@@ -531,6 +532,7 @@ def unw_loop_corr_prof(i):
 def unw_loop_corr(i):
     if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
         print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
+    print('{:.0f} / {:.0f} (Elapsed {:0f} seconds)'.format(i + 1, n_pt_unnan, time.time() - begin))
 
     disp = unw[i, :]
     corr = np.zeros(disp.shape)
