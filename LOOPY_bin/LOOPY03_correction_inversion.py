@@ -542,6 +542,13 @@ def unw_loop_corr(i):
     closure = (np.dot(G, disp[nonNan]) / wrap).round()
     G = matrix(G)
     d = matrix(closure)
+    print('UNW data type: {}'.format(unw.dtype))
+    print('UNW length: {0}, Width: {1}'.format(unw.shape[0], unw.shape[1]))
+    print('Aloop data type: {}'.format(Aloop.dtype))
+    print('Aloop length: {0}, Width: {1}'.format(Aloop.shape[0], Aloop.shape[1]))
+    print('G length: {0}, Width: {1}'.format(G.size[0], G.size[1]))
+    print('d length: {0}, Width: {1}'.format(d.size[0], d.size[1]))
+
     corr[nonNan] = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
 
     return corr
