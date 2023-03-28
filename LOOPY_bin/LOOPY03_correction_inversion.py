@@ -307,10 +307,6 @@ def main(argv=None):
     if n_para == 1:
         print('with no parallel processing...', flush=True)
 
-        print('Available memory = {:.0f}Mb'.format(psutil.virtual_memory().available / (2 ** 20)))
-        for ii in range(1):
-            unw[ii, :, :] = read_unw_prof(ii)
-
         for ii in range(1, n_ifg):
             unw[ii, :, :] = read_unw(ii)
 
@@ -352,8 +348,6 @@ def main(argv=None):
         print('with no parallel processing...', flush=True)
         print('Available memory = {:.0f}Mb'.format(psutil.virtual_memory().available / (2 ** 20)))
         begin = time.time()
-        for ii in range(1):
-            correction[ii, :] = unw_loop_corr_prof(ii)
         for ii in range(1, n_pt_unnan):
             if (ii + 1) % 1000 == 0:
                 elapse = time.time() - begin
@@ -432,48 +426,7 @@ def main(argv=None):
     print('Output directory: {}\n'.format(tsadir))
 
 
-# inner psutil function
-def process_memory():
-    process = psutil.Process(os.getpid())
-    mem_info = process.memory_info()
-    return mem_info.rss
-
-
-# decorator function
-def profile(func):
-    def wrapper(*args, **kwargs):
-
-        mem_before = process_memory()
-        result = func(*args, **kwargs)
-        mem_after = process_memory()
-        print("{}:consumed memory: {:,}".format(
-            func.__name__,
-            mem_before, mem_after, mem_after - mem_before))
-
-        return result
-    return wrapper
-
-
 # %% Function to read IFGs to array
-@profile
-def read_unw_prof(i):
-    print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
-    unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
-    # Read unw data (radians) at patch area
-    unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
-    unw1[unw1 == 0] = np.nan  # Fill 0 with nan
-    ref_unw = []
-    buff = 0  # Buffer to increase reference area until a value is found
-    while not ref_unw:
-        try:
-            ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
-        except RuntimeWarning:
-            buff += 1
-    unw1 = unw1 - ref_unw
-
-    return unw1
-
-
 def read_unw(i):
     print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
@@ -509,25 +462,6 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
 
     return unw1
 
-@profile
-def unw_loop_corr_prof(i):
-    if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
-        print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
-
-    disp = unw[i, :]
-    corr = np.zeros(disp.shape)
-    # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
-    nonNan = np.where(~np.isnan(disp))[0]
-    nanDat = np.where(np.isnan(disp))[0]
-    nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
-    G = Aloop[nonNanLoop, :][:, nonNan]
-    closure = (np.dot(G, disp[nonNan]) / wrap).round()
-    G = matrix(G)
-    d = matrix(closure)
-    corr[nonNan] = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
-
-    return corr
-
 
 def unw_loop_corr(i):
     if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
@@ -544,12 +478,12 @@ def unw_loop_corr(i):
     closure = (np.dot(G, disp[nonNan]) / wrap).round()
     G = matrix(G)
     d = matrix(closure)
-    print('UNW data type: {}'.format(unw.dtype))
-    print('UNW length: {0}, Width: {1}'.format(unw.shape[0], unw.shape[1]))
-    print('Aloop data type: {}'.format(Aloop.dtype))
-    print('Aloop length: {0}, Width: {1}'.format(Aloop.shape[0], Aloop.shape[1]))
-    print('G length: {0}, Width: {1}'.format(G.size[0], G.size[1]))
-    print('d length: {0}, Width: {1}'.format(d.size[0], d.size[1]))
+    # print('UNW data type: {}'.format(unw.dtype))
+    # print('UNW length: {0}, Width: {1}'.format(unw.shape[0], unw.shape[1]))
+    # print('Aloop data type: {}'.format(Aloop.dtype))
+    # print('Aloop length: {0}, Width: {1}'.format(Aloop.shape[0], Aloop.shape[1]))
+    # print('G length: {0}, Width: {1}'.format(G.size[0], G.size[1]))
+    # print('d length: {0}, Width: {1}'.format(d.size[0], d.size[1]))
 
     corr[nonNan] = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
 
@@ -596,12 +530,12 @@ def apply_correction(i):
     npi = (unw1 / np.pi).round()
     correction = corrFull[i, :, :] * wrap
     corr_unw = unw[i, :, :] - correction
-    print('UNW1 data type: {}'.format(unw1.dtype))
-    print('UNW1 length: {0}, Width: {1}'.format(unw1.shape[0], unw1.shape[1]))
-    print('correction data type: {}'.format(correction.dtype))
-    print('correction length: {0}, Width: {1}'.format(correction.shape[0], correction.shape[1]))
-    print('corr_unw data type: {}'.format(corr_unw.dtype))
-    print('corr_unw length: {0}, Width: {1}'.format(corr_unw.shape[0], corr_unw.shape[1]))
+    # print('UNW1 data type: {}'.format(unw1.dtype))
+    # print('UNW1 length: {0}, Width: {1}'.format(unw1.shape[0], unw1.shape[1]))
+    # print('correction data type: {}'.format(correction.dtype))
+    # print('correction length: {0}, Width: {1}'.format(correction.shape[0], correction.shape[1]))
+    # print('corr_unw data type: {}'.format(corr_unw.dtype))
+    # print('corr_unw length: {0}, Width: {1}'.format(corr_unw.shape[0], corr_unw.shape[1]))
     corr_unw.tofile(unwfile)
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
