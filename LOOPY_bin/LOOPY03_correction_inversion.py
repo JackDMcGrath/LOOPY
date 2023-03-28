@@ -538,7 +538,7 @@ def apply_correction(i):
                '{} Corrected'.format(ifgdates[i]),
                'Modulo nPi',
                'L1 Correction (nPi)']
-    loopy_lib.make_loop_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
+    loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
     plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 
