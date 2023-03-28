@@ -58,12 +58,12 @@ import shutil
 import numpy as np
 import multiprocessing as multi
 import SCM
+import LOOPY_lib as loopy_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_inv_lib as inv_lib
 import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_loop_lib as loop_lib
 import LiCSBAS_plot_lib as plot_lib
-import LOOPY_L1reg_lib as l1_lib
 from cvxopt import matrix
 
 
@@ -92,10 +92,11 @@ def main(argv=None):
     global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull
+        n_ifg, corrFull, corrdir
 
     # %% Set default
     ifgdir = []
+    corrdir = []
     tsadir = []
     v = -1
     reset = True
@@ -121,7 +122,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:v:",
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:v:",
                                        ["help", "--mem_size", "--reset", "gamma=",
                                         "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
@@ -134,6 +135,8 @@ def main(argv=None):
                 ifgdir = a
             elif o == '-t':
                 tsadir = a
+            elif o == '-c':
+                corrdir = a
             elif o == '-v':
                 v = float(a)
             elif o == '--mem_size':
@@ -174,9 +177,25 @@ def main(argv=None):
     if not tsadir:
         tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_' + os.path.basename(ifgdir))
 
+    if not corrdir:
+        corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'L1')
+
     if not os.path.isdir(tsadir):
         print('\nNo {} exists!'.format(tsadir), file=sys.stderr)
         return 1
+
+    if not os.path.exists(corrdir):
+        os.mkdir(corrdir)
+
+    if reset:
+        print('Removing Previous Masks')
+        if os.path.exists(corrdir):
+            shutil.rmtree(corrdir)
+    else:
+        print('Preserving Premade Masks')
+
+    if not os.path.exists(corrdir):
+        loopy_lib.prepOutdir(corrdir, ifgdir)
 
     tsadir = os.path.abspath(tsadir)
     infodir = os.path.join(tsadir, 'info')
@@ -201,12 +220,6 @@ def main(argv=None):
         print("  " + str(err.msg), file=sys.stderr)
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         return 2
-
-    # %% Reset previous corrections
-    if reset:
-        print('Resetting Previous Corrections')
-        l1_lib.reset_corrections(ifgdir)
-
 
     # %% Set preliminaly reference
     with open(reffile, "r") as f:
@@ -471,7 +484,7 @@ def unw_loop_corr(i):
     closure = (np.dot(G, disp[nonNan]) / wrap).round()
     G = matrix(G)
     d = matrix(closure)
-    corr[nonNan] = np.array(l1_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+    corr[nonNan] = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
 
     return corr
 
@@ -490,7 +503,7 @@ def unw_loop_corr_win(n_pt_unnan, Aloop, wrap, unw, i):
     closure = (np.dot(G, disp[nonNan]) / wrap).round()
     G = matrix(G)
     d = matrix(closure)
-    corr[nonNan] = np.array(l1_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+    corr[nonNan] = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
 
     return corr
 
@@ -500,34 +513,35 @@ def apply_correction(i):
     Apply Correction to UNW ifg, and save outputs, preserving the original data
     """
     print('{0}/{1} {2}'.format(i + 1, n_ifg, ifgdates[i]))
-    unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
-    unwpngfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw.png')
-    uncorrfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw_uncorr')
-    uncorrpngfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw_uncorr.png')
-    corrcomppng = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.L1_compare.png')
-    corrfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.L1_corr')
-    # Move uncorrected data to backup
-    shutil.move(unwfile, uncorrfile)
-    shutil.move(unwpngfile, uncorrpngfile)
+
+    if not os.path.exists(os.path.join(corrdir, ifgdates[i])):
+        os.mkdir((os.path.join(corrdir, ifgdates[i])))
+
+    if not os.path.exists(os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.cc')):
+        shutil.copy(os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.cc'), os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.cc'))
+
+    unwfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw')
+    unwpngfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw.png')
+    corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.L1_compare.png')
+
     # Convert correction to radians
     unw1 = unw[i, :, :]
     npi = (unw1 / np.pi).round()
     correction = corrFull[i, :, :] * wrap
     corr_unw = unw[i, :, :] - correction
-    print('UNW1 data type: {}'.format(unw1.dtype))
-    print('UNW1 length: {0}, Width: {1}'.format(unw1.shape[0], unw1.shape[1]))
-    print('correction data type: {}'.format(correction.dtype))
-    print('correction length: {0}, Width: {1}'.format(correction.shape[0], correction.shape[1]))
-    print('corr_unw data type: {}'.format(corr_unw.dtype))
-    print('corr_unw length: {0}, Width: {1}'.format(corr_unw.shape[0], corr_unw.shape[1]))
+    # print('UNW1 data type: {}'.format(unw1.dtype))
+    # print('UNW1 length: {0}, Width: {1}'.format(unw1.shape[0], unw1.shape[1]))
+    # print('correction data type: {}'.format(correction.dtype))
+    # print('correction length: {0}, Width: {1}'.format(correction.shape[0], correction.shape[1]))
+    # print('corr_unw data type: {}'.format(corr_unw.dtype))
+    # print('corr_unw length: {0}, Width: {1}'.format(corr_unw.shape[0], corr_unw.shape[1]))
     corr_unw.tofile(unwfile)
-    correction.tofile(corrfile)
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
                '{} Corrected'.format(ifgdates[i]),
                'Modulo nPi',
                'L1 Correction (nPi)']
-    l1_lib.make_loop_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
+    loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
     plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 
