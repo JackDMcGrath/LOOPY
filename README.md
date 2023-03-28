@@ -1,4 +1,4 @@
-# LOOPY - UNDER VERY EARLY STAGE DEVELOPMENT. VERY MUCH USE AT YOUR OWN RISK
+# LOOPY
 
 LOOPY is an open-source package in Python designed to identify and correct unwrapping errors in interferograms. It is written as an add-on to the COMET [LiCSBAS](https://github.com/yumorishita/LiCSBAS) software.
 
@@ -23,6 +23,10 @@ Yunjun, Z., Fattahi, H. and Amelung, F., 2019. Small baseline InSAR time series 
 ## Acknowledgements
 
 The [Scientific Colour Maps](http://www.fabiocrameri.ch/colourmaps.php) ([Crameri, 2018](https://doi.org/10.5194/gmd-11-2541-2018)) is used in LiCSBAS.
+
+This work was created while completing a PhD at the University of Leeds, School of Earth and Environment, funded by the Natural and Environmental Research Council.
+
+I thank Andrew Watson for advice with processing and coding, John Elliott for supervision, and the University of Leeds Active Tectonics Research group for feedback.
 
 *Jack McGrath\
 COMET, School of Earth and Environment, University of Leeds
