@@ -448,11 +448,11 @@ def mask_unw_errors(i):
         print('        UNW Loaded {:.2f}'.format(time.time() - begin))
 
     # Find Reference Value, and reference all IFGs to same value
-    try:
-        ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
-    except 'RunTimeWarning':
+    if np.all(np.isnan(unw[refy1:refy2, refx1:refx2])):
         print('Invalid Ref Value found for IFG {}. Setting to 0'.format(date))
         ref = 0
+    else:
+        ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
 
     ifg = unw.copy()
     ifg = ifg - ref  # Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
