@@ -545,6 +545,7 @@ def mask_unw_errors(i):
 
     # Region IDs to small to corrected
     drop_regions = regionId[np.where(regionSize < min_corr_size)]
+    timer = time.time()
     regions[np.where(np.isin(regions, np.append(drop_regions, 0)))] = np.nan
 
     # Cease if there are no regions left to be checked
@@ -555,8 +556,13 @@ def mask_unw_errors(i):
         npi_corr = npi.copy()
         npi_corr[np.where(np.isnan(regions))] = np.nan
         # Reinterpolate without tiny regions
+        if i == v:
+            print('interp prep in {:.2f} secs'.format(time.time() -  timer))
+        timer = time.time()
         npi_corr = NN_interp(npi_corr)
         regions = NN_interp(regions)
+        if i == v:
+            print('interp in {:.2f} secs'.format(time.time() -  timer))
 
         # Find region number of reference pixel. All pixels in this region to be
         # considered unw error free. Mask where 1 == good pixel, 0 == bad
