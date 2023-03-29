@@ -544,7 +544,16 @@ def mask_unw_errors(i):
     min_corr_size = ml_factor * ml_factor * 10  # 10 pixels at final ml size
 
     # Region IDs to small to corrected
+
     drop_regions = regionId[np.where(regionSize < min_corr_size)]
+    too_small = np.where(np.isin(regions, drop_regions))
+    error_interp = np.where((regions == 0) == ~np.isnan(coh))
+    interp_to = (np.concatenate((too_small[0], error_interp[0])), np.concatenate((too_small[1], error_interp[1])))
+    borders = np.zeros(regions.shape)
+    borders[interp_to] = 1
+    border_dil = binary_dilation(borders, structure=np.ones((3, 3))).astype('int')
+    borders = np.where(borders != border_dil)
+
     regions[np.where(np.isin(regions, np.append(drop_regions, 0)))] = np.nan
 
     # Cease if there are no regions left to be checked
@@ -553,10 +562,15 @@ def mask_unw_errors(i):
     else:
         # Remove error areas and tiny regions from NPI so they match
         npi_corr = npi.copy()
-        npi_corr[np.where(np.isnan(regions))] = np.nan
+        npi_interp = np.ones(npi.shape) * np.nan
+        npi_interp[borders] = npi[borders]
         # Reinterpolate without tiny regions
-        npi_corr = NN_interp(npi_corr)
-        regions = NN_interp(regions)
+        npi_interp = NN_interp(npi_interp, interp_to=interp_to)
+        npi_corr[interp_to] = npi_interp[interp_to]
+        regions_interp = np.ones(npi.shape) * np.nan
+        regions_interp[borders] = regions[borders]
+        regions_interp = NN_interp(regions_interp, interp_to=interp_to)
+        regions[interp_to] = regions_interp[interp_to]
 
         # Find region number of reference pixel. All pixels in this region to be
         # considered unw error free. Mask where 1 == good pixel, 0 == bad
@@ -671,11 +685,12 @@ def mask_unw_errors(i):
 
 
 # %% Function to carry out nearest neighbour interpolation
-def NN_interp(data):
+def NN_interp(data, interp_to=[]):
     mask = np.where(~np.isnan(data))
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
     interped_data = data.copy()
-    interp_to = np.where(((~np.isnan(coh)).astype('int') + np.isnan(data).astype('int')) == 2)
+    if not interp_to:
+        interp_to = np.where(((~np.isnan(coh)).astype('int') + np.isnan(data).astype('int')) == 2)
     nearest_data = interp(*interp_to)
     interped_data[interp_to] = nearest_data
     return interped_data
