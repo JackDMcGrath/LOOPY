@@ -569,13 +569,15 @@ def mask_unw_errors(i):
 
         regions_interp = np.ones(npi.shape) * np.nan
         regions_interp[borders] = regions[borders]
-        print('interp prep in {:.2f} secs'.format(time.time() -  timer))
+        if i == v:
+            print('interp prep in {:.2f} secs'.format(time.time() -  timer))
         timer = time.time()
         regions_interp = NN_interp(regions_interp, interp_to=interp_to)
         regions[interp_to] = regions_interp[interp_to]
         npi_interp = NN_interp(npi_interp, interp_to=interp_to)
         npi_corr[interp_to] = npi_interp[interp_to]
-        print('interp in {:.2f} secs'.format(time.time() -  timer))
+        if i == v:
+            print('interp in {:.2f} secs'.format(time.time() -  timer))
 
         # Find region number of reference pixel. All pixels in this region to be
         # considered unw error free. Mask where 1 == good pixel, 0 == bad
