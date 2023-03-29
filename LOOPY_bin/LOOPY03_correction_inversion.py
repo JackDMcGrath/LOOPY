@@ -426,7 +426,7 @@ def main(argv=None):
 
 # %% Function to read IFGs to array
 def read_unw(i):
-    print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
+    print('{:.0f}/{:.0f} {}'.format(i + 1, len(ifgdates), ifgdates[i]))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
     # Read unw data (radians) at patch area
     unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
