@@ -571,12 +571,12 @@ def mask_unw_errors(i):
         npi_corr[np.where(np.isnan(regions))] = np.nan
         # Reinterpolate without tiny regions
         if i == v:
-            print('interp prep in {:.2f} secs'.format(time.time() -  timer))
+            print('interp prep in {:.2f} secs'.format(time.time() - timer))
         timer = time.time()
         npi_corr = NN_interp(npi_corr)
         regions = NN_interp(regions)
         if i == v:
-            print('interp in {:.2f} secs'.format(time.time() -  timer))
+            print('interp in {:.2f} secs'.format(time.time() - timer))
 
         # Find region number of reference pixel. All pixels in this region to be
         # considered unw error free. Mask where 1 == good pixel, 0 == bad
@@ -597,6 +597,12 @@ def mask_unw_errors(i):
         # Boolean array of the outside boundary of the good mask
         good_border = filters.sobel(mask).astype('bool')
         corr_regions = np.unique(regions[good_border])
+        if i == v:
+            print('np.where(corr_regions == ref_region)')
+            print(np.where(corr_regions == ref_region))
+
+            print('np.where(np.isnan(corr_regions))')
+            print(np.where(np.isnan(corr_regions)))
         corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
 
         if i == v:
