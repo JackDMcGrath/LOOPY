@@ -398,6 +398,65 @@ def main(argv=None):
     print('Ref point = [{}, {}]'.format(refy1, refx1))
     print('Mask Multilooking Factor = {}'.format(ml_factor))
 
+    # %% Create new EQA and mli_par files if multilooking
+    if not fullres and ml_factor != 1:
+        mlipar = os.path.join(corrdir, 'slc.mli.par')
+        dempar = os.path.join(corrdir, 'EQA.dem_par')
+        eqapar = os.path.join(ifgdir, 'EQA.dem_par')
+        if os.path.exists(mlipar):
+            os.remove(mlipar)
+
+        radar_freq = 5.405e9
+
+        print('\nCreate slc.mli.par', flush=True)
+
+        with open(mlipar, 'w') as f:
+            print('range_samples:   {}'.format(int(width / ml_factor)), file=f)
+            print('azimuth_lines:   {}'.format(int(length / ml_factor)), file=f)
+            print('radar_frequency: {} Hz'.format(radar_freq), file=f)
+
+        if os.path.exists(dempar):
+            os.remove(dempar)
+        print('\nCreate EQA.dem_par', flush=True)
+
+        lat1 = float(io_lib.get_param_par(eqapar, 'corner_lat'))  # north
+        lon1 = float(io_lib.get_param_par(eqapar, 'corner_lon'))  # west
+        postlat = float(io_lib.get_param_par(eqapar, 'post_lat'))  # negative
+        postlon = float(io_lib.get_param_par(eqapar, 'post_lon'))  # positive
+        lat2 = lat1 + postlat * (length - 1)  # south
+        lon2 = lon1 + postlon * (width - 1)  # east
+        lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
+
+        text = ["Gamma DIFF&GEO DEM/MAP parameter file",
+                "title: DEM",
+                "DEM_projection:     EQA",
+                "data_format:        REAL*4",
+                "DEM_hgt_offset:          0.00000",
+                "DEM_scale:               1.00000",
+                "width: {}".format(int(width / ml_factor)),
+                "nlines: {}".format(int(length / ml_factor)),
+                "corner_lat:     {}  decimal degrees".format(lat1),
+                "corner_lon:    {}  decimal degrees".format(lon1),
+                "post_lat: {} decimal degrees".format(postlat * ml_factor),
+                "post_lon: {} decimal degrees".format(postlon * ml_factor),
+                "",
+                "ellipsoid_name: WGS 84",
+                "ellipsoid_ra:        6378137.000   m",
+                "ellipsoid_reciprocal_flattening:  298.2572236",
+                "",
+                "datum_name: WGS 1984",
+                "datum_shift_dx:              0.000   m",
+                "datum_shift_dy:              0.000   m",
+                "datum_shift_dz:              0.000   m",
+                "datum_scale_m:         0.00000e+00",
+                "datum_rotation_alpha:  0.00000e+00   arc-sec",
+                "datum_rotation_beta:   0.00000e+00   arc-sec",
+                "datum_rotation_gamma:  0.00000e+00   arc-sec",
+                "datum_country_list: Global Definition, WGS84, World\n"]
+
+        with open(dempar, 'w') as f:
+            f.write('\n'.join(text))
+
     # %% Run correction in parallel
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs, '.format(n_ifg), flush=True)
@@ -641,7 +700,7 @@ def mask_unw_errors(i):
         print('        Correction Applied {:.2f}'.format(time.time() - begin))
 
     # %% Multilook mask if required
-    if fullres:
+    if ml_factor != 1:
         unw = tools_lib.multilook(unw, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
         if i == v:
             print('        Original IFG multilooked {:.2f}'.format(time.time() - begin))
