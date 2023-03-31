@@ -422,9 +422,6 @@ def main(argv=None):
         p.close()
 
     # %% Finish
-    print('\nCheck network/*, 11bad_ifg_ras/* and 11ifg_ras/* in TS dir.')
-    print('If you want to change the bad ifgs to be discarded, re-run with different thresholds or make a ifg list and indicate it by --rm_ifg_list option in the next step.')
-
     elapsed_time = time.time() - start
     hour = int(elapsed_time / 3600)
     minute = int(np.mod((elapsed_time / 60), 60))
