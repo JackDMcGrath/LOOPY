@@ -226,7 +226,6 @@ def main(argv=None):
             ml_inFactor = []
             while search:
                 for alpha in mlIn:
-                    print(alpha)
                     if alpha.isnumeric():
                         ml_inFactor.append(alpha)
                     else:
@@ -597,13 +596,17 @@ def mask_unw_errors(i):
         # Boolean array of the outside boundary of the good mask
         good_border = filters.sobel(mask).astype('bool')
         corr_regions = np.unique(regions[good_border])
-        if i == v:
+
+        try:
+            corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
+        except:
+            print('FAILING AT {}: {}'.format(i + 1, date))
             print('np.where(corr_regions == ref_region)')
             print(np.where(corr_regions == ref_region))
 
             print('np.where(np.isnan(corr_regions))')
             print(np.where(np.isnan(corr_regions)))
-        corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
+
 
         if i == v:
             print('        Preparing Corrections {:.2f}'.format(time.time() - begin))
