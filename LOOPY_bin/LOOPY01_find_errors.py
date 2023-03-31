@@ -597,16 +597,11 @@ def mask_unw_errors(i):
         good_border = filters.sobel(mask).astype('bool')
         corr_regions = np.unique(regions[good_border])
 
-        try:
-            corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
-        except:
-            print('FAILING AT {}: {}'.format(i + 1, date))
-            print('np.where(corr_regions == ref_region)')
-            print(np.where(corr_regions == ref_region))
+        if np.any(corr_regions == ref_region):
+            corr_regions = np.delete(corr_regions, np.where(corr_regions == ref_region)[0][0])
 
-            print('np.where(np.isnan(corr_regions))')
-            print(np.where(np.isnan(corr_regions)))
-
+        if np.any(np.isnan(corr_regions)):
+            corr_regions = np.delete(corr_regions, np.where(np.isnan(corr_regions))[0][0])
 
         if i == v:
             print('        Preparing Corrections {:.2f}'.format(time.time() - begin))
