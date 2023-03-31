@@ -421,7 +421,9 @@ def main(argv=None):
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour, minute, sec))
 
     print('\n{} Successfully finished!!\n'.format(os.path.basename(argv[0])))
-    print('Output directory: {}\n'.format(tsadir))
+    print('Output directory: {}\n'.format(corrdir))
+    print('Check Corrected images in {}'.format(os.path.basename(corrdir)))
+    print('If you want to add some of these IFGs to be discared from time series, easiest way is to run LiCSBAS11_check_unw.py, and append IFG list to 11bad_ifg.txt')
 
 
 # %% Function to read IFGs to array

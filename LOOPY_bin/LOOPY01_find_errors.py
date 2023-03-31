@@ -201,7 +201,7 @@ def main(argv=None):
         if fullres:
             if not ml_factor:
                 raise Usage('No multilooking factor given, -m is not optional when using --fullres!')
-        else:
+        elif not ml_factor:
             ml_factor = 1
 
     except Usage as err:
@@ -217,7 +217,23 @@ def main(argv=None):
         tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_' + os.path.basename(ifgdir))
 
     if not corrdir:
-        corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
+        if ml_factor == 1:
+            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
+        else:  # In the event you are working with already multilooked data (GEOCml*) find what true output ml_factor will be
+            mlIx = os.path.basename(ifgdir).find('ml')
+            mlIn = [ii for ii in os.path.basename(ifgdir)[mlIx + 2:]]
+            search = True
+            ml_inFactor = []
+            while search:
+                for alpha in mlIn:
+                    if alpha.isnumeric():
+                        ml_inFactor.append(alpha)
+                    else:
+                        break
+                search = False
+            ml_inFactor = int("".join(ml_inFactor))
+            ml_outFactor = ml_factor * ml_inFactor
+            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMaskml{}'.format(ml_outFactor))
 
     if not os.path.exists(tsadir):
         os.mkdir(tsadir)
@@ -382,6 +398,65 @@ def main(argv=None):
     print('Ref point = [{}, {}]'.format(refy1, refx1))
     print('Mask Multilooking Factor = {}'.format(ml_factor))
 
+    # %% Create new EQA and mli_par files if multilooking
+    if not fullres and ml_factor != 1:
+        mlipar = os.path.join(corrdir, 'slc.mli.par')
+        dempar = os.path.join(corrdir, 'EQA.dem_par')
+        eqapar = os.path.join(ifgdir, 'EQA.dem_par')
+        if os.path.exists(mlipar):
+            os.remove(mlipar)
+
+        radar_freq = 5.405e9
+
+        print('\nCreate slc.mli.par', flush=True)
+
+        with open(mlipar, 'w') as f:
+            print('range_samples:   {}'.format(int(width / ml_factor)), file=f)
+            print('azimuth_lines:   {}'.format(int(length / ml_factor)), file=f)
+            print('radar_frequency: {} Hz'.format(radar_freq), file=f)
+
+        if os.path.exists(dempar):
+            os.remove(dempar)
+        print('\nCreate EQA.dem_par', flush=True)
+
+        lat1 = float(io_lib.get_param_par(eqapar, 'corner_lat'))  # north
+        lon1 = float(io_lib.get_param_par(eqapar, 'corner_lon'))  # west
+        postlat = float(io_lib.get_param_par(eqapar, 'post_lat'))  # negative
+        postlon = float(io_lib.get_param_par(eqapar, 'post_lon'))  # positive
+        lat2 = lat1 + postlat * (length - 1)  # south
+        lon2 = lon1 + postlon * (width - 1)  # east
+        lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
+
+        text = ["Gamma DIFF&GEO DEM/MAP parameter file",
+                "title: DEM",
+                "DEM_projection:     EQA",
+                "data_format:        REAL*4",
+                "DEM_hgt_offset:          0.00000",
+                "DEM_scale:               1.00000",
+                "width: {}".format(int(width / ml_factor)),
+                "nlines: {}".format(int(length / ml_factor)),
+                "corner_lat:     {}  decimal degrees".format(lat1),
+                "corner_lon:    {}  decimal degrees".format(lon1),
+                "post_lat: {} decimal degrees".format(postlat * ml_factor),
+                "post_lon: {} decimal degrees".format(postlon * ml_factor),
+                "",
+                "ellipsoid_name: WGS 84",
+                "ellipsoid_ra:        6378137.000   m",
+                "ellipsoid_reciprocal_flattening:  298.2572236",
+                "",
+                "datum_name: WGS 1984",
+                "datum_shift_dx:              0.000   m",
+                "datum_shift_dy:              0.000   m",
+                "datum_shift_dz:              0.000   m",
+                "datum_scale_m:         0.00000e+00",
+                "datum_rotation_alpha:  0.00000e+00   arc-sec",
+                "datum_rotation_beta:   0.00000e+00   arc-sec",
+                "datum_rotation_gamma:  0.00000e+00   arc-sec",
+                "datum_country_list: Global Definition, WGS84, World\n"]
+
+        with open(dempar, 'w') as f:
+            f.write('\n'.join(text))
+
     # %% Run correction in parallel
     _n_para = n_para if n_para < n_ifg else n_ifg
     print('\nRunning error mapping for all {} ifgs, '.format(n_ifg), flush=True)
@@ -405,9 +480,6 @@ def main(argv=None):
         p.close()
 
     # %% Finish
-    print('\nCheck network/*, 11bad_ifg_ras/* and 11ifg_ras/* in TS dir.')
-    print('If you want to change the bad ifgs to be discarded, re-run with different thresholds or make a ifg list and indicate it by --rm_ifg_list option in the next step.')
-
     elapsed_time = time.time() - start
     hour = int(elapsed_time / 3600)
     minute = int(np.mod((elapsed_time / 60), 60))
@@ -557,12 +629,12 @@ def mask_unw_errors(i):
         npi_corr[np.where(np.isnan(regions))] = np.nan
         # Reinterpolate without tiny regions
         if i == v:
-            print('interp prep in {:.2f} secs'.format(time.time() -  timer))
+            print('interp prep in {:.2f} secs'.format(time.time() - timer))
         timer = time.time()
         npi_corr = NN_interp(npi_corr)
         regions = NN_interp(regions)
         if i == v:
-            print('interp in {:.2f} secs'.format(time.time() -  timer))
+            print('interp in {:.2f} secs'.format(time.time() - timer))
 
         # Find region number of reference pixel. All pixels in this region to be
         # considered unw error free. Mask where 1 == good pixel, 0 == bad
@@ -583,7 +655,12 @@ def mask_unw_errors(i):
         # Boolean array of the outside boundary of the good mask
         good_border = filters.sobel(mask).astype('bool')
         corr_regions = np.unique(regions[good_border])
-        corr_regions = np.delete(corr_regions, np.array([np.where(corr_regions == ref_region)[0][0], np.where(np.isnan(corr_regions))[0][0]])).astype('int')
+
+        if np.any(corr_regions == ref_region):
+            corr_regions = np.delete(corr_regions, np.where(corr_regions == ref_region)[0][0])
+
+        if np.any(np.isnan(corr_regions)):
+            corr_regions = np.delete(corr_regions, np.where(np.isnan(corr_regions))[0][0])
 
         if i == v:
             print('        Preparing Corrections {:.2f}'.format(time.time() - begin))
@@ -623,7 +700,7 @@ def mask_unw_errors(i):
         print('        Correction Applied {:.2f}'.format(time.time() - begin))
 
     # %% Multilook mask if required
-    if fullres:
+    if ml_factor != 1:
         unw = tools_lib.multilook(unw, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
         if i == v:
             print('        Original IFG multilooked {:.2f}'.format(time.time() - begin))
