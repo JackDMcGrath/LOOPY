@@ -201,7 +201,7 @@ def main(argv=None):
         if fullres:
             if not ml_factor:
                 raise Usage('No multilooking factor given, -m is not optional when using --fullres!')
-        else:
+        elif not ml_factor:
             ml_factor = 1
 
     except Usage as err:
@@ -217,7 +217,24 @@ def main(argv=None):
         tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_' + os.path.basename(ifgdir))
 
     if not corrdir:
-        corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
+        if ml_factor == 1:
+            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
+        else:  # In the event you are working with already multilooked data (GEOCml*) find what true output ml_factor will be
+            mlIx = os.path.basename(ifgdir).find('ml')
+            mlIn = [ii for ii in os.path.basename(ifgdir)[mlIx + 2:]]
+            search = True
+            ml_inFactor = []
+            while search:
+                for alpha in mlIn:
+                    print(alpha)
+                    if alpha.isnumeric():
+                        ml_inFactor.append(alpha)
+                    else:
+                        break
+                search = False
+            ml_inFactor = int("".join(ml_inFactor))
+            ml_outFactor = ml_factor * ml_inFactor
+            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMaskml{}'.format(ml_outFactor))
 
     if not os.path.exists(tsadir):
         os.mkdir(tsadir)
