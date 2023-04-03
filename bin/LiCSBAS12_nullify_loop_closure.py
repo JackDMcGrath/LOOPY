@@ -167,7 +167,10 @@ def main(argv=None):
     cycle = 3  # 2pi*3/cycle
     cmap_noise = 'viridis'
     cmap_noise_r = 'viridis_r'
-    q = multi.get_context('fork')
+    if sys.platform == "linux" or sys.platform == "linux2":
+        q = multi.get_context('fork')
+    elif sys.platform == "win32":
+        q = multi.get_context('spawn')
 
     # %% Read options
     try:
