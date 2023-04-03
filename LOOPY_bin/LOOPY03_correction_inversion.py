@@ -457,12 +457,16 @@ def read_unw(i):
 
 
 def read_mask(i):
-    print('{:.0f}/{:.0f} {}'.format(i + 1, len(ifgdates), ifgdates[i]))
     maskfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.nullify.mask')
     # Read ifg nullify mask
-    null = np.fromfile(maskfile, dtype=np.int16).reshape((length, width))
-    # Reset so masked pixels == 1
-    null = (null == 0).astype(np.float32)
+    if os.path.exits(maskfile):
+        print('{:.0f}/{:.0f} {}'.format(i + 1, len(ifgdates), ifgdates[i]))
+        null = np.fromfile(maskfile, dtype=np.int16).reshape((length, width))
+        # Reset so masked pixels == 1
+        null = (null == 0).astype(np.float32)
+    else:
+        print('{:.0f}/{:.0f} {} Does not exist. Creating 0 mask'.format(i + 1, len(ifgdates), ifgdates[i]))
+        null = np.zeros((length, width), dtype=np.float32)
 
     return null
 
