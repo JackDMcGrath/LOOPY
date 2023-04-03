@@ -99,13 +99,14 @@ def main(argv=None):
     global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull, corrdir
+        n_ifg, corrFull, corrdir, nullmask, nullify
 
     # %% Set default
     ifgdir = []
     corrdir = []
     tsadir = []
     reset = True
+    nullify = []
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -125,11 +126,12 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:",
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:n:",
                                        ["help", "--reset", "gamma=",
                                         "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
+        breakpoint()
         for o, a in opts:
             if o == '-h' or o == '--help':
                 print(__doc__)
@@ -140,6 +142,8 @@ def main(argv=None):
                 tsadir = a
             elif o == '-c':
                 corrdir = a
+            elif o == '-n':
+                nullify = float(a)
             elif o == '--reset':
                 reset = True
             elif o == '--gamma':
@@ -166,6 +170,10 @@ def main(argv=None):
         q = multi.get_context('fork')
         windows_multi = False
     elif sys.platform == "win32":
+        if nullify:
+            print('ERROR: Nullify wont work with windows (not written the parallelising finction yet)')
+            print('Exiting')
+            return
         q = multi.get_context('spawn')
         windows_multi = True
         import functools
@@ -302,12 +310,16 @@ def main(argv=None):
 
     # Allocate memory
     unw = np.zeros((n_ifg, length, width), dtype=np.float32)
+    if nullify:
+        nullmask = np.zeros((n_ifg, length, width), dtype=np.float32)
 
     if n_para == 1:
         print('with no parallel processing...', flush=True)
 
         for ii in range(n_ifg):
             unw[ii, :, :] = read_unw(ii)
+            if nullify:
+                nullmask[ii, :, :] = read_mask(ii)
 
     else:
         print('with {} parallel processing...'.format(_n_para), flush=True)
@@ -317,6 +329,8 @@ def main(argv=None):
             unw = np.array(p.map(functools.partial(read_unw_win, ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir), range(n_ifg)))
         else:
             unw = np.array(p.map(read_unw, range(n_ifg)))
+            if nullify:
+                nullmask = np.array(p.map(read_mask, range(n_ifg)))
         p.close()
 
     elapsed_time = time.time() - start
@@ -334,6 +348,7 @@ def main(argv=None):
     n_pt_unnan = len(ix_unnan_pt)
     corrFull = np.zeros(unw.shape) * np.nan
     unw = unw[ix_unnan_pt, :]  # keep only data for pixels where n_unw > n_unw_thre
+    nullmask = nullmask[ix_unnan_pt, :]  # keep only data for pixels where n_unw > n_unw_thre
     correction = np.zeros(unw.shape) * np.nan
 
     print('  {} / {} points removed due to not enough ifg data...'.format(n_pt_all - n_pt_unnan, n_pt_all), flush=True)
@@ -374,7 +389,7 @@ def main(argv=None):
     # %% Apply Correction to all IFGS
     # Reload unw for application of correction
 
-    print("  Reloading {0} ifg's unw data...".format(n_ifg), flush=True)
+    print("  Reloading {0} ifg's unw and nullmask data...".format(n_ifg), flush=True)
 
     # Allocate memory
     unw = np.zeros((n_ifg, length, width), dtype=np.float32)
@@ -442,6 +457,17 @@ def read_unw(i):
     return unw1
 
 
+def read_mask(i):
+    print('{:.0f}/{:.0f} {}'.format(i + 1, len(ifgdates), ifgdates[i]))
+    maskfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.nullify.mask')
+    # Read ifg nullify mask
+    null = np.fromfile(maskfile, dtype=np.int16).reshape((length, width))
+    # Reset so masked pixels == 1
+    null = (null == 0).astype(np.float32)
+
+    return null
+
+
 def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i):
     print('{:.0f}/{:.0f} {}'.format(i, len(ifgdates), ifgdates[i]))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
@@ -469,6 +495,9 @@ def unw_loop_corr(i):
     nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
     G = Aloop[nonNanLoop, :][:, nonNan]
     closure = (np.dot(G, disp[nonNan]) / wrap).round()
+    if nullify:
+        null = nullmask[i, nonNan]
+        G[:, np.where(null)] = G[:, np.where(null)] * nullify
     G = matrix(G)
     d = matrix(closure)
     corr[nonNan] = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
@@ -516,12 +545,6 @@ def apply_correction(i):
     npi = (unw1 / np.pi).round()
     correction = corrFull[i, :, :] * wrap
     corr_unw = unw[i, :, :] - correction
-    # print('UNW1 data type: {}'.format(unw1.dtype))
-    # print('UNW1 length: {0}, Width: {1}'.format(unw1.shape[0], unw1.shape[1]))
-    # print('correction data type: {}'.format(correction.dtype))
-    # print('correction length: {0}, Width: {1}'.format(correction.shape[0], correction.shape[1]))
-    # print('corr_unw data type: {}'.format(corr_unw.dtype))
-    # print('corr_unw length: {0}, Width: {1}'.format(corr_unw.shape[0], corr_unw.shape[1]))
     corr_unw.tofile(unwfile)
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
