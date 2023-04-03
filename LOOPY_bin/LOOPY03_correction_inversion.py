@@ -459,7 +459,7 @@ def read_unw(i):
 def read_mask(i):
     maskfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.nullify.mask')
     # Read ifg nullify mask
-    if os.path.exits(maskfile):
+    if os.path.exists(maskfile):
         print('{:.0f}/{:.0f} {}'.format(i + 1, len(ifgdates), ifgdates[i]))
         null = np.fromfile(maskfile, dtype=np.int16).reshape((length, width))
         # Reset so masked pixels == 1
