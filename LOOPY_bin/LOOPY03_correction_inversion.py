@@ -131,7 +131,6 @@ def main(argv=None):
                                         "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
-        breakpoint()
         for o, a in opts:
             if o == '-h' or o == '--help':
                 print(__doc__)
