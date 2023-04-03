@@ -127,7 +127,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:c:n:",
-                                       ["help", "--reset", "gamma=",
+                                       ["help", "reset", "gamma=",
                                         "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
