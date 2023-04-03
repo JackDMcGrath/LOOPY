@@ -340,6 +340,7 @@ def main(argv=None):
 
     n_pt_all = length * width
     unw = unw.reshape((n_ifg, n_pt_all)).transpose()  # (n_pt_all, n_ifg)
+    nullmask = unw.reshape((n_ifg, n_pt_all)).transpose()  # (n_pt_all, n_ifg)
 
     # %% For each pixel
     # %% Remove points with less valid data than n_unw_thre
