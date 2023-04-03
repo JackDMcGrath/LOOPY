@@ -1,5 +1,6 @@
 # !/usr/bin/env python3
 """
+v1.6.4 20230331 Jack McGrath, COMET
 v1.6.3 20220330 Milan Lazecky, COMET
 v1.6.2 20211102 Milan Lazecky, COMET
 v1.6.1 20210405 Yu Morishita, GSI
@@ -64,11 +65,14 @@ LiCSBAS12_loop_closure.py -d ifgdir [-t tsadir] [-l loop_thre] [--multi_prime]
  --rm_ifg_list  Manually remove ifgs listed in a file
  --n_para  Number of parallel processing (Default: # of usable CPU)
  --nullify Nullify unw values causing loop residuals >pi, per-pixel
+ --nullmask Save the nullify masks rather than apply them
  --ref_approx  Approximate geographic coordinates for reference area (lon/lat)
  --skip_pngs Do not generate png previews of loop closures (often takes long)
 """
 # %% Change log
 '''
+v1.6.4 20230331 Jack McGrath
+ - Add option of saving the nullify mask rather than apply it so it can be used to guide error inversions
 v1.6.3 20220330 Milan Lazecky
  - better choice of reference point - distance from centre (or given prelim ref point), and considering coherence
 v1.6.2 20211102 Milan Lazecky
@@ -151,6 +155,7 @@ def main(argv=None):
     multi_prime = False
     rm_ifg_list = []
     nullify = False
+    nullmask = False
     ref_approx = False
     do_pngs = True
 
@@ -168,7 +173,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:l:",
-                                       ["help", "multi_prime", "nullify", "skip_pngs",
+                                       ["help", "multi_prime", "nullify", "nullmask", "skip_pngs",
                                         "rm_ifg_list=", "n_para=", "ref_approx="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -190,6 +195,8 @@ def main(argv=None):
                 n_para = int(a)
             elif o == '--nullify':
                 nullify = True
+            elif o == '--nullmask':
+                nullmask = True
             elif o == '--skip_pngs':
                 do_pngs = False
             elif o == '--ref_approx':
@@ -207,6 +214,10 @@ def main(argv=None):
         print("\nERROR:", file=sys.stderr, end='')
         print("  " + str(err.msg), file=sys.stderr)
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
+        return 2
+
+    if nullify and nullmask:
+        print("Can't do option --nullify and --nullmask. Pick one \n")
         return 2
 
     print("\nloop_thre : {} rad".format(loop_thre), flush=True)
@@ -621,6 +632,15 @@ def main(argv=None):
             # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
             if not np.min(mask) and np.max(mask):
                 nullify_unw(ifgd, mask)
+
+    if nullmask:
+        print('saving nullify mask - not parallel now')
+        for ifgd in ifgdates:
+            mask = da.loc[:, :, ifgd].values
+            # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
+            if not np.min(mask) and np.max(mask):
+                nullify_unw(ifgd, mask)
+
 
     # generate loop pngs:
     if do_pngs:
@@ -1117,6 +1137,14 @@ def nullify_unw(ifgd, mask):
         # unw[mask==False]=0  # should be ok but it appears as 0 in preview...
         unw[mask == False] = np.nan
         unw.tofile(unwfile)
+
+
+def nullify_mask(ifgd, mask):
+    maskfile = os.path.join(ifgdir, ifgd, ifgd + '.nullify.mask')
+    if os.path.exists(maskfile):
+        os.remove(maskfile)
+    # Save nullify mask, where 0 = masked pixel, 1 = good pixel
+    mask.astype(np.int16).tofile(maskfile)
 
 
 # %% main
