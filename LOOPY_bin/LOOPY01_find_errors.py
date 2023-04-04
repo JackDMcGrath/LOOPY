@@ -294,7 +294,7 @@ def main(argv=None):
                 print('Full Res Coherence == NoneType. Using hgt')
                 coh = gdal.Open(glob.glob(os.path.join(geocdir, '*.geo.hgt.tif'))[0]).ReadAsArray()
             coh[coh == 0] = np.nan
-            mlifile = os.path.join(geocdir, 'slc.mli')
+            mlifile = os.path.join(corrdir, 'slc.mli')
             coh.tofile(mlifile)
             mlipngfile = mlifile + '.png'
             mli = np.log10(coh)
