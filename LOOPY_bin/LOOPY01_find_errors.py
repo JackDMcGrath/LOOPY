@@ -205,6 +205,19 @@ def main(argv=None):
         if fullres:
             if ml_factor:
                 raise Usage('Multilooking Factor given - not permitted with --fullres (will work to size GEOCml*)')
+            else:
+                mlIx = os.path.basename(ifgdir).find('ml')
+                mlIn = [ii for ii in os.path.basename(ifgdir)[mlIx + 2:]]
+                search = True
+                ml_factor = []
+                while search:
+                    for alpha in mlIn:
+                        if alpha.isnumeric():
+                            ml_factor.append(alpha)
+                        else:
+                            break
+                    search = False
+                ml_factor = int("".join(ml_factor))
         elif not ml_factor:
             ml_factor = 1
 
@@ -221,7 +234,7 @@ def main(argv=None):
         tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_' + os.path.basename(ifgdir))
 
     if not corrdir:
-        if ml_factor == 1:
+        if ml_factor == 1 or fullres:
             corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
         else:  # In the event you are working with already multilooked data (GEOCml*) find what true output ml_factor will be
             mlIx = os.path.basename(ifgdir).find('ml')
@@ -236,12 +249,8 @@ def main(argv=None):
                         break
                 search = False
             ml_inFactor = int("".join(ml_inFactor))
-            if fullres:
-                ml_factor = ml_inFactor
-                corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
-            else:
-                ml_outFactor = ml_factor * ml_inFactor
-                corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMaskml{}'.format(ml_outFactor))
+            ml_outFactor = ml_factor * ml_inFactor
+            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMaskml{}'.format(ml_outFactor))
 
     if not os.path.exists(tsadir):
         os.mkdir(tsadir)
