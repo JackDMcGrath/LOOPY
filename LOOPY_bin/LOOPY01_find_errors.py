@@ -736,9 +736,6 @@ def mask_unw_errors(i):
             coh.tofile(os.path.join(corrdir, date, date + '.cc'))
             if i == v:
                 print('        Coherence written {:.2f}'.format(time.time() - begin))
-        else:
-            if i == v:
-                print('       Not Loading Coherence')
 
     # %% Make PNGs
 
