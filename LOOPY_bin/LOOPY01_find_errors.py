@@ -728,7 +728,6 @@ def mask_unw_errors(i):
             coh = tools_lib.multilook(coh, ml_factor, ml_factor, n_valid_thre=n_valid_thre).astype(np.uint8)
             coh.tofile(os.path.join(corrdir, date, date + '.cc'))
             if i == v:
-                plot_lib.make_im_png(coh, os.path.join(corrdir, date, date + '.cc.png'), 'viridis', 'Coherence', cbar=True)
                 print('        Coherence multilooked {:.2f}'.format(time.time() - begin))
 
     # %% Make PNGs
