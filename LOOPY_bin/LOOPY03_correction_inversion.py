@@ -550,13 +550,34 @@ def apply_correction(i):
     correction = corrFull[i, :, :] * wrap
     corr_unw = unw[i, :, :] - correction
     corr_unw.tofile(unwfile)
-    # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
-    titles4 = ['{} Uncorrected'.format(ifgdates[i]),
-               '{} Corrected'.format(ifgdates[i]),
-               'Modulo nPi',
-               'L1 Correction (nPi)']
-    loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
-    plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
+    if not nullify:
+        # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
+        titles4 = ['{} Uncorrected'.format(ifgdates[i]),
+                   '{} Corrected'.format(ifgdates[i]),
+                   'Modulo nPi',
+                   'L1 Correction (nPi)']
+        loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
+    else:
+        maskfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.nullify.mask')
+        # Read ifg nullify mask
+        if os.path.exists(maskfile):
+            mask = np.fromfile(maskfile, dtype=np.int16).reshape((length, width))
+            # Reset so masked pixels == 1
+            mask = (mask == 0).astype(np.float32)
+        else:
+            mask = np.zeros((length, width), dtype=np.float32)
+
+        # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
+        titles6 = ['{} Uncorrected'.format(ifgdates[i]),
+                   '{} Corrected'.format(ifgdates[i]),
+                   'Uncorrected Modulo nPi',
+                   'Corrected Modulo nPi',
+                   'Nullify Mask (Weight: {:.0f})'.format(nullify),
+                   'L1 Correction (nPi)']
+        loopy_lib.make_6compare_png(unw1, corr_unw, npi, (corr_unw / np.pi).round(), mask, corrFull[i, :, :], corrcomppng, titles6, 3)
+
+
+plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 
 # %% main

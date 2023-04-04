@@ -287,3 +287,74 @@ def make_compare_png(uncorr, corrunw, npi, corr, png, titles4, cycle):
     plt.tight_layout()
     plt.savefig(png)
     plt.close()
+
+
+# %%
+def make_6compare_png(uncorr, corrunw, npi, npicorr, mask, corr, png, titles6, cycle):
+    """
+    Make 6 panel png to compare uncorrected and corrected unw, also showing
+    original and corrected modulo npi, nullify mask, and correction
+    """
+
+    # Settings
+    plt.rcParams['axes.titlesize'] = 10
+    ifg = [uncorr, corrunw]
+    n_pi = [npi, npicorr]
+
+    length, width = uncorr.shape
+    if length > width:
+        figsize_y = 10
+        figsize_x = int((figsize_y - 1) * width / length)
+        if figsize_x < 5:
+            figsize_x = 5
+    else:
+        figsize_x = 10
+        figsize_y = int(figsize_x * length / width + 1)
+        if figsize_y < 3:
+            figsize_y = 3
+
+    # Plot
+    fig = plt.figure(figsize=(figsize_x, figsize_y))
+
+    # Original and Corrected unw
+    for i in range(2):
+        data_wrapped = np.angle(np.exp(1j * (ifg[i] / cycle)) * cycle)
+        ax = fig.add_subplot(3, 2, i + 1)  # index start from 1
+        im = ax.imshow(data_wrapped, vmin=-np.pi, vmax=+np.pi, cmap=cmap_wrap,
+                       interpolation='nearest')
+        ax.set_title('{}'.format(titles6[i]))
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        cax = plt.colorbar(im)
+        cax.set_ticks([])
+
+    # Original and Corrected npi
+    for i in range(2):
+        ax = fig.add_subplot(3, 2, i + 3)  # index start from 1
+        im = ax.imshow(n_pi[i], cmap='tab20c', interpolation='nearest')
+        ax.set_title('{}'.format(titles6[i + 2]))
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        cax = plt.colorbar(im)
+
+    # Nullify Mask
+    ax = fig.add_subplot(3, 2, 5)  # index start from 1
+    im = ax.imshow(corr, vmin=0, vmax=1,
+                   cmap=cmap_corr, interpolation='nearest')
+    ax.set_title('{}'.format(titles6[4]))
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    cax = plt.colorbar(im)
+
+    # Correction
+    ax = fig.add_subplot(3, 2, 6)  # index start from 1
+    im = ax.imshow(corr, vmin=-np.nanmax(abs(corr)), vmax=np.nanmax(abs(corr)),
+                   cmap=cmap_corr, interpolation='nearest')
+    ax.set_title('{}'.format(titles6[5]))
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    cax = plt.colorbar(im)
+
+    plt.tight_layout()
+    plt.savefig(png)
+    plt.close()
