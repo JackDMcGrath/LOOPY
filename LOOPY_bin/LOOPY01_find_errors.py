@@ -720,6 +720,15 @@ def mask_unw_errors(i):
         if i == v:
             print('        Error map multilooked {:.2f}'.format(time.time() - begin))
 
+        # Multilook coherence files as well if needed
+        if not fullres:
+            cohfile = os.path.join(ifgdir, date, date + '.cc')
+            coh = io_lib.read_img(cohfile, length=length, width=width)
+            coh = tools_lib.multilook(coh, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
+            coh.tofile(os.path.join(corrdir, date, date + '.cc'))
+            if i == v:
+                print('        Coherence multilooked {:.2f}'.format(time.time() - begin))
+
     # %% Make PNGs
 
     # Flip round now, so 1 = bad pixel, 0 = good pixel
@@ -745,7 +754,8 @@ def mask_unw_errors(i):
         print('        pngs made {:.2f}'.format(time.time() - begin))
 
     # Link to the cc file
-    shutil.copy(os.path.join(ifgdir, date, date + '.cc'), os.path.join(corrdir, date, date + '.cc'))
+    if not os.path.exists(os.path.join(corrdir, date, date + '.cc')):
+        shutil.copy(os.path.join(ifgdir, date, date + '.cc'), os.path.join(corrdir, date, date + '.cc'))
 
     if i == v:
         print('        Saved {:.2f}'.format(time.time() - begin))
