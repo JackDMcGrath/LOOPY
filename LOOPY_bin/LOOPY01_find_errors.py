@@ -72,6 +72,7 @@ LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-e errorfile
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
 -c        Path to the correction dierectory (Default: GEOCml*LoopMask)
 -m        Output multilooking factor (Default: No multilooking of mask, REQUIRED FOR FULL RES)
+-h        Minimum size of error to correct (Default: 10 pixels at final ML size)
 -e        Text file, where each row is a known error location, in form lon1,lat1,....,lonn,latn
 -v        IFG to give verbose timings for (Development option, Default: -1 (not verbose))
 --fullres Create masks from full res data, and multilook to -m (ie. orginal geotiffs) (Assume in folder called GEOC)
@@ -136,7 +137,7 @@ def main(argv=None):
 
     global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
         length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir, \
-        corrdir, bool_mask, cycle, n_valid_thre
+        corrdir, bool_mask, cycle, n_valid_thre, min_error
 
     # %% Set default
     ifgdir = []  # GEOCml* dir
@@ -150,6 +151,7 @@ def main(argv=None):
     v = -1
     cycle = 3
     n_valid_thre = 0.5
+    min_error = 10  # Minimum size of error region (in pixels at final resolution)
 
     # Parallel Processing options
     try:
@@ -165,7 +167,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:", ["help", "reset", "n_para=", "fullres"])
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:h:", ["help", "reset", "n_para=", "fullres"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -180,6 +182,8 @@ def main(argv=None):
                 corrdir = a
             elif o == '-m':
                 ml_factor = int(a)
+            elif o == '-h':
+                min_error = int(a)
             elif o == '-e':
                 errorfile = a
             elif o == '-v':
@@ -260,8 +264,7 @@ def main(argv=None):
     else:
         print('Preserving Premade Masks')
 
-    if not os.path.exists(corrdir):
-        loopy_lib.prepOutdir(corrdir, ifgdir)
+    loopy_lib.prepOutdir(corrdir, ifgdir)
 
     # %% File Setting
     ref_file = os.path.join(infodir, '12ref.txt')
@@ -387,13 +390,6 @@ def main(argv=None):
         refy2 = refy1 + 1
         refx1 = refx1[0]
         refx2 = refx1 + 1
-
-        # Change reference pixel in case working with fullres data
-        if fullres:
-            refx1 = refx1 * ml_factor
-            refx2 = refx2 * ml_factor
-            refy1 = refy1 * ml_factor
-            refy2 = refy2 * ml_factor
 
     print('Ref point = [{}, {}]'.format(refy1, refx1))
     print('Mask Multilooking Factor = {}'.format(ml_factor))
@@ -613,7 +609,7 @@ def mask_unw_errors(i):
         print('        Added to IFG {:.2f}'.format(time.time() - begin))
 
     # Set a minimum size of region to be corrected
-    min_corr_size = ml_factor * ml_factor * 10  # 10 pixels at final ml size
+    min_corr_size = min_error * ml_factor ** 2  # 10 pixels at final ml size
 
     # Region IDs to small to corrected
     drop_regions = regionId[np.where(regionSize < min_corr_size)]
