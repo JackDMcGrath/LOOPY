@@ -576,8 +576,7 @@ def apply_correction(i):
                    'L1 Correction (nPi)']
         loopy_lib.make_6compare_png(unw1, corr_unw, npi, (corr_unw / np.pi).round(), mask, corrFull[i, :, :], corrcomppng, titles6, 3)
 
-
-plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
+    plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 
 # %% main
