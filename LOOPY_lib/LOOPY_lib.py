@@ -223,8 +223,9 @@ def prepOutdir(out_dir, in_dir):
     files = glob.glob(os.path.join(in_dir, '*'))
     for file in files:
         if not os.path.isdir(file):  # not copy directory, only file
-            print('Copy {}'.format(os.path.basename(file)), flush=True)
-            shutil.copy(file, out_dir)
+            if not os.path.exists(os.path.join(out_dir, os.path.basename(file))):
+                print('Copy {}'.format(os.path.basename(file)), flush=True)
+                shutil.copy(file, out_dir)
 
     print('{} prepared...'.format(os.path.basename(out_dir)))
 
