@@ -71,11 +71,11 @@ LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-e errorfile
 -d        Path to the GEOCml* dir containing stack of unw data
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
 -c        Path to the correction dierectory (Default: GEOCml*LoopMask)
--m        Output multilooking factor (Default: No multilooking of mask, REQUIRED FOR FULL RES)
+-m        Output multilooking factor (Default: No multilooking of mask, INCOMPTIBLE WITH FULL RES)
 -h        Minimum size of error to correct (Default: 10 pixels at final ML size)
 -e        Text file, where each row is a known error location, in form lon1,lat1,....,lonn,latn
 -v        IFG to give verbose timings for (Development option, Default: -1 (not verbose))
---fullres Create masks from full res data, and multilook to -m (ie. orginal geotiffs) (Assume in folder called GEOC)
+--fullres Create masks from full res data (ie. orginal geotiffs) (Assume in folder called GEOC)
 --reset   Remove previous corrections
 --n_para  Number of parallel processing (Default: # of usable CPU)
 
@@ -203,8 +203,8 @@ def main(argv=None):
             raise Usage('No slc.mli.par file exists in {}!'.format(ifgdir))
 
         if fullres:
-            if not ml_factor:
-                raise Usage('No multilooking factor given, -m is not optional when using --fullres!')
+            if ml_factor:
+                raise Usage('Multilooking Factor given - not permitted with --fullres (will work to size GEOCml*)')
         elif not ml_factor:
             ml_factor = 1
 
@@ -236,8 +236,12 @@ def main(argv=None):
                         break
                 search = False
             ml_inFactor = int("".join(ml_inFactor))
-            ml_outFactor = ml_factor * ml_inFactor
-            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMaskml{}'.format(ml_outFactor))
+            if fullres:
+                ml_factor = ml_inFactor
+                corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
+            else:
+                ml_outFactor = ml_factor * ml_inFactor
+                corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMaskml{}'.format(ml_outFactor))
 
     if not os.path.exists(tsadir):
         os.mkdir(tsadir)
@@ -393,6 +397,7 @@ def main(argv=None):
 
     print('Ref point = [{}, {}]'.format(refy1, refx1))
     print('Mask Multilooking Factor = {}'.format(ml_factor))
+    print('Minimum Output Correction Size = {} pixels'.format(min_error))
 
     # %% Create new EQA and mli_par files if multilooking
     if not fullres and ml_factor != 1:
