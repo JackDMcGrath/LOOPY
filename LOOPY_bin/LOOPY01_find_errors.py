@@ -514,7 +514,7 @@ def mask_unw_errors(i):
         unw[unw == 0] = np.nan
 
     else:
-        unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width, np.uint8)
+        unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width)
 
     if i == v:
         print('        UNW Loaded {:.2f}'.format(time.time() - begin))
@@ -727,10 +727,10 @@ def mask_unw_errors(i):
             cohfile = os.path.join(ifgdir, date, date + '.cc')
             if i == v:
                 print('        {}'.format(cohfile))
-            coh = io_lib.read_img(cohfile, length=length, width=width)
+            coh = io_lib.read_img(cohfile, length=length, width=width, dtype=np.uint8)
             if i == v:
-                print('        File Read'.format(cohfile))
-            coh = tools_lib.multilook(coh, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
+                print('        File Read')
+            coh = tools_lib.multilook(coh, ml_factor, ml_factor, n_valid_thre=n_valid_thre).astype(np.uint8)
             if i == v:
                 print('        Coherence multilooked {:.2f}'.format(time.time() - begin))
             coh.tofile(os.path.join(corrdir, date, date + '.cc'))
