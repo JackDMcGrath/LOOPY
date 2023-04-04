@@ -514,7 +514,7 @@ def mask_unw_errors(i):
         unw[unw == 0] = np.nan
 
     else:
-        unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width)
+        unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width, np.uint8)
 
     if i == v:
         print('        UNW Loaded {:.2f}'.format(time.time() - begin))
