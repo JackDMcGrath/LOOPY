@@ -722,12 +722,20 @@ def mask_unw_errors(i):
 
         # Multilook coherence files as well if needed
         if not fullres:
+            if i == v:
+                print('        Loading Coherence file')
             cohfile = os.path.join(ifgdir, date, date + '.cc')
+            if i == v:
+                print('        {}'.format(cohfile))
             coh = io_lib.read_img(cohfile, length=length, width=width)
+            if i == v:
+                print('        File Read'.format(cohfile))
             coh = tools_lib.multilook(coh, ml_factor, ml_factor, n_valid_thre=n_valid_thre)
-            coh.tofile(os.path.join(corrdir, date, date + '.cc'))
             if i == v:
                 print('        Coherence multilooked {:.2f}'.format(time.time() - begin))
+            coh.tofile(os.path.join(corrdir, date, date + '.cc'))
+            if i == v:
+                print('        Coherence written {:.2f}'.format(time.time() - begin))
 
     # %% Make PNGs
 
