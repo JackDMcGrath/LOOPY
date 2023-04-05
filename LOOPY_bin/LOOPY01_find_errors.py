@@ -815,10 +815,10 @@ def mask_unw_errors(i):
         # Multilook coherence files as well if needed
         if not fullres:
             cohfile = os.path.join(ifgdir, date, date + '.cc')
-            coh = io_lib.read_img(cohfile, length=length, width=width, dtype=np.uint8).astype(np.float32)
-            coh[coh == 0] = np.nan
-            coh = tools_lib.multilook(coh, ml_factor, ml_factor, n_valid_thre=n_valid_thre).astype(np.uint8)
-            coh.tofile(os.path.join(corrdir, date, date + '.cc'))
+            cc = io_lib.read_img(cohfile, length=length, width=width, dtype=np.uint8).astype(np.float32)
+            cc[cc == 0] = np.nan
+            cc = tools_lib.multilook(cc, ml_factor, ml_factor, n_valid_thre=n_valid_thre).astype(np.uint8)
+            cc.tofile(os.path.join(corrdir, date, date + '.cc'))
             if i == v:
                 print('        Coherence multilooked {:.2f}'.format(time.time() - begin))
 
@@ -842,7 +842,7 @@ def mask_unw_errors(i):
     title = 'Error Map'
     if coh_thresh:
         errs_found = errors.copy()
-        errors[np.where(cc_map < coh_thresh)] = 0.5
+        errors[np.where(cc < coh_thresh)] = 0.5
         errors[np.where(errs_found)] = 1
 
     plot_lib.make_im_png(errors, os.path.join(corrdir, date, date + '.errormap.png'), 'viridis', title, vmin=0, vmax=1, cbar=False)
