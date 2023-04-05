@@ -823,15 +823,14 @@ def mask_unw_errors(i):
                 print('        Coherence multilooked {:.2f}'.format(time.time() - begin))
 
     # %% Make PNGs
-
     # Flip round now, so 1 = bad pixel, 0 = good pixel
-    mask = (mask == 0).astype('int')
-    mask[np.where(np.isnan(unw))] = 0
+    # mask = (mask == 0).astype('int')
+    # mask[np.where(np.isnan(unw))] = 0
     title = '{} ({}pi/cycle)'.format(date, cycle * 2)
     plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / cycle) * cycle), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, vmin=-np.pi, vmax=np.pi, cbar=False)
     # Make new unw file from corrected data and new loop png
     corr_unw.tofile(os.path.join(corrdir, date, date + '.unw'))
-    mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
+    # mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     corrcomppng = os.path.join(corrdir, date, date + '.maskcorr.png')
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
