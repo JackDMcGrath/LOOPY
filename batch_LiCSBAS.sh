@@ -42,11 +42,13 @@ p05_clip_range_geo=""	# e.g. 130.11/131.12/34.34/34.6 (in deg)
 ### Frequently used options. If blank, use default. ###
 p01_start_date=""	# default: 20141001
 p01_end_date=""	# default: today
-p01_get_gacos="n" # y/n 
+p01_get_gacos="n" # y/n
 p11_unw_thre=""	# default: 0.3
 p11_coh_thre=""	# default: 0.05
 p12_loop_thre=""	# default: 1.5 rad
 p12_multi_prime="y"	# y/n. y recommended
+p12_nullify="n" # y/n
+p12_nullmask="y" # y/n
 p12_rm_ifg_list=""	# List file containing ifgs to be manually removed
 p15_coh_thre=""	# default: 0.05
 p15_n_unw_r_thre=""	# default: 1.5
@@ -69,7 +71,7 @@ p16_ex_range=""	# e.g. 10:100/20:200 (ix start from 0)
 p16_ex_range_geo=""	# e.g. 130.11/131.12/34.34/34.6 (in deg)
 
 ### Less frequently used options. If blank, use default. ###
-p01_frame=""	# e.g. 021D_04972_131213 
+p01_frame=""	# e.g. 021D_04972_131213
 p01_n_para=""	# default: 4
 p02_GEOCdir=""	# default: GEOC
 p02_GEOCmldir=""	# default: GEOCml$nlook
@@ -242,7 +244,7 @@ TSdir="TS_$GEOCmldir"
 
 if [ $start_step -le 11 -a $end_step -ge 11 ];then
   p11_op=""
-  if [ ! -z $p11_GEOCmldir ];then p11_op="$p11_op -d $p11_GEOCmldir"; 
+  if [ ! -z $p11_GEOCmldir ];then p11_op="$p11_op -d $p11_GEOCmldir";
     else p11_op="$p11_op -d $GEOCmldir"; fi
   if [ ! -z $p11_TSdir ];then p11_op="$p11_op -t $p11_TSdir"; fi
   if [ ! -z $p11_unw_thre ];then p11_op="$p11_op -u $p11_unw_thre"; fi
@@ -258,11 +260,13 @@ fi
 
 if [ $start_step -le 12 -a $end_step -ge 12 ];then
   p12_op=""
-  if [ ! -z $p12_GEOCmldir ];then p12_op="$p12_op -d $p12_GEOCmldir"; 
+  if [ ! -z $p12_GEOCmldir ];then p12_op="$p12_op -d $p12_GEOCmldir";
     else p12_op="$p12_op -d $GEOCmldir"; fi
   if [ ! -z $p12_TSdir ];then p12_op="$p12_op -t $p12_TSdir"; fi
   if [ ! -z $p12_loop_thre ];then p12_op="$p12_op -l $p12_loop_thre"; fi
   if [ $p12_multi_prime == "y" ];then p12_op="$p12_op --multi_prime"; fi
+  if [ $p12_nullify == "y" ];then p12_op="$p12_op --nullify"; fi
+  if [ $p12_nullmask == "y" ];then p12_op="$p12_op --nullmask"; fi
   if [ ! -z $p12_rm_ifg_list ];then p12_op="$p12_op --rm_ifg_list $p12_rm_ifg_list"; fi
   if [ ! -z $p12_n_para ];then p12_op="$p12_op --n_para $p12_n_para";
   elif [ ! -z $n_para ];then p12_op="$p12_op --n_para $n_para";fi
@@ -370,4 +374,3 @@ if [ $check_only == "y" ];then
   echo "Above commands will run when you change check_only to \"n\""
   echo ""
 fi
-
