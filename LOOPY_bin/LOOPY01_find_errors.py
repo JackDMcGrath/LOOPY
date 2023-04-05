@@ -72,7 +72,7 @@ LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-e errorfile
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
 -c        Path to the correction dierectory (Default: GEOCml*LoopMask)
 -m        Output multilooking factor (Default: No multilooking of mask, INCOMPTIBLE WITH FULL RES)
--h        Minimum size of error to correct (Default: 10 pixels at final ML size)
+-f        Minimum size of error to correct (Default: 10 pixels at final ML size)
 -e        Text file, where each row is a known error location, in form lon1,lat1,....,lonn,latn
 -v        IFG to give verbose timings for (Development option, Default: -1 (not verbose))
 --fullres Create masks from full res data (ie. orginal geotiffs) (Assume in folder called GEOC)
@@ -170,7 +170,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:h:", ["help", "reset", "n_para=", "fullres", "autoerror", "coh_thresh="])
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:f:", ["help", "reset", "n_para=", "fullres", "autoerror", "coh_thresh="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -185,7 +185,7 @@ def main(argv=None):
                 corrdir = a
             elif o == '-m':
                 ml_factor = int(a)
-            elif o == '-h':
+            elif o == '-f':
                 min_error = int(a)
             elif o == '-e':
                 errorfile = a
