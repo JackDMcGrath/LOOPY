@@ -842,7 +842,9 @@ def mask_unw_errors(i):
 
     title = 'Error Map'
     if coh_thresh:
+        errs_found = errors.copy()
         errors[np.where(cc_map < coh_thresh)] = 0.5
+        errors[np.where(errs_found)] = 1
 
     plot_lib.make_im_png(errors, os.path.join(corrdir, date, date + '.errormap.png'), 'viridis', title, vmin=0, vmax=1, cbar=False)
 
