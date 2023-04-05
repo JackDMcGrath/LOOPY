@@ -401,14 +401,14 @@ def main(argv=None):
             for ifgd in ifgdates:
                 ccfile = os.path.join(ifgdir, ifgd, ifgd + '.cc')
                 if os.path.getsize(ccfile) == length * width:
-                    coh = io_lib.read_img(ccfile, length, width, np.uint8)
-                    coh = coh.astype(np.float32) / 255
+                    coh1 = io_lib.read_img(ccfile, length, width, np.uint8)
+                    coh1 = coh1.astype(np.float32) / 255
                 else:
-                    coh = io_lib.read_img(ccfile, length, width)
-                    coh[np.isnan(coh)] = 0  # Fill nan with 0
+                    coh1 = io_lib.read_img(ccfile, length, width)
+                    coh1[np.isnan(coh)] = 0  # Fill nan with 0
 
-                coh_avg += coh
-                n_coh += (coh != 0)
+                coh_avg += coh1
+                n_coh += (coh1 != 0)
 
                 unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
                 unw = io_lib.read_img(unwfile, length, width)
