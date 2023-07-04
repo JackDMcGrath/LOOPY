@@ -433,7 +433,9 @@ def get_cmap(cmap_name, cmapN=256):
     if flag >= 1:
         if cmap_name.endswith('_r'):
             _cmap = _cmap.reversed()
-        plt.cm.register_cmap(name = cmap_name, cmap = _cmap)
+        if cmap_name not in plt.colormaps():
+            plt.cm.register_cmap(name=cmap_name, cmap=_cmap)
+
 
     cmap = plt.get_cmap(cmap_name, cmapN)
 

@@ -11,3 +11,4 @@ LOOPY_bin_miscTestingScripts
 LOOPY_bin/loopyl1regls.py
 LOOPY_bin/spatial_loopy_synth.py
 error_synth_testing
+LOOPY_bin/make_errors.py
