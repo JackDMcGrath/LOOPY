@@ -103,8 +103,11 @@ def reset_all():
         ifgd = re.split('/', ifg)[-1]
         if os.path.exists(os.path.join(ifg, ifgd + '_orig.unw')):
             shutil.move(os.path.join(ifg, ifgd + '_orig.unw'), os.path.join(ifg, ifgd + '.unw'))
-            for backup in glob.glob(os.path.join(ifg, '_orig*.unw')):
-                os.remove(backup)
+            for backup in glob.glob(os.path.join(ifg, '*orig*')):
+                if os.path.islink(backup):
+                    os.unlink(backup)
+                else:
+                    os.remove(backup)
         elif os.path.exists(os.path.join(ifg, ifgd + '.unw')):
             print('CAUTION: NO {}_orig.unw exists to backup from!'.format(ifgd))
         else:
