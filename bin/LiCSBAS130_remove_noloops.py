@@ -11,13 +11,13 @@ and removes pixels that are not associated with a loop closure.
 ===============
 Input & output files
 ===============
-Inputs in GEOCml*/ (--comp_cc_dir):
+Inputs in GEOCml*/ ():
  - yyyymmdd_yyyymmdd/
    - yyyymmdd_yyyymmdd.cc
  - EQA.dem_par
  - slc.mli.par
 
-Inputs in GEOCml*/ (--cc_dir):
+Inputs in GEOCml*/ (r):
  - yyyymmdd_yyyymmdd/
    - yyyymmdd_yyyymmdd.unw
 
@@ -90,7 +90,7 @@ def init_args():
     # read inputs
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=CustomFormatter)
     parser.add_argument('-f', dest='frame_dir', default="./", help="directory of LiCSBAS output of a particular frame")
-    parser.add_argument('-d', dest='ifg_dir', default="GEOCml10GACOS", help="folder containing connected cc files")
+    parser.add_argument('-d', dest='ifg_dir', default="GEOCml10GACOS", help="folder containing unw files")
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing time series")
     parser.add_argument('-m', dest='memory_size', default=2048, type=float, help="Max memory size for each patch in MB")
     parser.add_argument('-l', dest='ifg_list', default=None, type=str, help="text file containing a list of ifgs")
@@ -171,7 +171,7 @@ def main():
     ### Get all ifgdates in ifgdir
     if args.ifg_list:
         ifgdates = io_lib.read_ifg_list(args.ifg_list)
-    else:
+    else:ifg_dir
         ifgdates = tools_lib.get_ifgdates(ifgdir)
 
     ### Construct G and Aloop matrix for increment and n_gap
