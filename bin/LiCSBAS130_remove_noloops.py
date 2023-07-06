@@ -258,27 +258,33 @@ def main():
         countf = width*rows[0]
         countl = width*lengththis
         for i, ifgd in enumerate(ifgdates):
-            unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
-            ## Check for backed up data. THIS ASSUMES ALL DATA HAS BEEN NULLED THE SAME WAY
-            trueorigfile = os.path.join(ifgdir, ifgd, ifgd + '_orig.unw')
-            # If no trueorigfile exists, data is truely untouched
-            if not os.path.exists(trueorigfile):
-                shutil.move(unwfile, trueorigfile)
-                origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
-                # Softlink (used for checking if null has already occurred for LiCSBAS12, softlink to save space)
-                os.symlink(trueorigfile, origfile)
-            else:
-                # True orig exists - check if it is because loop err nullification has occurred
-                origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig12.unw')
-                if os.path.exists(origfile):
-                    # orig12 exists - backup unw as orig1213
-                    origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig1213.unw')
+            if i_patch == 0:
+                unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
+                ## Check for backed up data. THIS ASSUMES ALL DATA HAS BEEN NULLED THE SAME WAY
+                trueorigfile = os.path.join(ifgdir, ifgd, ifgd + '_orig.unw')
+                # If no trueorigfile exists, data is truely untouched
+                if not os.path.exists(trueorigfile):
+                    shutil.move(unwfile, trueorigfile)
+                    suffix = '_orig13.unw'
+                    origfile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+                    # Softlink (used for checking if null has already occurred for LiCSBAS12, softlink to save space)
+                    os.symlink(trueorigfile, origfile)
                 else:
-                    # orig12 doesn't exist. There should therefore be orig13 so no need to backup
-                    origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
-                shutil.move(unwfile, origfile)
+                    # True orig exists - check if it is because loop err nullification has occurred
+                    suffix = '_orig12.unw'
+                    origfile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+                    if os.path.exists(origfile):
+                        # orig12 exists - backup unw as orig1213
+                        suffix = '_orig1213.unw'
+                        origfile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+                    else:
+                        # orig12 doesn't exist. There should therefore be orig13 so no need to backup
+                        suffix = '_orig13.unw'
+                        origfile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+                    shutil.move(unwfile, origfile)
             
-            f = open(origfile, 'rb')
+            datafile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+            f = open(datafile, 'rb')
             f.seek(countf*4, os.SEEK_SET) #Seek for >=2nd patch, 4 means byte
 
             ### Read unw data (mm) at patch area
