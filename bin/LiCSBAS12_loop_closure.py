@@ -55,7 +55,7 @@ Outputs in TS_GEOCml*/ :
 Usage
 =====
 LiCSBAS12_loop_closure.py -d ifgdir [-t tsadir] [-l loop_thre] [--multi_prime]
- [--rm_ifg_list file] [--n_para int] [--nullify] [--ref_approx lon/lat] [--skip_pngs] [--treat_as_bad]
+ [--rm_ifg_list file] [--n_para int] [--nullify] [--nullmask] [--ref_approx lon/lat] [--skip_pngs] [--treat_as_bad]
 
  -d  Path to the GEOCml* dir containing stack of unw data.
  -t  Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
@@ -121,7 +121,6 @@ import LiCSBAS_plot_lib as plot_lib
 import xarray as xr
 import SCM
 
-
 class Usage(Exception):
     """Usage context manager"""
     def __init__(self, msg):
@@ -154,6 +153,7 @@ def main(argv=None):
     ref_approx = False
     do_pngs = True
     treat_as_bad = False
+    nullmask = False
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -170,7 +170,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:l:",
-                                       ["help", "multi_prime", "nullify", "skip_pngs", "treat_as_bad",
+                                       ["help", "multi_prime", "nullify", "nullmask", "skip_pngs", "treat_as_bad",
                                         "rm_ifg_list=", "n_para=", "ref_approx="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -192,12 +192,15 @@ def main(argv=None):
                 n_para = int(a)
             elif o == '--nullify':
                 nullify = True
+            elif o == '--nullmask':
+                nullmask = True
             elif o == '--skip_pngs':
                 do_pngs = False
             elif o == '--ref_approx':
                 ref_approx = a
             elif o == '--treat_as_bad':
                 treat_as_bad = True
+
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
         elif not os.path.isdir(ifgdir):
@@ -212,6 +215,13 @@ def main(argv=None):
         print("  "+str(err.msg), file=sys.stderr)
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         return 2
+
+    if nullify and nullmask:
+        print("Can't do option --nullify and --nullmask. Pick one \n")
+        return 2
+
+    if nullmask:
+        print('Producing nullmasks')
 
     print("\nloop_thre : {} rad".format(loop_thre), flush=True)
 
@@ -343,7 +353,7 @@ def main(argv=None):
 
     #%% Identify bad ifgs and output text
     bad_ifg1 = loop_lib.identify_bad_ifg(bad_ifg_cand, good_ifg)
-    print('Not Classifing any IFGS as bad after Loop Check 1')
+    print('Not Classifing any IFGS as bad after Loop Check 1 as this may be fixed by multi-prime')
     bad_ifg1 = []
 
     bad_ifgfile = os.path.join(loopdir, 'bad_ifg_loop.txt')
@@ -613,7 +623,7 @@ def main(argv=None):
     print('dataarray is not updated through parallel processing. avoiding parallelisation now', flush=True)
 
     # create 3D cube - False means presumed error in the loop
-    a = np.full((length,width,len(ifgdates)), treat_as_bad) #, dtype=bool)  # Jack edit - changed false to true
+    a = np.full((length,width,len(ifgdates)), treat_as_bad) #, dtype=bool)  # Jack edit - changed false to tr
     da = xr.DataArray(
         data=a,
         dims=[ "y", "x", "ifgd"],
@@ -626,6 +636,7 @@ def main(argv=None):
     #p.close()
     # dataarray is not updated through parallel processing. avoiding parallelisation now
     ns_loop_err, da = loop_closure_4th([0, len(Aloop)], da)
+
     print('Loop Closure 4th Complete')
     #ns_loop_err = np.sum(res[:, :, :,], axis=0)
 
@@ -647,6 +658,15 @@ def main(argv=None):
 
         print('\nRecalculating n_loop_err statistics')
         ns_loop_err_null, da = loop_closure_4th([0, len(Aloop)], da)
+
+    if nullmask:
+        print('saving nullify mask - not parallel now')
+        print('ifgdir = {}'.format(ifgdir))
+        for ifgd in ifgdates:
+            mask = da.loc[:, :, ifgd].values
+            # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
+            if not np.min(mask) and np.max(mask):
+                nullify_mask(ifgd, mask)
 
     # generate loop pngs:
     if do_pngs:
@@ -1134,6 +1154,7 @@ def loop_closure_4th_wrapper(args):
 # for now, without parallelism
 def loop_closure_4th(args, da):
     nullify_threshold = np.pi
+
     i0, i1 = args
     n_loop = Aloop.shape[0]
     ns_loop_err1 = np.zeros((length, width), dtype=np.int16)
@@ -1194,6 +1215,13 @@ def nullify_unw(ifgd, mask, ix, n_ifg):
         pngfile = os.path.join(ifgdir, ifgd, ifgd+'_gentle_null.png')
     plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), pngfile, cmap_wrap, ifgd+'.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
+def nullify_mask(ifgd, mask):
+    maskfile = os.path.join(ifgdir, ifgd, ifgd + '.nullify.mask')
+    if os.path.exists(maskfile):
+        os.remove(maskfile)
+    # Save nullify mask, where 0 = masked pixel, 1 = good pixel
+    mask.astype(np.int16).tofile(maskfile)
+    plot_lib.make_im_png(mask.astype(np.int16), maskfile + '.png', 'viridis', ifgd, 0, 1)
 
 #%% main
 if __name__ == "__main__":

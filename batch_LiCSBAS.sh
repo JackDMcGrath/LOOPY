@@ -48,6 +48,8 @@ p11_unw_thre=""	# default: 0.3
 p11_coh_thre=""	# default: 0.05
 p12_loop_thre="100"	# default: 1.5 rad
 p12_multi_prime="y"	# y/n. y recommended
+p12_nullify="n" # y/n
+p12_nullmask="y" # y/n
 p12_rm_ifg_list=""	# List file containing ifgs to be manually removed
 p12_null_noloop="n"
 p12_treat_as_bad="n"
@@ -273,6 +275,17 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
     p120_op="$p120_op -d $GEOCmldir -c $GEOCmldir";
     p13_op="$p13_op -c $GEOCmldir"
   fi
+
+  if [ ! -z $p12_GEOCmldir ];then p12_op="$p12_op -d $p12_GEOCmldir";
+    else p12_op="$p12_op -d $GEOCmldir"; fi
+  if [ ! -z $p12_TSdir ];then p12_op="$p12_op -t $p12_TSdir"; fi
+  if [ ! -z $p12_loop_thre ];then p12_op="$p12_op -l $p12_loop_thre"; fi
+  if [ $p12_multi_prime == "y" ];then p12_op="$p12_op --multi_prime"; fi
+  if [ $p12_nullify == "y" ];then p12_op="$p12_op --nullify"; fi
+  if [ $p12_nullmask == "y" ];then p12_op="$p12_op --nullmask"; fi
+  if [ ! -z $p12_rm_ifg_list ];then p12_op="$p12_op --rm_ifg_list $p12_rm_ifg_list"; fi
+  if [ ! -z $p12_n_para ];then p12_op="$p12_op --n_para $p12_n_para";
+  elif [ ! -z $n_para ];then p12_op="$p12_op --n_para $n_para";fi
 
 	if [ ! -z $p12_TSdir ];then
     p12_op="$p12_op -t $p12_TSdir"
