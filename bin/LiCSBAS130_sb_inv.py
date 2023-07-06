@@ -201,6 +201,10 @@ def main():
 
     args = init_args()
 
+    # Make sure requested n_para is not larger than the available
+    if args.n_para < n_para:
+        n_para = args.n_para
+
     if args.gpu:
         print("\nGPU option is activated. Need cupy module.\n")
         import cupy as cp
