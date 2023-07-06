@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Script to reset the nullified data to it's original state
 
 ifgdir=$1
 
@@ -10,5 +11,6 @@ for ifg in $(ls -d ${ifgdir}/20*); do
   unwfile=${ifg}/${pair}.unw
   if [ -f ${origfile} ]; then
     mv -f $origfile $unwfile
+    rm -rf ${ifg}/*orig*.unw
   fi
 done
