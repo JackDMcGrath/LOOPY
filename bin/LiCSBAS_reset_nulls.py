@@ -27,6 +27,7 @@ import glob
 import time
 import shutil
 import argparse
+import numpy as np
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
