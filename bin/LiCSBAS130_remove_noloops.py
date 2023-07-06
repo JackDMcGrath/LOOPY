@@ -380,7 +380,9 @@ def main():
 
     ## Write zeros file for n_no_loop for later masking
     zero_no_loop = np.zeros((length, width))
-    zero_no_loop[np.where(np.isnan(n_ifg_noloop))] = np.nan
+    file = os.path.join(resultsdir, 'n_ifg_noloop_preNullNoLoop')
+    data = io_lib.read_img(file, length, width)
+    zero_no_loop[np.where(np.isnan(data))] = np.nan
     file = os.path.join(resultsdir, 'n_ifg_no_loop')
     with open(file, 'w') as f:
         zero_no_loop.tofile(f)
