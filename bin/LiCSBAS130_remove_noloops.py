@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 """
+v2.0.0 20220706 Jack McGrath, Leeds Uni
 v1.5.4 20221020 Qi Ou, Leeds Uni
 v1.5.3 20211122 Milan Lazecky, Leeds Uni
 v1.5.2 20210311 Yu Morishita, GSI
 
-This script inverts the SB network of unw to obtain the time series and
-velocity using NSBAS (López-Quiroz et al., 2009; Doin et al., 2011) approach.
-A stable reference point is determined after the inversion. RMS of the time
-series wrt median among all points is calculated for each point.
-Then the point with minimum RMS and minimum n_gap is selected as new stable
-reference point.
+This script will take the statistics options from LiCSBAS130_sb_inv.py, and identifies
+and removes pixels that are not associated with a loop closure.
 
 ===============
 Input & output files
@@ -19,91 +16,35 @@ Inputs in GEOCml*/ (--comp_cc_dir):
    - yyyymmdd_yyyymmdd.cc
  - EQA.dem_par
  - slc.mli.par
- - baselines (may be dummy)
-[- [ENU].geo]
 
 Inputs in GEOCml*/ (--cc_dir+suffix):
  - yyyymmdd_yyyymmdd/
    - yyyymmdd_yyyymmdd.unw
 
-Inputs in TS_GEOCml*/ :
- - info/
-   - 120ref.txt
-[-results/]
-[  - coh_avg]
-[  - hgt]
-[  - n_loop_err]
-[  - n_unw]
-[  - slc.mli]
+Outputs in GEOCml*/:
+ - yyyymmdd_yyyymmdd/ :
+    - *.unw :   unw with noloop pixels nulled
+    - *_orig.unw : original, unnulled unw
+
+ - no_loop_ifg/ :
+    - yyyymmdd_yyyymmdd/ : Isolated interferograms fully not in any loop   
 
 Outputs in TS_GEOCml*/ :
- - 130cum*.h5             : Cumulative displacement (time-seires) in mm
  - 130results*/
-   - vel*[.png]        : Velocity in mm/yr (positive means LOS decrease; uplift)
-   - vintercept*[.png] : Constant part of linear velocity (c for vt+c) in mm
-   - resid_rms*[.png]  : RMS of residual in mm
    - n_gap*[.png]      : Number of gaps in SB network
    - n_ifg_noloop*[.png] :  Number of ifgs with no loop
    - maxTlen*[.png]    : Max length of continous SB network in year
- - info/
-   - 13parameters*.txt : List of used parameters
-   - 130used_image*.txt : List of used images
-   - 130resid*.txt      : List of RMS of residual for each ifg
-   - 130ref*.txt[kml]   : Auto-determined stable ref point
-   - 130rms_cum_wrt_med*[.png] : RMS of cum wrt median used for ref selection
- - 130increment*/yyyymmdd_yyyymmdd.increment.png
-     : Comparison between unw and inverted incremental displacement
- - 130resid*/yyyymmdd_yyyymmdd.res.png : Residual for each ifg
 
 =====
 Usage
 =====
-LiCSBAS130_sb_inv.py -d ifgdir [-t tsadir] [--inv_alg LS|WLS] [--mem_size float] [--gamma float] [--n_para int] [--n_unw_r_thre float] [--keep_incfile] [--gpu] [--fast] [--only_sb] [--nopngs]
+LiCSBAS130_sb_inv.py -d ifgdir [--n_para int] [--n_unw_r_thre float]
 
 """
 #%% Change log
 '''
-v1.5.3 20211122 Milan Lazecky, Leeds Uni
- - use fast_nsbas and only_sb to help make processing faster
-v1.5.2 20210311 Yu Morishita, GSI
- - Include noise indices and LOS unit vector in cum.h5 file
-v1.5.1 20210309 Yu Morishita, GSI
- - Change default --mem_size to 8000
- - Speed up by reading cum data on memory
-v1.5 20210305 Yu Morishita, GSI
- - Add GPU option
- - Speed up by activating n_para_inv and OMP_NUM_THREADS=1
-v1.4.8 20210127 Yu Morishita, GSI
- - Automatically reduce mem_size if available RAM is small
-v1.4.7 20201124 Yu Morishita, GSI
- - Comporess hdf5 file
-v1.4.6 20201119 Yu Morishita, GSI
- - Change default cmap for wrapped phase from insar to SCM.romaO
-v1.4.5 20201118 Yu Morishita, GSI
- - Again Bug fix of multiprocessing
-v1.4.4 20201116 Yu Morishita, GSI
- - Bug fix of multiprocessing in Mac python>=3.8
-v1.4.3 20201104 Yu Morishita, GSI
- - Bug fix when n_pt_unnan=0 in a patch
-v1.4.2 20201028 Yu Morishita, GSI
- - Update how to get n_para
-v1.4.1 20200925 Yu Morishita, GSI
- - Small bug fix in n_para
-v1.4 20200909 Yu Morishita, GSI
- - n_core -> n_para
- - Parallelize making png
-v1.3 20200902 Yu Morishita, GSI
- - Parallelize calculation of n_gap and n_ifg_noloop
- - Change n_core default to # of usable CPU
- - Fix n_core_inv=1 for inversion because it already uses multicore
-v1.2 20200225 Yu Morishita, Uni of Leeds and GSI
- - Not output network pdf
- - Change color of png
- - Change name of parameters.txt to 13parameters.txt
- - Deal with cc file in uint8 format
- - Automatically find stable reference point
-v1.1 20190829 Yu Morishita, Uni of Leeds and GSI
- - Remove cum.h5 if exists before creation
+v2.0.0 20230706 Jack McGrath, Uni of Leeds
+ - Re-edit for only nulling no-loop pixels
 v1.0 20190730 Yu Morishita, Uni of Leeds and GSI
  - Original implementation
 '''
@@ -394,9 +335,6 @@ def main():
                 _maxTlen[_maxTlen<_Tlen] = _Tlen[_maxTlen<_Tlen] ## Set Tlen to maxTlen
             maxTlen_patch[ix_unnan_pt] = _maxTlen
 
-
-
-
         #%% Fill by np.nan if n_pt_unnan == 0
         else:
             gap_patch = np.zeros((n_im-1, n_pt_all), dtype=np.int8)
@@ -435,6 +373,12 @@ def main():
         sec2 = int(np.mod(elapsed_time2,60))
         print("  Elapsed time for {0}th patch: {1:02}h {2:02}m {3:02}s".format(i_patch+1, hour2, minite2, sec2), flush=True)
 
+    ## Write zeros file for n_no_loop for later masking
+    zero_no_loop = np.zeros((length, width))
+    zero_no_loop[np.where(np.isnan(n_ifg_no_loop))] = np.nan
+    file = os.path.join(resultsdir, 'n_ifg_no_loop')
+    with open(file, 'w') as f:
+        zero_no_loop.tofile(f)
 
     #%% Output png images
     ### Velocity and noise indices
@@ -522,47 +466,6 @@ def null_noloop_wrapper(i):
     _ns_ifg_noloop_patch = ns_ifg_noloop_tmp - ns_nan_ifg # IFGs with no loop = IFGs with no loop - IFGs that are NaNs anyway (number no_loop per pixel)
 
     return _ns_gap_patch, _gap_patch, _ns_ifg_noloop_patch, ns_ifg_noloop_ix
-
-def recount_noloop_wrapper(i):
-    """
-    Script now that only counts the number of noloops, to be run after the noloops are nulled
-    """
-    print("    Running {:2}/{:2}th patch...".format(i+1, n_para_gap), flush=True)
-    n_pt_patch = int(np.ceil(unwpatch.shape[0]/n_para_gap))
-    n_im = G.shape[1]+1
-    n_loop, n_ifg = Aloop.shape
-
-    if i*n_pt_patch >= unwpatch.shape[0]:
-        # Nothing to do
-        return
-
-    ### n_ifg_noloop
-    # n_ifg*(n_pt,n_ifg)->(n_loop,n_pt)
-    # Number of ifgs for each loop at eath point.
-    # 3 means complete loop, 1 or 2 means broken loop.
-    ns_ifg4loop = np.array([(np.abs(Aloop[j, :])*
-                         (~np.isnan(unwpatch[i*n_pt_patch:(i+1)*n_pt_patch])))
-                            .sum(axis=1) for j in range(n_loop)])
-    bool_loop = (ns_ifg4loop==3) #(n_loop,n_pt) identify complete loop only
-    #bad_bool_loop = (ns_ifg4loop != 3) # Identify incomplete loops (Loop x Pixel)
-    del ns_ifg4loop
-
-    # n_loop*(n_loop,n_pt)*n_pt->(n_ifg,n_pt)
-    # Number of loops for each ifg at each point.
-    ns_loop4ifg = np.array([(
-            (np.abs(Aloop[:, j])*bool_loop.T).T*
-            (~np.isnan(unwpatch[i*n_pt_patch:(i+1)*n_pt_patch, j]))
-            ).sum(axis=0) for j in range(n_ifg)]) #    <= This is the variable that contains the number of loops for each IFG for each pixel
-    del bool_loop
-    ns_ifg_noloop_ix = (ns_loop4ifg == 0).astype('int') # Int array of n_ifg x n_px of px with no loops
-    ns_ifg_noloop_tmp = ns_ifg_noloop_ix.sum(axis=0) # Number of incomplete loops per pixel
-    #del ns_loop4ifg
-
-    ns_nan_ifg = np.isnan(unwpatch[i*n_pt_patch:(i+1)*n_pt_patch, :]).sum(axis=1)
-    #n_pt, nan ifg count
-    _ns_ifg_noloop_patch = ns_ifg_noloop_tmp - ns_nan_ifg # IFGs with no loop = IFGs with no loop - IFGs that are NaNs anyway (number no_loop per pixel)
-
-    return _ns_ifg_noloop_patch
 
 def null_png_wrapper(ifglist):
     for ifgd in ifglist:
