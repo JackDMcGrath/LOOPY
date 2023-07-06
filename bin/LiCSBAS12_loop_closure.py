@@ -1193,30 +1193,35 @@ def loop_closure_4th(args, da):
 
 def nullify_unw(ifgd, mask, ix, n_ifg):
     unwfile = os.path.join(ifgdir, ifgd, ifgd+'.unw')
-    ## Check for backed up data. THIS ASSUMES THAT ALL UNW HAS BEEN PROCESSED THE SAME WAY
-    savefile = os.path.join(ifgdir, ifgd, ifgd+'_orig13.unw')
-    # Check if orig12 exists (This means .unw has been through no loop nullification)
-    if os.path.exists(savefile):
-        savefile = os.path.join(ifgdir, ifgd, ifgd + '_orig1312.unw')
-    # Unw hasn't been no loop nulled before
-    else:
+    # Check for backed up files. THIS ASSUMES ALL DATA HAS BEEN NULLED THE SAME WAY
+    trueorigfile = os.path.join(ifgdir, ifgd, ifgd + '_orig.unw')
+    # If no trueorigfile exists, data is truely untouched
+    if not os.path.exists(trueorigfile):
+        shutil.move(unwfile, trueorigfile)
         origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig12.unw')
+        # Softlink (used for checking if null has already occurred for LiCSBAS13, softlink to save space)
+        os.symlink(trueorigfile, origfile)
+    else:
+        # True orig exists - check if it is because no loop nullification has occurred
+        origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
+        if os.path.exists(origfile):
+            # orig12 exists - backup unw as orig1213
+            origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig1312.unw')
+            shutil.move(unwfile, origfile)
+        else:
+            # orig12 doesn't exist. There should therefore be orig13 so no need to backup
+            origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig12.unw')
+            shutil.move(unwfile, origfile)
 
     if np.mod(ix, 100) == 0:
         print('  {}/{} IFG....'.format(ix, n_ifg))
-    if os.path.exists(unwfile):
-        if os.path.exists(savefile):
-            unw = io_lib.read_img(savefile, length, width) # Read in preserved un-looperr-nullified data
-            #unw[mask==False]=0  # should be ok but it appears as 0 in preview...
-            unw[mask == False] = np.nan
-            unw.tofile(unwfile)
-        else:
-            unw = io_lib.read_img(unwfile, length, width) # Read in data
-            #unw[mask==False]=0  # should be ok but it appears as 0 in preview...
-            unw[mask == False] = np.nan
-            os.rename(unwfile, savefile) # Preserve un-looperr-nullified data
-            unw.tofile(unwfile)
-            
+    
+    # Read in preserved data, nullify, and write to .unw file
+    unw = io_lib.read_img(origfile, length, width) # Read in preserved un-looperr-nullified data
+    #unw[mask==False]=0  # should be ok but it appears as 0 in preview...
+    unw[mask == False] = np.nan
+    unw.tofile(unwfile)
+
     cycle = 3
     if treat_as_bad:
         pngfile = os.path.join(ifgdir, ifgd, ifgd+'_aggro_null.png')

@@ -259,26 +259,24 @@ def main():
         countl = width*lengththis
         for i, ifgd in enumerate(ifgdates):
             unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
-            ## Check for backed up data. THIS ASSUMES THAT ALL UNW HAS BEEN PROCESSED THE SAME WAY
+            ## Check for backed up data. THIS ASSUMES ALL DATA HAS BEEN NULLED THE SAME WAY
             trueorigfile = os.path.join(ifgdir, ifgd, ifgd + '_orig.unw')
             # If no trueorigfile exists, data is truely untouched
             if not os.path.exists(trueorigfile):
-                shutil.move(unwfile, origfile)
+                shutil.move(unwfile, trueorigfile)
                 origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
                 # Softlink (used for checking if null has already occurred for LiCSBAS12, softlink to save space)
                 os.symlink(trueorigfile, origfile)
-
-
-            # Check if orig12 exists (This means .unw has been through loop err nullification)
-            if os.path.exists(origfile):
-                origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig1213.unw')
-                # Backup a version that has been loop err nulled, but not no loop nulled
-                shutil.move(unwfile, origfile)
-            # Unw hasn't been loop error nulled before
             else:
-                origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
-                # Check to see if there is an unw that has been backed up before no loop
-                if not os.path.exists(origfile):
+                # True orig exists - check if it is because loop err nullification has occurred
+                origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig12.unw')
+                if os.path.exists(origfile):
+                    # orig12 exists - backup unw as orig1213
+                    origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig1213.unw')
+                    shutil.move(unwfile, origfile)
+                else:
+                    # orig12 doesn't exist. There should therefore be orig13 so no need to backup
+                    origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
                     shutil.move(unwfile, origfile)
             
             f = open(origfile, 'rb')
