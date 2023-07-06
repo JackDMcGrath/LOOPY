@@ -17,7 +17,7 @@ Inputs in GEOCml*/ (--comp_cc_dir):
  - EQA.dem_par
  - slc.mli.par
 
-Inputs in GEOCml*/ (--cc_dir+suffix):
+Inputs in GEOCml*/ (--cc_dir):
  - yyyymmdd_yyyymmdd/
    - yyyymmdd_yyyymmdd.unw
 
@@ -90,11 +90,10 @@ def init_args():
     # read inputs
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=CustomFormatter)
     parser.add_argument('-f', dest='frame_dir', default="./", help="directory of LiCSBAS output of a particular frame")
-    parser.add_argument('-c', dest='cc_dir', default="GEOCml10GACOS", help="folder containing connected cc files")
+    parser.add_argument('-d', dest='ifg_dir', default="GEOCml10GACOS", help="folder containing connected cc files")
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing time series")
     parser.add_argument('-m', dest='memory_size', default=2048, type=float, help="Max memory size for each patch in MB")
     parser.add_argument('-l', dest='ifg_list', default=None, type=str, help="text file containing a list of ifgs")
-    parser.add_argument('--suffix', default="", type=str, help="suffix of the output")
     parser.add_argument('--n_unw_r_thre', metavar="THRE", type=float, help="Threshold of n_unw (number of used unwrap data) \n (Note this value is ratio to the number of images; i.e., 1.5*n_im) \n Larger number (e.g. 2.5) makes processing faster but result sparser. \n (Default: 1 and 0.5 for C- and L-band, respectively)")
     parser.add_argument('--n_para', type=int, help="Number of parallel processing (Default: # of usable CPU)")
     args = parser.parse_args()
@@ -110,7 +109,7 @@ def main():
     print("{} {}".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
 
     ## For parallel processing
-    global n_para_gap, G, Aloop, unwpatch, imdates, incdir, ccdir, ifgdir, length, width,\
+    global n_para_gap, G, Aloop, unwpatch, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, args
 
@@ -137,11 +136,7 @@ def main():
             n_para = args.n_para
 
     # define input directories
-    ccdir = os.path.abspath(os.path.join(args.frame_dir, args.cc_dir))  # to read .cc
-    if args.suffix == "1":
-        ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.cc_dir))  # to read .unw
-    else:
-        ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.cc_dir+args.suffix))  # to read .unw
+    ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.ifg_dir))  # to read .cc
     tsadir = os.path.abspath(os.path.join(args.frame_dir, args.ts_dir))   # to read 120.ref, to write cum.h5
 
     # define output directories and files
@@ -154,7 +149,7 @@ def main():
 
     #%% Read data information
     ### Get size
-    mlipar = os.path.join(ccdir, 'slc.mli.par')
+    mlipar = os.path.join(ifgdir, 'slc.mli.par')
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
     speed_of_light = 299792458 #m/s
@@ -188,13 +183,14 @@ def main():
     ixs_ifg_no_loop = np.where(ns_loop4ifg==0)[0]
     no_loop_ifg = [ifgdates[ix] for ix in ixs_ifg_no_loop]
 
-    no_loop_dir = os.path.join(ccdir, 'no_loop_ifg')
+    no_loop_dir = os.path.join(ifgdir, 'no_loop_ifg')
     if not os.path.exists(no_loop_dir):
         os.mkdir(no_loop_dir)
 
     print('Moving {} no loop ifgs to no_loop_ifg'.format(len(no_loop_ifg)))
     for ifg in no_loop_ifg:
-        shutil.move(os.path.join(ccdir, ifg), os.path.join(no_loop_dir, ifg))
+        shutil.move(os.path.join(ifgdir, ifg), os.path.join(no_loop_dir, ifg))
+        if os.path.exists(os.path.join(ifgdir, ifg))
 
     # Reset IFG dates list
     ifgdates_all = ifgdates
@@ -351,8 +347,8 @@ def main():
 
         ## For each ifg
         for i, ifgd in enumerate(ifgdates):
-            ifgfile = os.path.join(ccdir, ifgd, '{0}.unw'.format(ifgd))
-            origfile = os.path.join(ccdir, ifgd, '{0}_orig.unw'.format(ifgd))
+            ifgfile = os.path.join(ifgdir, ifgd, '{0}.unw'.format(ifgd))
+            origfile = os.path.join(ifgdir, ifgd, '{0}_orig.unw'.format(ifgd))
             # Backup unnulled data
             # Write patch to file
             with open(ifgfile, openmode) as f:
@@ -469,7 +465,7 @@ def null_noloop_wrapper(i):
 
 def null_png_wrapper(ifglist):
     for ifgd in ifglist:
-        infile = os.path.join(ccdir, ifgd, '{}.unw'.format(ifgd))
+        infile = os.path.join(ifgdir, ifgd, '{}.unw'.format(ifgd))
         unw = io_lib.read_img(infile, length, width)
 
         pngfile = infile+'_noLoop_null.png'
