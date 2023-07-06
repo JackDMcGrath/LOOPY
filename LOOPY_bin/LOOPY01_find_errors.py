@@ -72,7 +72,7 @@ LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-e errorfile
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
 -c        Path to the correction dierectory (Default: GEOCml*LoopMask)
 -m        Output multilooking factor (Default: No multilooking of mask, INCOMPTIBLE WITH FULL RES)
--h        Minimum size of error to correct (Default: 10 pixels at final ML size)
+-f        Minimum size of error to correct (Default: 10 pixels at final ML size)
 -e        Text file, where each row is a known error location, in form lon1,lat1,....,lonn,latn
 -v        IFG to give verbose timings for (Development option, Default: -1 (not verbose))
 --fullres Create masks from full res data (ie. orginal geotiffs) (Assume in folder called GEOC)
@@ -109,10 +109,11 @@ import LOOPY_lib as loopy_lib
 from osgeo import gdal
 from scipy.stats import mode
 from scipy.ndimage import label
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import binary_dilation, binary_closing
 from scipy.interpolate import NearestNDInterpolator
 from skimage import filters
 from skimage.filters.rank import modal
+from skimage.morphology import skeletonize
 
 insar = tools_lib.get_cmap('SCM.romaO')
 
@@ -137,7 +138,7 @@ def main(argv=None):
 
     global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
         length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir, \
-        corrdir, bool_mask, cycle, n_valid_thre, min_error
+        corrdir, bool_mask, cycle, n_valid_thre, min_error, coh_thresh
 
     # %% Set default
     ifgdir = []  # GEOCml* dir
@@ -145,6 +146,8 @@ def main(argv=None):
     corrdir = []  # Directory to hold the corrections
     ml_factor = []  # Amount to multilook the resulting masks
     errorfile = []  # File to hold lines containing known errors
+    autoerror = False
+    coh_thresh = []  # Coherence threshold for autoerror
     fullres = False
     reset = False
     plot_figures = False
@@ -167,7 +170,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:h:", ["help", "reset", "n_para=", "fullres"])
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:f:", ["help", "reset", "n_para=", "fullres", "autoerror", "coh_thresh="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -182,7 +185,7 @@ def main(argv=None):
                 corrdir = a
             elif o == '-m':
                 ml_factor = int(a)
-            elif o == '-h':
+            elif o == '-f':
                 min_error = int(a)
             elif o == '-e':
                 errorfile = a
@@ -194,6 +197,10 @@ def main(argv=None):
                 n_para = int(a)
             elif o == '--fullres':
                 fullres = True
+            elif o == '--autoerror':
+                autoerror = True
+            elif o == '--coh_thresh':
+                coh_thresh = float(a)
 
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
@@ -205,6 +212,10 @@ def main(argv=None):
         if fullres:
             if ml_factor:
                 raise Usage('Multilooking Factor given - not permitted with --fullres (will work to size GEOCml*)')
+            elif autoerror:
+                raise Usage('Fullres and Autoerror not permitted (havent yet implemented oversampling of coh_avg to fullres, or put in read cc.tif)')
+            elif coh_thresh:
+                raise Usage('Fullres and coh_thresh not permitted (havent yet implemented reading in *.cc.tif)')
             else:
                 mlIx = os.path.basename(ifgdir).find('ml')
                 mlIn = [ii for ii in os.path.basename(ifgdir)[mlIx + 2:]]
@@ -365,14 +376,79 @@ def main(argv=None):
             bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat, radius=2)
 
         bool_mask[np.where(bool_mask != 0)] = 1
+# %%
+    if autoerror:
+        statsfile = os.path.join(infodir, '11ifg_stats.txt')
+        if not coh_thresh:
+            if os.path.exists(statsfile):
+                with open(statsfile) as f:
+                    param = f.readlines()
+                coh_thresh = float([val.split()[4] for val in param if 'coh_thre' in val][0])
+            else:
+                coh_thresh = 0.15
+
+        print('Using {} average coherence threshold to find likely errors'.format(coh_thresh))
+        cohavgfile = os.path.join(tsadir, 'results', 'coh_avg')
+        if os.path.exists(cohavgfile):
+            print('Found existing coh_avg file in TSdir')
+            coh_avg = io_lib.read_img(cohavgfile, length, width)
+        else:
+            print('No coh_avg file. Calculating now...')
+            coh_avg = np.zeros((length, width), dtype=np.float32)
+            n_coh = np.zeros((length, width), dtype=np.int16)
+            n_unw = np.zeros((length, width), dtype=np.int16)
+
+            for ifgd in ifgdates:
+                ccfile = os.path.join(ifgdir, ifgd, ifgd + '.cc')
+                if os.path.getsize(ccfile) == length * width:
+                    coh1 = io_lib.read_img(ccfile, length, width, np.uint8)
+                    coh1 = coh1.astype(np.float32) / 255
+                else:
+                    coh1 = io_lib.read_img(ccfile, length, width)
+                    coh1[np.isnan(coh)] = 0  # Fill nan with 0
+
+                coh_avg += coh1
+                n_coh += (coh1 != 0)
+
+                unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
+                unw = io_lib.read_img(unwfile, length, width)
+
+                unw[unw == 0] = np.nan  # Fill 0 with nan
+                n_unw += ~np.isnan(unw)  # Summing number of unnan unw
+
+            coh_avg[n_coh == 0] = np.nan
+            n_coh[n_coh == 0] = 1  # to avoid zero division
+            coh_avg = coh_avg / n_coh
+
+        # loopy_lib.plotim(coh_avg, title='Coherence Average', centerz=False)
+        errs = np.zeros((length, width))
+        errs[np.where(coh_avg < coh_thresh)] = 1
+        # loopy_lib.plotim(errs, title='Coherence < {}'.format(coh_thresh), centerz=False)
+        labels = label(errs)[0]
+        label_id, label_size = np.unique(labels, return_counts=True)
+        label_id = label_id[np.where(label_size < min_error)]
+        # loopy_lib.plotim(errs, centerz=False)
+        errs[np.isin(labels, label_id)] = 0  # Drop any incoherent areas smaller than min_corr_size
+        # loopy_lib.plotim(errs, title='Coherence trimmed', centerz=False)
+        errs = binary_closing(errs, iterations=2)  # Fill in any holes in the incoherent regions
+        # loopy_lib.plotim(errs, title='Coherence filled', centerz=False)
+
+        errs2 = skeletonize(errs)
+        # loopy_lib.plotim(errs2, title='Coherence skeletonized', centerz=False)
+
+        bool_mask[np.where(errs2 == 1)] = 1
+
+    if errorfile or autoerror:
         bool_plot = bool_mask.copy()
         bool_plot[np.where(np.isnan(coh))] = np.nan
-
+        # loopy_lib.plotim(bool_plot, title='Coherence Thresh: {}'.format(coh_thresh), centerz=False)
         if fullres:
             bool_plot = tools_lib.multilook(bool_plot, ml_factor, ml_factor, n_valid_thre=0.1)
         title = 'Known UNW error Locations)'
         plot_lib.make_im_png(bool_plot, os.path.join(corrdir, 'known_errors.png'), 'viridis', title, vmin=0, vmax=1, cbar=False)
         print('Map of known error locations made')
+
+
 
     # Find reference pixel. If none provided, use highest coherence pixel
     if os.path.exists(ref_file):
@@ -528,6 +604,10 @@ def mask_unw_errors(i):
 
     if i == v:
         print('        UNW Loaded {:.2f}'.format(time.time() - begin))
+
+    if coh_thresh:
+        cc_map = io_lib.read_img(os.path.join(ifgdir, date, date + '.cc'), length=length, width=width, dtype=np.uint8).astype(np.float32) / 255
+        unw[np.where(cc_map < coh_thresh)] = np.nan
 
     # Find Reference Value, and reference all IFGs to same value
     if np.all(np.isnan(unw[refy1:refy2, refx1:refx2])):
@@ -702,6 +782,8 @@ def mask_unw_errors(i):
             print('        Correction Calculated {:.2f}'.format(time.time() - begin))
 
     # Apply correction to original version of IFG
+    if coh_thresh:
+        unw = io_lib.read_img(os.path.join(ifgdir, date, date + '.unw'), length=length, width=width)
     corr_unw = unw.copy()
     if i == v:
         print('        UNW copied {:.2f}'.format(time.time() - begin))
@@ -733,23 +815,22 @@ def mask_unw_errors(i):
         # Multilook coherence files as well if needed
         if not fullres:
             cohfile = os.path.join(ifgdir, date, date + '.cc')
-            coh = io_lib.read_img(cohfile, length=length, width=width, dtype=np.uint8).astype(np.float32)
-            coh[coh == 0] = np.nan
-            coh = tools_lib.multilook(coh, ml_factor, ml_factor, n_valid_thre=n_valid_thre).astype(np.uint8)
-            coh.tofile(os.path.join(corrdir, date, date + '.cc'))
+            cc = io_lib.read_img(cohfile, length=length, width=width, dtype=np.uint8).astype(np.float32)
+            cc[cc == 0] = np.nan
+            cc = tools_lib.multilook(cc, ml_factor, ml_factor, n_valid_thre=n_valid_thre).astype(np.uint8)
+            cc.tofile(os.path.join(corrdir, date, date + '.cc'))
             if i == v:
                 print('        Coherence multilooked {:.2f}'.format(time.time() - begin))
 
     # %% Make PNGs
-
     # Flip round now, so 1 = bad pixel, 0 = good pixel
-    mask = (mask == 0).astype('int')
-    mask[np.where(np.isnan(unw))] = 0
+    # mask = (mask == 0).astype('int')
+    # mask[np.where(np.isnan(unw))] = 0
     title = '{} ({}pi/cycle)'.format(date, cycle * 2)
     plot_lib.make_im_png(np.angle(np.exp(1j * corr_unw / cycle) * cycle), os.path.join(corrdir, date, date + '.unw.png'), SCM.romaO, title, vmin=-np.pi, vmax=np.pi, cbar=False)
     # Make new unw file from corrected data and new loop png
     corr_unw.tofile(os.path.join(corrdir, date, date + '.unw'))
-    mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
+    # mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     corrcomppng = os.path.join(corrdir, date, date + '.maskcorr.png')
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
@@ -759,6 +840,11 @@ def mask_unw_errors(i):
     loopy_lib.make_compare_png(unw, corr_unw, npi, correction / (2 * np.pi), corrcomppng, titles4, 3)
 
     title = 'Error Map'
+    if coh_thresh:
+        errs_found = errors.copy()
+        errors[np.where(cc < coh_thresh)] = 0.5
+        errors[np.where(errs_found)] = 1
+
     plot_lib.make_im_png(errors, os.path.join(corrdir, date, date + '.errormap.png'), 'viridis', title, vmin=0, vmax=1, cbar=False)
 
     if i == v:
