@@ -688,7 +688,6 @@ def mask_unw_errors(i):
         cc_map = io_lib.read_img(os.path.join(ifgdir, date, date + '.cc'), length=length, width=width, dtype=np.uint8).astype(np.float32) / 255
         unw[np.where(cc_map < coh_thresh)] = np.nan
 
-
     # Find Reference Value, and reference all IFGs to same value
     ifg = unw.copy()
     if np.all(np.isnan(unw[refy1:refy2, refx1:refx2])):
