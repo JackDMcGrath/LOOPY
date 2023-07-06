@@ -190,7 +190,6 @@ def main():
     print('Moving {} no loop ifgs to no_loop_ifg'.format(len(no_loop_ifg)))
     for ifg in no_loop_ifg:
         shutil.move(os.path.join(ifgdir, ifg), os.path.join(no_loop_dir, ifg))
-        if os.path.exists(os.path.join(ifgdir, ifg))
 
     # Reset IFG dates list
     ifgdates_all = ifgdates
@@ -259,9 +258,17 @@ def main():
         countf = width*rows[0]
         countl = width*lengththis
         for i, ifgd in enumerate(ifgdates):
-            unwfile = os.path.join(ifgdir, ifgd, ifgd+'.unw')
+            unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
             ## Check for backed up data. THIS ASSUMES THAT ALL UNW HAS BEEN PROCESSED THE SAME WAY
-            origfile = os.path.join(ifgdir, ifgd, ifgd+'_orig12.unw')
+            trueorigfile = os.path.join(ifgdir, ifgd, ifgd + '_orig.unw')
+            # If no trueorigfile exists, data is truely untouched
+            if not os.path.exists(trueorigfile):
+                shutil.move(unwfile, origfile)
+                origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
+                # Softlink (used for checking if null has already occurred for LiCSBAS12, softlink to save space)
+                os.symlink(trueorigfile, origfile)
+
+
             # Check if orig12 exists (This means .unw has been through loop err nullification)
             if os.path.exists(origfile):
                 origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig1213.unw')
