@@ -171,7 +171,7 @@ def main():
     ### Get all ifgdates in ifgdir
     if args.ifg_list:
         ifgdates = io_lib.read_ifg_list(args.ifg_list)
-    else:ifg_dir
+    else:
         ifgdates = tools_lib.get_ifgdates(ifgdir)
 
     ### Construct G and Aloop matrix for increment and n_gap
@@ -380,7 +380,7 @@ def main():
 
     ## Write zeros file for n_no_loop for later masking
     zero_no_loop = np.zeros((length, width))
-    zero_no_loop[np.where(np.isnan(n_ifg_no_loop))] = np.nan
+    zero_no_loop[np.where(np.isnan(n_ifg_noloop))] = np.nan
     file = os.path.join(resultsdir, 'n_ifg_no_loop')
     with open(file, 'w') as f:
         zero_no_loop.tofile(f)
