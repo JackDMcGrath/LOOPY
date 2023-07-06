@@ -273,11 +273,10 @@ def main():
                 if os.path.exists(origfile):
                     # orig12 exists - backup unw as orig1213
                     origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig1213.unw')
-                    shutil.move(unwfile, origfile)
                 else:
                     # orig12 doesn't exist. There should therefore be orig13 so no need to backup
                     origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
-                    shutil.move(unwfile, origfile)
+                shutil.move(unwfile, origfile)
             
             f = open(origfile, 'rb')
             f.seek(countf*4, os.SEEK_SET) #Seek for >=2nd patch, 4 means byte
@@ -363,7 +362,6 @@ def main():
         ## For each ifg
         for i, ifgd in enumerate(ifgdates):
             ifgfile = os.path.join(ifgdir, ifgd, '{0}.unw'.format(ifgd))
-            # Backup unnulled data
             # Write patch to file
             with open(ifgfile, openmode) as f:
                 null_patch[i, :].tofile(f)
