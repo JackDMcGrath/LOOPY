@@ -260,10 +260,20 @@ def main():
         countl = width*lengththis
         for i, ifgd in enumerate(ifgdates):
             unwfile = os.path.join(ifgdir, ifgd, ifgd+'.unw')
-            origfile = os.path.join(ifgdir, ifgd, ifgd+'_orig.unw')
-            # Read from backed up original data. if no backup, then backup
-            if not os.path.exists(origfile) and os.path.exists(unwfile):
+            ## Check for backed up data. THIS ASSUMES THAT ALL UNW HAS BEEN PROCESSED THE SAME WAY
+            origfile = os.path.join(ifgdir, ifgd, ifgd+'_orig12.unw')
+            # Check if orig12 exists (This means .unw has been through loop err nullification)
+            if os.path.exists(origfile):
+                origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig1213.unw')
+                # Backup a version that has been loop err nulled, but not no loop nulled
                 shutil.move(unwfile, origfile)
+            # Unw hasn't been loop error nulled before
+            else:
+                origfile = os.path.join(ifgdir, ifgd, ifgd + '_orig13.unw')
+                # Check to see if there is an unw that has been backed up before no loop
+                if not os.path.exists(origfile):
+                    shutil.move(unwfile, origfile)
+            
             f = open(origfile, 'rb')
             f.seek(countf*4, os.SEEK_SET) #Seek for >=2nd patch, 4 means byte
 
@@ -348,7 +358,6 @@ def main():
         ## For each ifg
         for i, ifgd in enumerate(ifgdates):
             ifgfile = os.path.join(ifgdir, ifgd, '{0}.unw'.format(ifgd))
-            origfile = os.path.join(ifgdir, ifgd, '{0}_orig.unw'.format(ifgd))
             # Backup unnulled data
             # Write patch to file
             with open(ifgfile, openmode) as f:
