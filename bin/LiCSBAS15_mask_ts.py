@@ -54,6 +54,8 @@ LiCSBAS15_mask_ts.py -t tsadir [-c coh_thre] [-u n_unw_r_thre] [-v vstd_thre]
 """
 #%% Change log
 '''
+v1.8.2 20211129 Milan Lazecky, Uni of Leeds
+ - Change default -i as global number of no_loop_ifgs + 1
 v1.8.1 20200911 Yu Morishita, GSI
  - Change default to -i 50
 v1.8 20200902 Yu Morishita, GSI
@@ -132,7 +134,8 @@ def main(argv=None):
     vmax = []
     keep_isolated = False
     auto_adjust = True
-    
+    suffix = ""
+
     cmap_vel = SCM.roma.reversed()
     cmap_noise = 'viridis'
     cmap_noise_r = 'viridis_r'
@@ -140,7 +143,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "ht:c:u:v:g:i:l:r:T:s:", ["version", "help", "vmin=", "vmax=", "keep_isolated", "noautoadjust"])
+            opts, args = getopt.getopt(argv[1:], "ht:c:u:v:g:i:l:r:T:s:", ["version", "help", "vmin=", "vmax=", "keep_isolated", "noautoadjust", "suffix="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -175,6 +178,8 @@ def main(argv=None):
                 keep_isolated = True
             elif o == '--noautoadjust':
                 auto_adjust = False
+            elif o == '--suffix':
+                suffix = a
 
         if not tsadir:
             raise Usage('No tsa directory given, -t is not optional!')
@@ -192,14 +197,17 @@ def main(argv=None):
 
     #%% Directory and file setting and get info
     tsadir = os.path.abspath(tsadir)
-    resultsdir = os.path.join(tsadir,'results')
+    if suffix == "":
+        resultsdir = os.path.join(tsadir, 'results')
+    else:
+        resultsdir = os.path.join(tsadir, '130results' + suffix)
 
     inparmfile = os.path.join(tsadir, 'info', '13parameters.txt')
     if not os.path.exists(inparmfile):  ## for old LiCSBAS13 <v1.2
         inparmfile = os.path.join(tsadir, 'info', 'parameters.txt')
     outparmfile = os.path.join(tsadir, 'info', '15parameters.txt')
-    maskts_png = os.path.join(tsadir,'mask_ts.png')
-    maskts2_png = os.path.join(tsadir,'mask_ts_masked.png')
+    maskts_png = os.path.join(resultsdir, 'mask_ts.png')
+    maskts2_png = os.path.join(resultsdir, 'mask_ts_masked.png')
 
     names = ['coh_avg', 'n_unw', 'vstd', 'maxTlen', 'n_gap', 'stc', 'n_ifg_noloop', 'n_loop_err', 'resid_rms'] ## noise indices
     gt_lt = ['lt', 'lt', 'gt', 'lt', 'gt', 'gt', 'gt', 'gt', 'gt'] ## > or <
@@ -217,9 +225,13 @@ def main(argv=None):
     n_im = int(io_lib.get_param_par(inparmfile, 'n_im'))
 
     
-    #%% Determine default thretholds depending on frequency band
+    #%% Determine default thresholds depending on frequency band
     if not 'maxTlen' in thre_dict: thre_dict['maxTlen'] = 1
-    if not 'n_ifg_noloop' in thre_dict: thre_dict['n_ifg_noloop'] = 50
+    if not 'n_ifg_noloop' in thre_dict:
+        try:
+            thre_dict['n_ifg_noloop'] = len(os.listdir(os.path.join(tsadir, '12no_loop_ifg_ras')))+1
+        except:
+            thre_dict['n_ifg_noloop'] = 50
 
     if wavelength > 0.2: ## L-band
         if not 'coh_avg' in thre_dict: thre_dict['coh_avg'] = 0.01

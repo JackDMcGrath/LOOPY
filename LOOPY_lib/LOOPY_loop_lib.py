@@ -33,7 +33,7 @@ import warnings
 import matplotlib as mpl
 with warnings.catch_warnings(): ## To silence user warning
     warnings.simplefilter('ignore', UserWarning)
-    mpl.use('module://matplotlib_inline.backend_inline')
+#    mpl.use('module://matplotlib_inline.backend_inline')
 
 cmap_wrap = tools_lib.get_cmap('SCM.romaO')
 cmap_loop = tools_lib.get_cmap('SCM.vik')
@@ -53,7 +53,7 @@ def make_loop_matrix(ifgdates):
     """
     n_ifg = len(ifgdates)
     Aloop = []
-    
+
     for ix_ifg12, ifgd12 in enumerate(ifgdates):
         primary12 = ifgd12[0:8]
         secondary12 = ifgd12[9:17]
@@ -89,7 +89,7 @@ def read_unw_loop_ph(Aloop1, ifgdates, ifgdir, length, width, bad_ifg=[], mask=F
     ifgd12 = ifgdates[ix_ifg12]
     ifgd23 = ifgdates[ix_ifg23]
     ifgd13 = ifgdates[ix_ifg13]
-    
+
     if mask:
         fileend = ['.unw_mask','.unw_mask','.unw_mask']
         fileend[bad_ifg-1] = '.unw'
@@ -178,7 +178,7 @@ def make_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle):
     plt.tight_layout()
     plt.savefig(png)
     plt.close()
-    
+
 #####%%
 #%% Functions for Loopy_lib14
 #####%%
@@ -189,12 +189,12 @@ def create_loop_dict(A3loop, ifgdates):
     ifg_dict = {}
     for count,ifg in enumerate(ifgdates):
         ifg_dict[ifg] = list(np.where(A3loop[:,count] != 0)[0])
-        
+
     # Loop: IFGs
     loop_dict = {}
     for i in range(np.shape(A3loop)[0]):
         loop_dict[i] = np.where(A3loop[i,:] != 0)[0].tolist()
-    
+
     print('    Loop Dictionaries made')
     return ifg_dict, loop_dict
 
@@ -211,7 +211,7 @@ def calc_bad_ifg_position_single(bad_ifg, Aloop, ifgdates):
         ifg_ix = 3
     else:
         ifg_ix = 2
-        
+
     return ifg_ix
 
 #%% Function to correct the bad interferogram using loop closure
@@ -221,7 +221,7 @@ def get_corr(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_file = [
 
     if ref_file:
         refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
-        
+
         ## Skip if no data in ref area in any unw. It is bad data.
         ref_unw12 = np.nanmean(unw12[refy1:refy2, refx1:refx2])
         ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
@@ -231,14 +231,14 @@ def get_corr(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_file = [
 
     ## Calculate loop phase taking into account ref phase
     loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
-    
+
     if multi_prime:
         bias = np.nanmedian(loop_ph)
         loop_ph = loop_ph - bias # unbias inconsistent fraction phase
 
     n_pi_correction = (loop_ph / (2*np.pi)).round() # Modulo division would mean that a pixel out by 6 rads wouldn't be corrected, for example
     loop_correction = n_pi_correction * 2 * np.pi
-    
+
     if bad_ix == 3:
         loop_correction = loop_correction * -1
 
@@ -271,29 +271,29 @@ def correct_bad_ifg(bad_ifg_name,corr,ifgdir, length, width, loop, ifgdates, loo
     shutil.move(os.path.join(ifgdir, bad_ifg_name, bad_ifg_name + '.unw'),os.path.join(ifgdir, bad_ifg_name, bad_ifg_name + '_uncorr.unw'))
     shutil.move(os.path.join(ifgdir, bad_ifg_name, bad_ifg_name + '.unw.png'),os.path.join(ifgdir, bad_ifg_name, bad_ifg_name + '_uncorr.unw.png'))
     plot_lib.make_im_png(np.angle(np.exp(1j*corr_ifg/3)*3), os.path.join(ifgdir, bad_ifg_name, bad_ifg_name + '.unw.png'), SCM.romaO, title, -np.pi, np.pi, cbar=False)
-    
+
     # Make new unw file from corrected data and new loop png
     corr_ifg.tofile(os.path.join(ifgdir, bad_ifg_name, bad_ifg_name + '.unw'))
-    
+
     corr[np.isnan(ifg)] = np.nan
     max_corr = np.nanmax(abs(corr))
     plot_lib.make_im_png(corr/(2*np.pi),os.path.join(ifgdir, bad_ifg_name, bad_ifg_name + '_npi.unw.png'), SCM.vik, bad_ifg_name + ' (2Pi Correction)', vmin = -max_corr/(2*np.pi), vmax = max_corr/(2*np.pi))
-    
+
 
     for l in range(loop.shape[0]):
-        
+
         re_loop(loop[l], ifgdates, ifgdir, length, width, loopdir, ref_file, cycle=cycle)
-        
+
 #%% Function to re-run loops where interferograms have been corrected
 def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file=[], cycle = 3, multi_prime = True):
-    
+
     unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = read_unw_loop_ph(loop, ifgdates, ifgdir, length, width)
-    
+
     imd1 = ifgd12[:8]
     imd2 = ifgd23[:8]
     imd3 = ifgd23[-8:]
-    
-    
+
+
     if ref_file:
         refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
 
@@ -309,13 +309,13 @@ def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file=[], cycle =
 
  ## Calculate loop phase taking into account ref phase
     loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
-    
+
     if multi_prime:
         bias = np.nanmedian(loop_ph)
         loop_ph = loop_ph - bias # unbias inconsistent fraction phase
-    
+
     rms = np.sqrt(np.nanmean(loop_ph**2))
-    
+
     titles4 = ['{} ({}*2pi/cycle)'.format(imd1+'_'+imd2, cycle),
                '{} ({}*2pi/cycle)'.format(imd2+'_'+imd3, cycle),
                '{} ({}*2pi/cycle)'.format(imd1+'_'+imd3, cycle),]
@@ -323,7 +323,7 @@ def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file=[], cycle =
         titles4.append('Loop (STD={:.2f}rad, bias={:.2f}rad)'.format(rms, bias))
     else:
         titles4.append('Loop phase (RMS={:.2f}rad)'.format(rms))
-    
+
     loop_id = imd1+'_'+imd2+'_'+imd3+'_loop'
     png = os.path.join(loopdir,'bad_loop_png',loop_id)
     uncorr_png = png + '_V0'
@@ -331,7 +331,7 @@ def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file=[], cycle =
     if os.path.exists(png + '.png') or os.path.exists(uncorr_png + '.png'):
         if os.path.exists(png + '.png'):
             shutil.move(png + '.png',uncorr_png + '.png')
-            
+
         while os.path.exists(uncorr_png + '.png'):
             uncorr_png = uncorr_png[:-1] + str(int(uncorr_png[-1])+1)
 
@@ -341,30 +341,30 @@ def re_loop(loop, ifgdates, ifgdir, length, width, loopdir, ref_file=[], cycle =
 
         if os.path.exists(png + '.png'):
             shutil.move(png + '.png',uncorr_png + '.png')
-            
+
         while os.path.exists(uncorr_png + '.png'):
             uncorr_png = uncorr_png[:-1] + str(int(uncorr_png[-1])+1)
-            
+
     elif os.path.exists(os.path.join(loopdir, 'good_loop_png', loop_id + '.png')) or os.path.exists(os.path.join(loopdir, 'good_loop_png', loop_id + '_V0.png')):
         png = os.path.join(loopdir,'good_loop_png', loop_id)
         uncorr_png = png + '_V0'
 
         if os.path.exists(png + '.png'):
             shutil.move(png + '.png',uncorr_png + '.png')
-            
+
         while os.path.exists(uncorr_png + '.png'):
             uncorr_png = uncorr_png[:-1] + str(int(uncorr_png[-1])+1)
-    
+
     else:
         png = os.path.join(loopdir,'loop_pngs',loop_id + '_V1')
-        
+
         while os.path.exists(png + '.png'):
             png = png[:-1] + str(int(png[-1])+1)
-            
+
         uncorr_png = png
-    
+
     make_loop_png(unw12, unw23, unw13, loop_ph, uncorr_png, titles4, cycle)
-    
+
     # print('Loop:',imd1+'_'+imd2+'_'+imd3, 'New RMS:',rms)
 
 
@@ -475,7 +475,7 @@ def find_ref_area(ref_file):
     with open(ref_file, "r") as f:
         refarea = f.read().split()[0]  #str, x1/x2/y1/y2
     refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
-    
+
     return refx1, refx2, refy1, refy2
 
 #%% Function to check and correct loop
@@ -517,7 +517,7 @@ def calc_bad_ifg_position_single3(bad_ifg, Aloop, ifgdates):
         ifg_ix = 3
     else:
         ifg_ix = 2
-        
+
     return ifg_ix
 
 #%% Function to correct the bad interferogram using loop closure
@@ -529,7 +529,7 @@ def get_corr3(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_file = 
 
     if ref_file:
         refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
-        
+
         ## Skip if no data in ref area in any unw. It is bad data.
         ref_unw12 = np.nanmean(unw12[refy1:refy2, refx1:refx2])
         ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
@@ -539,7 +539,7 @@ def get_corr3(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_file = 
 
     ## Calculate loop phase taking into account ref phase
     loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
-    
+
     if multi_prime:
         bias = np.nanmedian(loop_ph)
         loop_ph = loop_ph - bias # unbias inconsistent fraction phase
@@ -548,7 +548,7 @@ def get_corr3(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_file = 
 
     n_pi_correction = (loop_error / (2*np.pi)).round() # Modulo division would mean that a pixel out by 6 rads wouldn't be corrected, for example
     loop_correction = n_pi_correction * 2 * np.pi
-    
+
     if bad_ix == 3:
         loop_correction = loop_correction * -1
 
@@ -562,7 +562,7 @@ def read_loop_masks(Aloop1, ifgdates, ifgdir, length, width, bad_ifg=[], mask=Fa
     ifgd12 = ifgdates[ix_ifg12]
     ifgd23 = ifgdates[ix_ifg23]
     ifgd13 = ifgdates[ix_ifg13]
-    
+
 
     ### Read unw data
     mask12file = os.path.join(ifgdir, ifgd12, ifgd12+'.mask')
@@ -575,7 +575,7 @@ def read_loop_masks(Aloop1, ifgdates, ifgdir, length, width, bad_ifg=[], mask=Fa
         mask12 = np.zeros([length,width]).astype('float32')
         mask12.tofile(mask12file)
         print('\t\t',mask12file,'not found')
-    
+
     if not os.path.exists(os.path.join(mask12file+'.png')):
         plot_lib.make_im_png(mask12,os.path.join(mask12file + '.png'), SCM.vik, 'Correction Mask', vmin = -np.nanmax(abs(mask12)), vmax = np.nanmax(abs(mask12)))
 
@@ -589,7 +589,7 @@ def read_loop_masks(Aloop1, ifgdates, ifgdir, length, width, bad_ifg=[], mask=Fa
         mask23 = np.zeros([length,width]).astype('float32')
         mask23.tofile(mask23file)
         print('\t\t',mask23file,'not found')
-    
+
     if not os.path.exists(os.path.join(mask23file+'.png')):
         plot_lib.make_im_png(mask23,os.path.join(mask23file + '.png'), SCM.vik, 'Correction Mask', vmin = -np.nanmax(abs(mask23)), vmax = np.nanmax(abs(mask23)))
 
@@ -603,7 +603,7 @@ def read_loop_masks(Aloop1, ifgdates, ifgdir, length, width, bad_ifg=[], mask=Fa
         mask13 = np.zeros([length,width]).astype('float32')
         mask13.tofile(mask13file)
         print('\t\t',mask13file,'not found')
-    
+
     if not os.path.exists(os.path.join(mask13file+'.png')):
         plot_lib.make_im_png(mask13,os.path.join(mask13file + '.png'), SCM.vik, 'Correction Mask', vmin = -np.nanmax(abs(mask13)), vmax = np.nanmax(abs(mask13)))
 
@@ -614,7 +614,7 @@ def get_corr_mask(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_fil
 
     unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = read_unw_loop_ph(loop, ifgdates, ifgdir, length, width)
     mask12, mask23, mask13 = read_loop_masks(loop, ifgdates, ifgdir, length, width)
-    
+
     #Apply mask to the IFGs that we deem to have been good for the purpose of this correction
     if bad_ix != 1:
         unw12[mask12==1] = np.nan
@@ -622,10 +622,10 @@ def get_corr_mask(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_fil
         unw23[mask23==1] = np.nan
     if bad_ix != 3:
         unw13[mask13==1] = np.nan
-    
+
     if ref_file:
         refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
-        
+
         ## Skip if no data in ref area in any unw. It is bad data.
         ref_unw12 = np.nanmean(unw12[refy1:refy2, refx1:refx2])
         ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
@@ -635,7 +635,7 @@ def get_corr_mask(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_fil
 
     ## Calculate loop phase taking into account ref phase
     loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
-    
+
     if multi_prime:
         bias = np.nanmedian(loop_ph)
         loop_ph = loop_ph - bias # unbias inconsistent fraction phase
@@ -644,14 +644,14 @@ def get_corr_mask(loop, bad_ix, thresh, ifgdates, ifgdir, length, width, ref_fil
 
     n_pi_correction = (loop_error / (2*np.pi)).round() # Modulo division would mean that a pixel out by 6 rads wouldn't be corrected, for example
     loop_correction = n_pi_correction * 2 * np.pi
-    
+
     if bad_ix == 3:
         loop_correction = loop_correction * -1
 
     return loop_correction
 
 
-    
+
 #%%
 def make_corr_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle):
     cmap_loop = tools_lib.get_cmap('SCM.vik')
@@ -698,13 +698,13 @@ def make_corr_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle):
     plt.savefig(png)
     plt.close()
 
-#%% 
+#%%
 def create_3loop_dictionaries(A3loop, bad_ifg_ix, bad_ifg_cands_ix, good_ifg_ix=[]):
     #IFG:Bad_Loops
     bad_ifg3_dict = {}
     for ifg in bad_ifg_ix:
         bad_ifg3_dict[str(ifg)] = list(np.where(A3loop[:,ifg] != 0)[0])
-        
+
     bad_ifg3_cands_dict = {}
     for ifg in bad_ifg_cands_ix:
         bad_ifg3_cands_dict[str(ifg)] = list(np.where(A3loop[:,ifg] != 0)[0])
@@ -729,24 +729,24 @@ def create_3loop_dictionaries(A3loop, bad_ifg_ix, bad_ifg_cands_ix, good_ifg_ix=
         for count, ifgs in enumerate(bad_ifg3_cands_dict.values()):
             if i in ifgs:
                 bad_loop3_cands_dict[str(i)].append(bad_ifg_cands_ix[count])
-                
+
     if len(good_ifg_ix) != 0:
         good_ifg3_dict = {}
         for ifg in good_ifg_ix:
             good_ifg3_dict[str(ifg)] = list(np.where(A3loop[:,ifg] != 0)[0])
         good_loop3_ix = list(np.unique([item for sublist in good_ifg3_dict.values() for item in sublist]))
         good_loop3_ix = list(set(good_loop3_ix)-set(bad_loop3_cands_ix)-set(bad_loop3_ix))
-        
+
         good_loop3_dict = {}
         for i in good_loop3_ix:
             good_loop3_dict[str(i)] = []
             for count, ifgs in enumerate(good_ifg3_dict.values()):
                 if i in ifgs:
                     good_loop3_dict[str(i)].append(good_ifg_ix[count])
-                    
+
         print('    3Loop Dictionaries made')
         return bad_ifg3_dict, bad_ifg3_cands_dict, good_ifg3_dict, bad_loop3_dict, bad_loop3_cands_dict, good_loop3_dict
-                
+
     else:
         print('    3Loop Dictionaries made')
         return bad_ifg3_dict, bad_ifg3_cands_dict, bad_loop3_dict, bad_loop3_cands_dict
@@ -766,7 +766,7 @@ def remove_fixed_loops(check_loops, bad_ifg_number, bad_ifg_dict, bad_loop_dict,
             if len(bad_loop_dict[str(loop)]) == 1:
                 if loop not in bad_loop_cands_dict.keys(): # Check to ensure our unique loop is not it the candidate dictionary
                     unique_DF.loc[df_ix,'No. Unique'] += 1
-                    
+
     return bad_ifg_dict, bad_loop_dict, unique_DF
 
 #%%
@@ -780,42 +780,42 @@ def get_mode(corr_all):
     corrcount = np.array(corrcount[:,:,0])
     corrcount[np.all(corr_all==0, axis=2)] = np.shape(corr_all)[2]
     corrcount[corrcount==0] = np.nan
-    
+
     return corr, corrcount
 
 
 #%% Script for the event of the modal correction is exactly half the number of half, to see which half is the correct.
 def half_check(nloops,corrcount, corr_all):
     halfn = nloops/2 # How many loops is half loops?
-    
+
     # Get all pixels where the corrcount = halfn
     halfcount = corrcount == halfn
     corr_half = np.copy(corr_all)
-    
+
     #Set all pixels where corrcount != halfn to nan
     for i in range(nloops):
         corr_half[halfcount==0,i] = np.nan
-    
+
     # Find the mean error in these areas
     err_mean = np.full(nloops,np.nan)
-    
+
     for l in range(nloops):
         err_mean[l] = np.nanmean(corr_all[:,:,l])
-    
+
     errors = pd.DataFrame(np.linspace(0,nloops-1,nloops).astype('int'), columns=['Loop'])
     errors['Mean'] = err_mean
     errors = errors.sort_values(by=['Mean'],ignore_index=True)
-    
+
     # Find similar corrections
     similarity =[]
     for i in range(int(halfn+1)):
         similarity.append(errors.loc[i+halfn-1,'Mean'] - errors.loc[i,'Mean'])
     sim_ix = similarity.index(min(similarity))
     sim_loops = errors.loc[sim_ix:sim_ix+halfn-1,'Loop'].tolist()
-    
+
     return sim_loops
 
-  
+
 #%%
 def create_masks(ifg, nloops, sim_loops, maskloops, masks, corr_all, corr, corrcount, bad_data, good_data, good_loop3_dict, ifgdir, ifgdates):
     # Make masks for the loops
@@ -825,10 +825,10 @@ def create_masks(ifg, nloops, sim_loops, maskloops, masks, corr_all, corr, corrc
         good_corr = good_corr.astype('int') + good_data.astype('int')
         masks[good_corr==2,count] += 2 # Earn two points for being majority solution
         masks[good_corr!=2,count] -= 2 # Lose two points for not being majority solution
-        
+
         if count in sim_loops:
             masks[corrcount == nloops/2, count] += 4
-        
+
         # Write masks to file (always overwrite previous masks)
         # breakpoint()
         for i in good_loop3_dict[str(loop)]:
@@ -836,7 +836,7 @@ def create_masks(ifg, nloops, sim_loops, maskloops, masks, corr_all, corr, corrc
                 maskfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i]+'.mask')
                 mask = masks[:,:,count]
                 mask.tofile(maskfile)
-                
+
 #%% Decide if Loop is Corrected, Good, Cand, or Bad
 def classify_loops(corr_loop_df, ix):
     if corr_loop_df.loc[ix,'Bad'] != 0:
@@ -847,7 +847,7 @@ def classify_loops(corr_loop_df, ix):
         corr_loop_df.loc[ix,'Class'] = 'Good'
     else:
         corr_loop_df.loc[ix,'Class'] = 'Corr'
-    
+
     return corr_loop_df
 
 #%% Update corr_df once IFGs have been corrected
@@ -862,26 +862,26 @@ def update_corr_df(corr_loop_df, ifg, ifgname, ifg_dict, good_ifg_list, bad_ifg_
     if ifgname in bad_ifg_list:
         for i in ifg_dict[ifg]:
             corr_loop_df.loc[i, 'Bad'] -= 1
-    
+
     for l in ifg_dict[ifg]:
         corr_loop_df.loc[l,'Corr'] += 1
         corr_loop_df = classify_loops(corr_loop_df,l)
-            
+
     return corr_loop_df
 
 #%% Update loop dictionaries to account for corrected IFGs
 def update_loop_dicts(nloops, corr_loop_df, good_loop_dict, bad_loop_cands_dict, bad_loop_dict):
-    
+
     corr = corr_loop_df.loc[corr_loop_df['Class'] == 'Corr', 'Loop'].tolist()
     good = corr_loop_df.loc[corr_loop_df['Class'] == 'Good', 'Loop'].tolist()
     good = good + corr
     cand = corr_loop_df.loc[corr_loop_df['Class'] == 'Cand', 'Loop'].tolist()
     bad = corr_loop_df.loc[corr_loop_df['Class'] == 'Bad', 'Loop'].tolist()
-    
+
     new_good_dict = {}
     new_cand_dict = {}
     new_bad_dict = {}
-    
+
     for loop in range(nloops):
         if str(loop) in good_loop_dict.keys():
             vals = good_loop_dict[str(loop)]
@@ -889,21 +889,21 @@ def update_loop_dicts(nloops, corr_loop_df, good_loop_dict, bad_loop_cands_dict,
             vals = bad_loop_cands_dict[str(loop)]
         elif str(loop) in bad_loop_dict.keys():
             vals = bad_loop_dict[str(loop)]
-            
+
         if loop in good:
             new_good_dict[str(loop)] = vals
         elif loop in cand:
             new_cand_dict[str(loop)] = vals
         elif loop in bad:
             new_bad_dict[str(loop)] = vals
-    
+
     return new_good_dict, new_cand_dict, new_bad_dict
 
 #%% Update ifg_loop_df to see how what loops are with what ifg
 def update_ifg_df(ifg_loop_df, ifg_dict, corr_loop_df):
-    
+
     n_ifg = ifg_loop_df.shape[0]
-    
+
     ifg_loop_df[['Corr', 'Good', 'Cand', 'Bad']] = 0
     for i in range(n_ifg):
         ix = ifg_loop_df[ifg_loop_df['IFG_IX'] == i].index[0]
@@ -911,14 +911,14 @@ def update_ifg_df(ifg_loop_df, ifg_dict, corr_loop_df):
         for l in loops:
             loop_class = corr_loop_df.loc[l,'Class']
             ifg_loop_df.loc[ix,loop_class] += 1
-            
+
     return ifg_loop_df
 
 #%%
 def reset_loops(ifgdir,loopdir, tsadir):
     if os.path.exists(os.path.join(ifgdir, 'Corr_dir')):
         shutil.rmtree(os.path.join(ifgdir, 'Corr_dir'))
-    
+
     for root, dirs, files in os.walk(ifgdir):
         for dir_name in dirs:
             unw = os.path.join(root,dir_name,dir_name + '_unref.unw')
@@ -933,12 +933,12 @@ def reset_loops(ifgdir,loopdir, tsadir):
                     os.remove(uncorr)
                     os.remove(uncorr + '.png')
                     os.remove(uncorr[:-11] + '_npi.unw.png')
-            
+
             elif os.path.exists(uncorr):
                 shutil.move(uncorr, uncorr[:-11] + '.unw')
                 shutil.move(uncorr +'.png', uncorr[:-11] + '.unw.png')
                 os.remove(uncorr[:-11] + '_npi.unw.png')
-                
+
             elif os.path.exists(oldmask):
                 shutil.move(oldmask, oldmask[:-3])
 
@@ -951,32 +951,32 @@ def reset_loops(ifgdir,loopdir, tsadir):
                     shutil.move(os.path.join(root,file_name), os.path.join(root,file_name[:-7] + '.png'))
                 else:
                     os.remove(os.path.join(root,file_name))
-                    
+
             if file_name[:5] == 'check':
                 os.remove(os.path.join(root,file_name))
-    
+
     for root, dirs, files in os.walk(os.path.join(tsadir,'network')):
         for file_name in files:
             if 'correct' in file_name:
                 os.remove(os.path.join(root,file_name))
-        
+
     for root, dirs, files in os.walk(os.path.join(tsadir,'info')):
         for file_name in files:
             if 'correct' in file_name:
                 os.remove(os.path.join(root,file_name))
-    
+
     for root, dirs, files in os.walk(os.path.join(tsadir,'12ifg_ras')):
         for file_name in files:
             if 'V1' in file_name:
                 os.remove(os.path.join(root,file_name))
             if 'V0' in file_name:
                 shutil.move(os.path.join(root,file_name),os.path.join(root,file_name[:-11]+'.unw.png'))
-                
+
     if os.path.exists(os.path.join(loopdir,'loop_pngs')):
         shutil.rmtree(os.path.join(loopdir,'loop_pngs'))
 
     print(' Loops Reset\nReset Complete\n')
-    
+
 #%%
 def loop_closure_3rd_wrapper(Aloop, ifgdates, ifgdir, length, width, ref_file):
     refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
@@ -1000,7 +1000,7 @@ def etc(start, now, num, n_ifg):
     hour = int(end/3600)
     minute = int(np.mod((end/60),60))
     sec = int(np.mod(end,60))
-    
+
     return hour, minute, sec
 
 
@@ -1008,7 +1008,7 @@ def etc(start, now, num, n_ifg):
 def loop_closure_4th_wrapper(Aloop, length, width, ifgdates, ifgdir, bad_ifg_all, ref_file):
     n_loop = Aloop.shape[0]
     ns_loop_err1 = np.zeros((length, width), dtype=np.int16)
-    
+
     refx1, refx2, refy1, refy2 = find_ref_area(ref_file)
 
     for i in range(n_loop):
@@ -1047,10 +1047,10 @@ def plotmask(data,centerz=True,title='',cmap='viridis',vmin=None,vmax=None, inte
     plt.colorbar(**{'format': '%.1f'})
     plt.title(title)
     plt.show()
-    
-    
+
+
 #%% MASK CORRECTION
-def mask_correction(ifgs2fix, ifgdates, ifg_loop_df, corr_loop_df, ifg_dict, n_corr, allowed_loops, length, width, ref_file,n_ifg, start, 
+def mask_correction(ifgs2fix, ifgdates, ifg_loop_df, corr_loop_df, ifg_dict, n_corr, allowed_loops, length, width, ref_file,n_ifg, start,
                     fix_total, loop_info, A3loop, thresh, ifgdir, loopdir, tsadir, loop_dict, fixed_ifgs, good_ifg_list, bad_ifg_cands_list, bad_ifg_list, Run=False):
 
     for ifg in ifgs2fix:
@@ -1058,7 +1058,7 @@ def mask_correction(ifgs2fix, ifgdates, ifg_loop_df, corr_loop_df, ifg_dict, n_c
         nloops = int(ifg_loop_df.loc[ifg_loop_df['IFG_IX'] == ifg, 'Fixable'])
         loops = ifg_dict[ifg]
         n_corr += 1
-        
+
         # Remove inelligible loops
         if len(loops) != nloops:
             l_use = loops.copy()
@@ -1068,32 +1068,32 @@ def mask_correction(ifgs2fix, ifgdates, ifg_loop_df, corr_loop_df, ifg_dict, n_c
             maskloops = l_use
         else:
             maskloops = loops
-        
+
         #Make variables to hold masks and corrections
         corr_all = np.empty((length,width,nloops))
         masks = np.zeros((length,width,nloops), dtype='float32')
         hrs, mins, secs = etc(start, time.time(), n_corr, n_ifg)
         print('({}/{}) Masking'.format(n_corr, fix_total), ifgname + ':', nloops, 'Loops  -  ETC: {} hrs {} mins {} secs'.format(hrs, mins, secs))
-     
-        if Run: 
-                
+
+        if Run:
+
             # Get correction for each loop
             for count, loop in enumerate(maskloops):
                 print('    ',loop_info[loop])
                 ifg_position = calc_bad_ifg_position_single3(ifgname, A3loop[loop,:], ifgdates)
                 corr_all[:,:,count] = get_corr3(A3loop[loop,:], ifg_position, thresh, ifgdates, ifgdir, length, width, ref_file)
-            
+
             # Find modal correction
             corr, corrcount = get_mode(corr_all)
-            
+
             # FIND CORRECTION MASKS
             mask_thresh = round((nloops+1)/2) # Number required for a majority correction (e.g 4 out of 6)
             good_data = corrcount >= mask_thresh # Where a majority solution has been found
             bad_data = corrcount < mask_thresh # No majority solution found
-            
+
             sim_loops=[] # Reset this variable just in case not needed
             # loop_lib.plotmask(corrcount, centerz=False, title=ifgname)
-            
+
             if nloops % 2 == 0:
                 sim_loops = half_check(nloops,corrcount, corr_all)
                 #ALSO CONSIDER IF BOTH HALFS ARE EQUALLY GOOD
@@ -1107,39 +1107,39 @@ def mask_correction(ifgs2fix, ifgdates, ifg_loop_df, corr_loop_df, ifg_dict, n_c
                 good_corr = good_corr.astype('int') + good_data.astype('int')
                 masks[good_corr==2,count] += 2 # Earn two points for being majority solution
                 masks[good_corr!=2,count] -= 2 # Lose two points for not being majority solution
-                
+
                 if count in sim_loops:
                     masks[corrcount == nloops/2, count] += 4
-                
+
                 # Write masks to file (always overwrite previous masks)
                 for i in loop_dict[loop]:
                     if i != ifg:
                         maskfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i]+'.mask')
                         mask = masks[:,:,count]
                         mask.tofile(maskfile)
-                        
+
             print('    Correcting....')
             corr_all = np.empty((length,width,nloops))
-            
+
             # Find correction, including the mask
             for count, loop in enumerate(maskloops):
                 print('    ',loop_info[loop])
                 ifg_position = calc_bad_ifg_position_single3(ifgname, A3loop[loop,:], ifgdates)
                 corr_all[:,:,count] = get_corr_mask(A3loop[loop,:], ifg_position, thresh, ifgdates, ifgdir, length, width, ref_file)
-            
+
             # Make correction
             corr, corrcount = get_mode(corr_all)
-            
+
             correct_bad_ifg(ifgname,corr,ifgdir, length, width, A3loop[ifg_dict[ifg],:], ifgdates, loopdir, ref_file)
             if os.path.exists(os.path.join(tsadir,'12ifg_ras',ifgname + '.unw.png')):
                 shutil.move(os.path.join(tsadir,'12ifg_ras',ifgname + '.unw.png'),os.path.join(tsadir,'12ifg_ras',ifgname + '_V0.unw.png'))
             shutil.copy(os.path.join(ifgdir,ifgname,ifgname+'.unw.png'),os.path.join(tsadir,'12ifg_ras',ifgname + '_V1.unw.png'))
-        
+
         fixed_ifgs.append(ifg)
-        
+
         # Reclassify loop quality dataframe
         corr_loop_df = update_corr_df(corr_loop_df, ifg, ifgname, ifg_dict, good_ifg_list, bad_ifg_cands_list, bad_ifg_list)
-        
+
     return fixed_ifgs, corr_loop_df, n_corr, fix_total
 
 #%% Secondary correction where IFGs are corrected when they share a loop with 2 corrected IFGs
@@ -1150,41 +1150,41 @@ def fill_corr_loops(fix_df, ifgdates, n_corr, start, n_ifg, fix_total, length, w
 
         ifg = fix_df.loc[0,'IFG']
         nloops = fix_df.loc[0,'CorrLoops']
-        
+
         # No need for loop lim, as we assume that any corrected ifg is perfect so can use one loop
         ifgname = ifgdates[ifg]
         n_corr += 1
-        
+
         hrs, mins, secs = etc(start, time.time(), n_corr, n_ifg)
         print('({}/{}) Correcting IFG {} {}: {} Loops  -  ETC: {} hrs {} mins {} secs'.format(n_corr, fix_total, ifg, ifgname, nloops, hrs, mins, secs))
-        
+
         loops = list(set(corr_loop_df.index[corr_loop_df['Corr'] == 2].tolist()) & set(ifg_dict[ifg]))
-        
+
         if Run:
             #Make variables to hold corrections
             corr_all = np.empty((length,width,nloops))
-            
+
             # Find correction, including the mask
             for count, loop in enumerate(loops):
                 print('    ',loop_info[loop])
                 ifg_position = calc_bad_ifg_position_single3(ifgname, A3loop[loop,:], ifgdates)
                 corr_all[:,:,count] = get_corr3(A3loop[loop,:], ifg_position, thresh, ifgdates, ifgdir, length, width, ref_file)
-            
+
             # Make correction
             corr, corrcount = get_mode(corr_all)
-            
+
             correct_bad_ifg(ifgname,corr,ifgdir, length, width, A3loop[ifg_dict[ifg],:], ifgdates, loopdir, ref_file)
-            
-            
+
+
             if os.path.exists(os.path.join(tsadir,'12ifg_ras',ifgname + '.unw.png')):
                 shutil.move(os.path.join(tsadir,'12ifg_ras',ifgname + '.unw.png'),os.path.join(tsadir,'12ifg_ras',ifgname + '_V0.unw.png'))
             shutil.copy(os.path.join(ifgdir,ifgname,ifgname+'.unw.png'),os.path.join(tsadir,'12ifg_ras',ifgname + '_V1.unw.png'))
-        
+
         fixed_ifgs.append(ifg)
-        
+
         # Reclassify loop quality dataframe
         corr_loop_df = update_corr_df(corr_loop_df, ifg, ifgname, ifg_dict, good_ifg_list, bad_ifg_cands_list, bad_ifg_list)
-        
+
         ## Reset fix_df
         # Get list of all loops now containing 2 corrected IFGs
         loops2fix= corr_loop_df.index[corr_loop_df.Corr == 2].values.tolist()
@@ -1201,5 +1201,5 @@ def fill_corr_loops(fix_df, ifgdates, n_corr, start, n_ifg, fix_total, length, w
 
         fix_df = fix_df.sort_values(by=['CorrLoops'], ignore_index=True, ascending=False)
         fix_total = n_corr + len(ifgs2fix)
-        
+
     return n_corr, fix_total, fix_df, corr_loop_df, fixed_ifgs
