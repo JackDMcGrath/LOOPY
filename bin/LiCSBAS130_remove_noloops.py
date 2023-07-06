@@ -351,7 +351,7 @@ def main():
             ns_ifg_noloop_patch = np.zeros((n_pt_all), dtype=np.float32)*np.nan
             maxTlen_patch = np.zeros((n_pt_all), dtype=np.float32)*np.nan
 
-            print('\n  Identifing gaps, and counting n_gap and n_ifg_noloop,')
+            print('\n  Identifing gaps, and counting n_gap and n_ifg_noloop')
 
             ### Determine n_para
             n_pt_patch_min = 1000
@@ -364,6 +364,7 @@ def main():
                     n_para_gap = n_para
             else:
                 n_para_gap = n_para
+
 
             print('  with {} parallel processing...'.format(n_para_gap),
                   flush=True)
@@ -392,6 +393,8 @@ def main():
                 _Tlen[gap_patch[imx, ix_unnan_pt]==1] = 0 ## reset to 0 if gap
                 _maxTlen[_maxTlen<_Tlen] = _Tlen[_maxTlen<_Tlen] ## Set Tlen to maxTlen
             maxTlen_patch[ix_unnan_pt] = _maxTlen
+
+
 
 
         #%% Fill by np.nan if n_pt_unnan == 0
@@ -444,7 +447,7 @@ def main():
     for i in range(len(names)):
         file = os.path.join(resultsdir, '{}_preNullNoLoop'.format(names[i]))
         data = io_lib.read_img(file, length, width)
-        pngfile = file+'_preNullNoLoop.png'
+        pngfile = file + '.png'
         ## Get color range if None
         if cmins[i] is None:
             cmins[i] = np.nanpercentile(data, 1)
@@ -504,7 +507,7 @@ def null_noloop_wrapper(i):
     del ns_ifg4loop
 
     # n_loop*(n_loop,n_pt)*n_pt->(n_ifg,n_pt)
-    # Number of loops for each ifg at eath point.
+    # Number of loops for each ifg at each point.
     ns_loop4ifg = np.array([(
             (np.abs(Aloop[:, j])*bool_loop.T).T*
             (~np.isnan(unwpatch[i*n_pt_patch:(i+1)*n_pt_patch, j]))
@@ -519,6 +522,47 @@ def null_noloop_wrapper(i):
     _ns_ifg_noloop_patch = ns_ifg_noloop_tmp - ns_nan_ifg # IFGs with no loop = IFGs with no loop - IFGs that are NaNs anyway (number no_loop per pixel)
 
     return _ns_gap_patch, _gap_patch, _ns_ifg_noloop_patch, ns_ifg_noloop_ix
+
+def recount_noloop_wrapper(i):
+    """
+    Script now that only counts the number of noloops, to be run after the noloops are nulled
+    """
+    print("    Running {:2}/{:2}th patch...".format(i+1, n_para_gap), flush=True)
+    n_pt_patch = int(np.ceil(unwpatch.shape[0]/n_para_gap))
+    n_im = G.shape[1]+1
+    n_loop, n_ifg = Aloop.shape
+
+    if i*n_pt_patch >= unwpatch.shape[0]:
+        # Nothing to do
+        return
+
+    ### n_ifg_noloop
+    # n_ifg*(n_pt,n_ifg)->(n_loop,n_pt)
+    # Number of ifgs for each loop at eath point.
+    # 3 means complete loop, 1 or 2 means broken loop.
+    ns_ifg4loop = np.array([(np.abs(Aloop[j, :])*
+                         (~np.isnan(unwpatch[i*n_pt_patch:(i+1)*n_pt_patch])))
+                            .sum(axis=1) for j in range(n_loop)])
+    bool_loop = (ns_ifg4loop==3) #(n_loop,n_pt) identify complete loop only
+    #bad_bool_loop = (ns_ifg4loop != 3) # Identify incomplete loops (Loop x Pixel)
+    del ns_ifg4loop
+
+    # n_loop*(n_loop,n_pt)*n_pt->(n_ifg,n_pt)
+    # Number of loops for each ifg at each point.
+    ns_loop4ifg = np.array([(
+            (np.abs(Aloop[:, j])*bool_loop.T).T*
+            (~np.isnan(unwpatch[i*n_pt_patch:(i+1)*n_pt_patch, j]))
+            ).sum(axis=0) for j in range(n_ifg)]) #    <= This is the variable that contains the number of loops for each IFG for each pixel
+    del bool_loop
+    ns_ifg_noloop_ix = (ns_loop4ifg == 0).astype('int') # Int array of n_ifg x n_px of px with no loops
+    ns_ifg_noloop_tmp = ns_ifg_noloop_ix.sum(axis=0) # Number of incomplete loops per pixel
+    #del ns_loop4ifg
+
+    ns_nan_ifg = np.isnan(unwpatch[i*n_pt_patch:(i+1)*n_pt_patch, :]).sum(axis=1)
+    #n_pt, nan ifg count
+    _ns_ifg_noloop_patch = ns_ifg_noloop_tmp - ns_nan_ifg # IFGs with no loop = IFGs with no loop - IFGs that are NaNs anyway (number no_loop per pixel)
+
+    return _ns_ifg_noloop_patch
 
 def null_png_wrapper(ifglist):
     for ifgd in ifglist:
