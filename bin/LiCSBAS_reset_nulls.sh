@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Script to reset the nullified data to it's original state
+# Recommend using LiCSBAS_reset_nulls.py --reset_all instead
 
 ifgdir=$1
 
