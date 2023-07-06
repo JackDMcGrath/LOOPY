@@ -69,7 +69,7 @@ def finish():
 def set_input_output():
     global ifgdir, ifglist, noLoopList
 
-    ifgdir = os.abspath(os.path.join(args.frame_dir, args.geoc_dir))
+    ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.geoc_dir))
     ifglist = glob.glob(os.path.join(ifgdir, '20*'))
     
     # Set reset flags
