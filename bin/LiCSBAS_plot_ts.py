@@ -49,14 +49,10 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
               (Default: 99 %)
  --ylen       Y Length of time series plot in mm (Default: auto)
  --ts_png     Output png file of time series plot (not display interactive viewers)
- --scattercol   Read text file and use to colour cumulative displacement scatter
 
 """
 #%% Change log
 '''
-20220427 Andrew Watson, University of Leeds
- - Added optional colour for cumulative displacement scatter
-
 v1.13.4 20210910 Yu Morishita, GSI
  - Avoid error for refarea in bytes
 v1.13.3 20210205 Yu Morishita, GSI
@@ -199,15 +195,13 @@ if __name__ == "__main__":
     vmax = None
     cmap_name = "SCM.roma_r"
     auto_crange = 99.0
-    scattercol_file = []
-    scattercol = 'b'
 
     #%% Read options
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hi:d:u:m:r:p:c:",
                ["help", "i2=", "ref_geo=", "p_geo=", "nomask", "dmin=", "dmax=",
-                "vmin=", "vmax=", "auto_crange=", "ylen=", "ts_png=", "scattercol="])
+                "vmin=", "vmax=", "auto_crange=", "ylen=", "ts_png="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -250,8 +244,6 @@ if __name__ == "__main__":
                 ylen = float(a)
             elif o == '--ts_png':
                 ts_pngfile = a
-            elif o == '--scattercol':
-                scattercol_file = a
 
     except Usage as err:
         print("\nERROR:", file=sys.stderr, end='')
@@ -262,9 +254,7 @@ if __name__ == "__main__":
 
     #%% Set cmap
     cmap = tools_lib.get_cmap(cmap_name)
-    
-    if os.path.exists(scattercol_file):
-        scattercol = np.loadtxt(scattercol_file)
+
 
     #%% Set files
     ### cumfile
@@ -780,8 +770,8 @@ if __name__ == "__main__":
         else:
             lastevent = event  ## Update last event
 
-        ii = np.int(np.round(event.ydata))
-        jj = np.int(np.round(event.xdata))
+        ii = np.int32(np.round(event.ydata))
+        jj = np.int32(np.round(event.xdata))
 
         ### Plot on image window
         ii1h = ii-0.5; ii2h = ii+1-0.5 ## Shift half for plot
@@ -851,14 +841,8 @@ if __name__ == "__main__":
         for model, vis in enumerate(visibilities):
             yvalues = calc_model(dph, imdates_ordinal, xvalues, model)
             lines1[model], = axts.plot(xvalues_dt, yvalues, 'b-', visible=vis, alpha=0.6, zorder=3)
-        
-        if os.path.exists(scattercol_file):
-            scattercol = np.loadtxt(scattercol_file)
-            if len(imdates_dt) != len(scattercol): scattercol = np.append([0], scattercol)
-        else:
-            scattercol = 'b'
 
-        axts.scatter(imdates_dt, dph, label=label1, c=scattercol, alpha=0.8, zorder=5, cmap=tools_lib.get_cmap('SCM.lajolla'))
+        axts.scatter(imdates_dt, dph, label=label1, c='b', alpha=0.6, zorder=5)
         axts.set_title('vel = {:.1f} mm/yr @({}, {})'.format(vel1p, jj, ii), fontsize=10)
 
         ### cumfile2
@@ -918,4 +902,3 @@ if __name__ == "__main__":
         warnings.simplefilter('ignore', UserWarning)
         plt.show()
     pv.canvas.mpl_disconnect(cid)
-

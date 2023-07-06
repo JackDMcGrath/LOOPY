@@ -49,7 +49,7 @@ while read line
 do
   param=$(echo $line | awk '{print $1}')
   value=$(echo $line | awk '{print $2}')
- 
+
   ### Comment line
   if [[ $param == \#* ]];then
     echo "$param $value is comment"

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+v1.5.3 20211122 Milan Lazecky, Leeds Uni
 v1.5.2 20210311 Yu Morishita, GSI
 
 This script inverts the SB network of unw to obtain the time series and
@@ -56,7 +57,7 @@ Outputs in TS_GEOCml*/ :
 =====
 Usage
 =====
-LiCSBAS13_sb_inv.py -d ifgdir [-t tsadir] [--inv_alg LS|WLS] [--mem_size float] [--gamma float] [--n_para int] [--n_unw_r_thre float] [--keep_incfile] [--gpu]
+LiCSBAS13_sb_inv.py -d ifgdir [-t tsadir] [--inv_alg LS|WLS] [--mem_size float] [--gamma float] [--n_para int] [--n_unw_r_thre float] [--keep_incfile] [--gpu] [--singular] [--only_sb] [--nopngs]
 
  -d  Path to the GEOCml* dir containing stack of unw data
  -t  Path to the output TS_GEOCml* dir.
@@ -64,8 +65,6 @@ LiCSBAS13_sb_inv.py -d ifgdir [-t tsadir] [--inv_alg LS|WLS] [--mem_size float] 
    LS :       NSBAS Least Square with no weight
    WLS:       NSBAS Weighted Least Square (not well tested)
               Weight (variance) is calculated by (1-coh**2)/(2*coh**2)
-   WLS_rms    NSBAS Weighted Least Square (added by Andrew)
-              Weight (variance) is RMS of interferograms
  --mem_size   Max memory size for each patch in MB. (Default: 8000)
  --gamma      Gamma value for NSBAS inversion (Default: 0.0001)
  --n_para     Number of parallel processing (Default: # of usable CPU)
@@ -77,10 +76,14 @@ LiCSBAS13_sb_inv.py -d ifgdir [-t tsadir] [--inv_alg LS|WLS] [--mem_size float] 
  --keep_incfile
      Not remove inc and resid files (Default: remove them)
  --gpu        Use GPU (Need cupy module)
-
+ --singular       Use more economic (unconstrained SBAS) computation (faster and less demanding solution, but considered less precise)
+ --only_sb    Perform only SB processing (skipping points with NaNs)
+ --nopngs     Avoid generating some (unnecessary) PNG previews of increment residuals etc.
 """
 #%% Change log
 '''
+v1.5.3 20211122 Milan Lazecky, Leeds Uni
+ - use singular and only_sb to help make processing computationally economic
 v1.5.2 20210311 Yu Morishita, GSI
  - Include noise indices and LOS unit vector in cum.h5 file
 v1.5.1 20210309 Yu Morishita, GSI
@@ -156,7 +159,8 @@ def main(argv=None):
         argv = sys.argv
 
     start = time.time()
-    ver="1.5.2"; date=20210311; author="Y. Morishita"
+    ver="1.5.3"; date=20211122; author="M. Lazecky"
+    #ver="1.5.2"; date=20210311; author="Y. Morishita"
     print("\n{} ver{} {} {}".format(os.path.basename(argv[0]), ver, date, author), flush=True)
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
@@ -171,6 +175,9 @@ def main(argv=None):
     tsadir = []
     inv_alg = 'LS'
     gpu = False
+    singular = False
+    only_sb = False
+    nopngs = False
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -199,8 +206,8 @@ def main(argv=None):
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:",
                                        ["help",  "mem_size=", "gamma=",
-                                        "n_unw_r_thre=", "keep_incfile",
-                                        "inv_alg=", "n_para=", "gpu"])
+                                        "n_unw_r_thre=", "keep_incfile", "nopngs",
+                                        "inv_alg=", "n_para=", "gpu", "singular", "only_sb"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -225,6 +232,12 @@ def main(argv=None):
                 n_para = int(a)
             elif o == '--gpu':
                 gpu = True
+            elif o == '--singular':
+                singular = True
+            elif o == '--only_sb':
+                only_sb = True
+            elif o == '--nopngs':
+                nopngs = True
 
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
@@ -260,7 +273,10 @@ def main(argv=None):
 
     bad_ifg11file = os.path.join(infodir, '11bad_ifg.txt')
     bad_ifg12file = os.path.join(infodir, '12bad_ifg.txt')
-    reffile = os.path.join(infodir, '12ref.txt')
+    # if ref point selected using LiCSBAS120:
+    reffile = os.path.join(infodir, '120ref.txt')
+    if not os.path.exists(reffile):
+        reffile = os.path.join(infodir, '12ref.txt')
     if not os.path.exists(reffile): ## for old LiCSBAS12 < v1.1
         reffile = os.path.join(infodir, 'ref.txt')
 
@@ -272,12 +288,6 @@ def main(argv=None):
     restxtfile = os.path.join(infodir,'13resid.txt')
 
     cumh5file = os.path.join(tsadir,'cum.h5')
-
-    ### Read in ifg rms text file for WLS with rms weighting
-    if inv_alg == 'WLS_rms':
-        rmsfile = os.path.join(ifgdir,'ifg_rms.txt')
-        rms_ifgs = np.loadtxt(rmsfile, dtype=str, usecols=0)
-        rms_vals = np.loadtxt(rmsfile, usecols=1)
 
     if n_para > 32:
         # Emprically >32 does not make much faster despite using large resource
@@ -536,9 +546,6 @@ def main(argv=None):
         if inv_alg == 'WLS':
             cohpatch = np.zeros((n_ifg, lengththis, width), dtype=np.float32)
 
-        if inv_alg == 'WLS_rms':
-            rmspatch = np.zeros((n_ifg, lengththis, width), dtype=np.float32)
-
         ### For each ifg
         print("  Reading {0} ifg's unw data...".format(n_ifg), flush=True)
         countf = width*rows[0]
@@ -568,10 +575,6 @@ def main(argv=None):
                     cohpatch[i, :, :] = np.fromfile(f, dtype=np.float32, count=countl).reshape((lengththis, width))
                 cohpatch[cohpatch==0] = np.nan
 
-            ### Read ifg rms file from text file for WLS_rms
-            if inv_alg == 'WLS_rms':
-                rmspatch[i, :, :] = rms_vals[np.where(rms_ifgs == ifgd)[0][0]]
-
         unwpatch = unwpatch.reshape((n_ifg, n_pt_all)).transpose() #(n_pt_all, n_ifg)
 
         ### Calc variance from coherence for WLS
@@ -582,16 +585,13 @@ def main(argv=None):
             varpatch = (1-cohpatch**2)/(2*cohpatch**2)
             del cohpatch
 
-        if inv_alg == 'WLS_rms':
-            rmspatch = rmspatch.reshape((n_ifg, n_pt_all)).transpose() #(n_pt_all, n_ifg)
-            varpatch = rmspatch
 
         #%% Remove points with less valid data than n_unw_thre
         ix_unnan_pt = np.where(np.sum(~np.isnan(unwpatch), axis=1) > n_unw_thre)[0]
         n_pt_unnan = len(ix_unnan_pt)
 
         unwpatch = unwpatch[ix_unnan_pt,:] ## keep only unnan data
-        if inv_alg in ('WLS', 'WLS_rms'):
+        if inv_alg == 'WLS':
             varpatch = varpatch[ix_unnan_pt,:] ## keep only unnan data
 
         print('  {}/{} points removed due to not enough ifg data...'.format(n_pt_all-n_pt_unnan, n_pt_all), flush=True)
@@ -684,12 +684,12 @@ def main(argv=None):
 
             #%% Time series inversion
             print('\n  Small Baseline inversion by {}...\n'.format(inv_alg), flush=True)
-            if inv_alg in ('WLS', 'WLS_rms'):
+            if inv_alg == 'WLS':
                 inc_tmp, vel_tmp, vconst_tmp = inv_lib.invert_nsbas_wls(
                     unwpatch, varpatch, G, dt_cum, gamma, n_para_inv)
             else:
                 inc_tmp, vel_tmp, vconst_tmp = inv_lib.invert_nsbas(
-                    unwpatch, G, dt_cum, gamma, n_para_inv, gpu)
+                    unwpatch, G, dt_cum, gamma, n_para_inv, gpu, singular=singular, only_sb=only_sb)
 
             ### Set to valuables
             inc_patch = np.zeros((n_im-1, n_pt_all), dtype=np.float32)*np.nan
@@ -863,20 +863,23 @@ def main(argv=None):
 
     #%% Output png images
     ### Incremental displacement
-    _n_para = n_im-1 if n_para > n_im-1 else n_para
-    print('\nOutput increment png images with {} parallel processing...'.format(_n_para), flush=True)
-    p = q.Pool(_n_para)
-    p.map(inc_png_wrapper, range(n_im-1))
-    p.close()
+    if nopngs:
+        print('skipping generating additional png images of increments and residuals - as sometimes taking too long (tutorial purposes)')
+    else:
+        _n_para = n_im-1 if n_para > n_im-1 else n_para
+        print('\nOutput increment png images with {} parallel processing...'.format(_n_para), flush=True)
+        p = q.Pool(_n_para)
+        p.map(inc_png_wrapper, range(n_im-1))
+        p.close()
 
-    ### Residual for each ifg. png and txt.
-    with open(restxtfile, "w") as f:
-        print('# RMS of residual (mm)', file=f)
-    _n_para = n_ifg if n_para > n_ifg else n_para
-    print('\nOutput residual png images with {} parallel processing...'.format(_n_para), flush=True)
-    p = q.Pool(_n_para)
-    p.map(resid_png_wrapper, range(n_ifg))
-    p.close()
+        ### Residual for each ifg. png and txt.
+        with open(restxtfile, "w") as f:
+            print('# RMS of residual (mm)', file=f)
+        _n_para = n_ifg if n_para > n_ifg else n_para
+        print('\nOutput residual png images with {} parallel processing...'.format(_n_para), flush=True)
+        p = q.Pool(_n_para)
+        p.map(resid_png_wrapper, range(n_ifg))
+        p.close()
 
     ### Velocity and noise indices
     cmins = [None, None, None, None, None, None]
@@ -899,7 +902,6 @@ def main(argv=None):
         if cmins[i] == cmaxs[i]: cmins[i] = cmaxs[i]-1
 
         plot_lib.make_im_png(data, pngfile, cmaps[i], titles[i], cmins[i], cmaxs[i])
-
 
     #%% Finish
     elapsed_time = time.time()-start

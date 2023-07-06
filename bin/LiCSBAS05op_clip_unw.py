@@ -14,7 +14,7 @@ Inputs in GEOCml*/ :
  - slc.mli[.par|.png]
  - EQA.dem.par
  - Others (baselines, [E|N|U].geo, hgt[.png])
- 
+
 Outputs in GEOCml*clip/ :
  - yyyymmdd_yyyymmdd/
    - yyyymmdd_yyyymmdd.unw[.png] (clipped)
@@ -81,11 +81,11 @@ class Usage(Exception):
 
 #%%
 def main(argv=None):
-   
+
     #%% Check argv
     if argv == None:
         argv = sys.argv
-        
+
     start = time.time()
     ver="1.2.5"; date=20210105; author="Y. Morishita"
     print("\n{} ver{} {} {}".format(os.path.basename(argv[0]), ver, date, author), flush=True)
@@ -196,7 +196,7 @@ def main(argv=None):
         else:
             x1, x2, y1, y2 = tools_lib.read_range_geo(range_geo_str, width, length, lat1, postlat, lon1, postlon)
             range_str = '{}:{}/{}:{}'.format(x1, x2, y1, y2)
-        
+
     ### Calc clipped  info
     width_c = x2-x1
     length_c = y2-y1
@@ -219,7 +219,7 @@ def main(argv=None):
     #%% Make clipped par files
     mlipar_c = os.path.join(out_dir, 'slc.mli.par')
     dempar_c = os.path.join(out_dir, 'EQA.dem_par')
-    
+
     ### slc.mli.par
     with open(mlipar, 'r') as f: file = f.read()
     file = re.sub(r'range_samples:\s*{}'.format(width), 'range_samples: {}'.format(width_c), file)
@@ -241,7 +241,7 @@ def main(argv=None):
         if os.path.isdir(file):
             continue  #not copy directory
         elif file==mlipar or file==dempar:
-            continue  #not copy 
+            continue  #not copy
         elif os.path.getsize(file) == width*length*4: ##float file
             print('Clip {}'.format(os.path.basename(file)), flush=True)
             data = io_lib.read_img(file, length, width)
@@ -270,10 +270,11 @@ def main(argv=None):
     print('\nClip unw and cc', flush=True)
     ### First, check if already exist
     ifgdates2 = []
-    for ifgix, ifgd in enumerate(ifgdates): 
+    for ifgix, ifgd in enumerate(ifgdates):
         out_dir1 = os.path.join(out_dir, ifgd)
         unwfile_c = os.path.join(out_dir1, ifgd+'.unw')
         ccfile_c = os.path.join(out_dir1, ifgd+'.cc')
+        compfile_c = os.path.join(out_dir1, ifgd+'.conncomp')
         if not (os.path.exists(unwfile_c) and os.path.exists(ccfile_c)):
             ifgdates2.append(ifgd)
 
@@ -285,7 +286,7 @@ def main(argv=None):
         ### Clip with parallel processing
         if n_para > n_ifg2:
             n_para = n_ifg2
-            
+
         print('  {} parallel processing...'.format(n_para), flush=True)
         p = q.Pool(n_para)
         p.map(clip_wrapper, range(n_ifg2))
@@ -311,7 +312,8 @@ def clip_wrapper(ifgix):
     ifgd = ifgdates2[ifgix]
     unwfile = os.path.join(in_dir, ifgd, ifgd+'.unw')
     ccfile = os.path.join(in_dir, ifgd, ifgd+'.cc')
-    
+    compfile = os.path.join(in_dir, ifgd, ifgd + '.conncomp')
+
     unw = io_lib.read_img(unwfile, length, width)
     unw[unw==0] = np.nan
     if os.path.getsize(ccfile) == length*width:
@@ -330,9 +332,14 @@ def clip_wrapper(ifgix):
     ### Output
     out_dir1 = os.path.join(out_dir, ifgd)
     if not os.path.exists(out_dir1): os.mkdir(out_dir1)
-    
+
     unw.tofile(os.path.join(out_dir1, ifgd+'.unw'))
     coh.tofile(os.path.join(out_dir1, ifgd+'.cc'))
+
+    if os.path.exists(compfile):
+        comp = io_lib.read_img(compfile, length, width, dtype=ccformat)
+        comp = comp[y1:y2, x1:x2]
+        comp.tofile(os.path.join(out_dir1, ifgd + '.conncomp'))
 
     ## Output png for corrected unw
     pngfile = os.path.join(out_dir1, ifgd+'.unw.png')
