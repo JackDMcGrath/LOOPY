@@ -732,7 +732,7 @@ def main():
                 ifg_patch[i, :].tofile(f)
 
         ## velocity and noise indecies in results dir
-        if not args.remove_no_loop:
+        if not args.no_loops_removed:
             names = ['vel', 'vintercept', 'resid_rms', 'n_gap', 'n_ifg_noloop', 'maxTlen']
         else:
             names = ['vel', 'vintercept', 'resid_rms', 'n_gap', 'n_ifg_noloop_postNullNoLoop', 'maxTlen']
