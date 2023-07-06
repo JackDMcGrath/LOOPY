@@ -166,6 +166,7 @@ def init_args():
     parser.add_argument('--only_sb', default=False, action='store_true', help="Perform only SB processing (skipping points with NaNs)")
     parser.add_argument('--null_noloop', default=False, action='store_true', help="Don't include any IFG pixel that isn't associated with a good loop")
     parser.add_argument('--no_inversion', default=False, action='store_true', help="Don't do velocity inverison, just do noise indicies")
+    parser.add_argument('--no_loops_removed', default=False, action='store_true', help="If no loop pixels have been removed, don't write out mask file")
     args = parser.parse_args()
 
     return args
@@ -515,8 +516,7 @@ def main():
 
 
             if args.null_noloop:
-                print('\n  Removing IFG pixels that do not have a good loop')
-
+                print('\n  Not including IFG pixels with no loops in the inversion, but not nullifying original dataset')
                 ### Determine n_para
                 n_pt_patch_min = 1000
                 if n_pt_patch_min*n_para > n_pt_unnan:
@@ -537,20 +537,7 @@ def main():
 
                 print('Cropping Velocity Inversion to Only Pixels in Loops')
                 no_loop_log = np.hstack(_result[:, 3]).T
-                testdir = os.path.join(tsadir, 'tests')
-                # if os.path.exists(testdir): shutil.rmtree(testdir)
-                # os.mkdir(testdir)
-                # #for i in range(no_loop_log.shape[1]):
-                # for i in range(20):
-                #     grid = np.zeros(n_pt_all) * np.nan
-                #     grid[ix_unnan_pt] = no_loop_log[:, i]
-                #     grid = grid.reshape((length, width))
-                #     plot_lib.make_im_png(grid, os.path.join(testdir, '{}.png'.format(i)), 'tab20c', i, 0, 1)
-                #     print(i)
-                #     print(np.unique(grid, return_counts=True))
-
                 del _result
-
 
                 unwpatch[np.where(no_loop_log == 1)] = np.nan
                 print('Removed {} IFG no_loop pixels'.format(np.sum((no_loop_log == 1).flatten() > 0)))
@@ -745,7 +732,10 @@ def main():
                 ifg_patch[i, :].tofile(f)
 
         ## velocity and noise indecies in results dir
-        names = ['vel', 'vintercept', 'resid_rms', 'n_gap', 'n_ifg_noloop', 'maxTlen']
+        if not args.remove_no_loop:
+            names = ['vel', 'vintercept', 'resid_rms', 'n_gap', 'n_ifg_noloop', 'maxTlen']
+        else:
+            names = ['vel', 'vintercept', 'resid_rms', 'n_gap', 'n_ifg_noloop_postNullNoLoop', 'maxTlen']
         data = [vel_patch, vconst_patch, res_rms_patch, ns_gap_patch, ns_ifg_noloop_patch, maxTlen_patch]
         for i in range(len(names)):
             file = os.path.join(resultsdir, names[i])
