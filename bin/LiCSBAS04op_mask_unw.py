@@ -12,7 +12,7 @@ Inputs in GEOCml*/:
    - yyyymmdd_yyyymmdd.unw
    - yyyymmdd_yyyymmdd.cc
  - slc.mli.par
- 
+
 Outputs in GEOCml*mask/
  - yyyymmdd_yyyymmdd/
    - yyyymmdd_yyyymmdd.unw[.png]
@@ -32,17 +32,13 @@ LiCSBAS04op_mask_unw.py -i in_dir -o out_dir [-c coh_thre] [-r x1:x2/y1:y2] [-f 
  -r  Range to be masked. Index starts from 0.
      0 for x2/y2 means all. (i.e., 0:0/0:0 means whole area).
  -f  Text file of a list of ranges to be masked (format is x1:x2/y1:y2)
- -p  Text file containing polygon coords to be masked 
  --n_para  Number of parallel processing (Default: # of usable CPU)
 
- Note: either -c, -r, -f, or -p must be specified.
+ Note: either -c, -r or -f must be specified.
 
 """
 #%% Change log
 '''
-20220121 Andrew Watson
- - added option to mask polygons (in progress)
-
 v1.3.5 20210105 Yu Morishita, GSI
  - Fill 0 by nan in unw
 v1.3.4 20201119 Yu Morishita, GSI
@@ -84,11 +80,11 @@ class Usage(Exception):
 
 #%%
 def main(argv=None):
-   
+
     #%% Check argv
     if argv == None:
         argv = sys.argv
-        
+
     start = time.time()
     ver="1.3.5"; date=20210105; author="Y. Morishita"
     print("\n{} ver{} {} {}".format(os.path.basename(argv[0]), ver, date, author), flush=True)
@@ -104,7 +100,6 @@ def main(argv=None):
     coh_thre = []
     ex_range_str = []
     ex_range_file = []
-    poly_file = []
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
@@ -118,7 +113,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hi:o:c:r:f:p:", ["help", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hi:o:c:r:f:", ["help", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -135,8 +130,6 @@ def main(argv=None):
                 ex_range_str = a
             elif o == '-f':
                 ex_range_file = a
-            elif o == '-p':
-                poly_file = a
             elif o == '--n_para':
                 n_para = int(a)
 
@@ -144,8 +137,8 @@ def main(argv=None):
             raise Usage('No input directory given, -i is not optional!')
         if not out_dir:
             raise Usage('No output directory given, -o is not optional!')
-        if not coh_thre and not ex_range_str and not ex_range_file and not poly_file:
-            raise Usage('Neither -r, -f, nor -p option is given!')
+        if not coh_thre and not ex_range_str and not ex_range_file:
+            raise Usage('Neither -r nor -f option is given!')
         elif not os.path.isdir(in_dir):
             raise Usage('No {} dir exists!'.format(in_dir))
         elif not os.path.exists(os.path.join(in_dir, 'slc.mli.par')):
@@ -157,7 +150,7 @@ def main(argv=None):
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         return 2
 
-    
+
     #%% Read info and make dir
     in_dir = os.path.abspath(in_dir)
     out_dir = os.path.abspath(out_dir)
@@ -180,7 +173,7 @@ def main(argv=None):
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
-    bool_mask = np.zeros((length, width), dtype=bool)
+    bool_mask = np.zeros((length, width), dtype='bool')
 
 
     #%% Check and set pixels to be masked based on coherence
@@ -189,7 +182,7 @@ def main(argv=None):
         print("\nCalculate coh_avg and define mask (<={})".format(coh_thre), flush=True)
         coh_avg = np.zeros((length, width), dtype=np.float32)
         n_coh = np.zeros((length, width), dtype=np.int16)
-        for ifgix, ifgd in enumerate(ifgdates): 
+        for ifgix, ifgd in enumerate(ifgdates):
             ccfile = os.path.join(in_dir, ifgd, ifgd+'.cc')
             if os.path.getsize(ccfile) == length*width:
                 coh = io_lib.read_img(ccfile, length, width, np.uint8)
@@ -223,12 +216,12 @@ def main(argv=None):
         else:
             x1, x2, y1, y2 = tools_lib.read_range(ex_range_str, width, length)
             bool_mask[y1:y2, x1:x2] = True
-    
+
     ### Read -f option
     if ex_range_file:
         with open(ex_range_file) as f:
             ex_range_str_all = f.readlines()
-        
+
         for ex_range_str1 in ex_range_str_all:
             if not tools_lib.read_range(ex_range_str1, width, length):
                 print('ERROR in {}\n'.format(ex_range_str1))
@@ -236,25 +229,6 @@ def main(argv=None):
             else:
                 x1, x2, y1, y2 = tools_lib.read_range(ex_range_str1, width, length)
                 bool_mask[y1:y2, x1:x2] = True
-    
-    ### Read -p option
-    if poly_file:
-        
-        print('Masking using polygon file') 
-        with open(poly_file) as f:
-            poly_strings_all = f.readlines()
-
-        dempar = os.path.join(in_dir, 'EQA.dem_par')
-        lat1 = float(io_lib.get_param_par(dempar, 'corner_lat')) # north
-        lon1 = float(io_lib.get_param_par(dempar, 'corner_lon')) # west
-        postlat = float(io_lib.get_param_par(dempar, 'post_lat')) # negative
-        postlon = float(io_lib.get_param_par(dempar, 'post_lon')) # positive
-        lat2 = lat1+postlat*(length-1) # south
-        lon2 = lon1+postlon*(width-1) # east
-        #lon, lat = np.arange(lon1, lon2+postlon, postlon), np.arange(lat1, lat2+postlat, postlat)
-        lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
-        for poly_str in poly_strings_all:
-            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat)
 
     ### Save image of mask
     mask = np.float32(~bool_mask)
@@ -264,7 +238,7 @@ def main(argv=None):
     pngfile = maskfile+'.png'
     title = 'Mask'
     plot_lib.make_im_png(mask, pngfile, cmap_noise, title, 0, 1)
-    
+
     print('\nMask defined.')
 
 
@@ -272,7 +246,7 @@ def main(argv=None):
     print('\nMask unw and link cc', flush=True)
     ### First, check if already exist
     ifgdates2 = []
-    for ifgix, ifgd in enumerate(ifgdates): 
+    for ifgix, ifgd in enumerate(ifgdates):
         out_dir1 = os.path.join(out_dir, ifgd)
         unwfile_m = os.path.join(out_dir1, ifgd+'.unw')
         ccfile_m = os.path.join(out_dir1, ifgd+'.cc')
@@ -282,12 +256,12 @@ def main(argv=None):
     n_ifg2 = len(ifgdates2)
     if n_ifg-n_ifg2 > 0:
         print("  {0:3}/{1:3} masked unw and cc already exist. Skip".format(n_ifg-n_ifg2, n_ifg), flush=True)
-   
+
     if n_ifg2 > 0:
         ### Mask with parallel processing
         if n_para > n_ifg2:
             n_para = n_ifg2
-            
+
         print('  {} parallel processing...'.format(n_para), flush=True)
         p = q.Pool(n_para)
         p.map(mask_wrapper, range(n_ifg2))
@@ -327,16 +301,16 @@ def mask_wrapper(ifgix):
     unwfile = os.path.join(in_dir, ifgd, ifgd+'.unw')
     unw = io_lib.read_img(unwfile, length, width)
     unw[unw==0] = np.nan
-        
+
     ### Mask
     unw[bool_mask] = np.nan
 
     ### Output
     out_dir1 = os.path.join(out_dir, ifgd)
     if not os.path.exists(out_dir1): os.mkdir(out_dir1)
-    
+
     unw.tofile(os.path.join(out_dir1, ifgd+'.unw'))
-    
+
     if not os.path.exists(os.path.join(out_dir1, ifgd+'.cc')):
         ccfile = os.path.join(in_dir, ifgd, ifgd+'.cc')
         os.symlink(os.path.relpath(ccfile, out_dir1), os.path.join(out_dir1, ifgd+'.cc'))

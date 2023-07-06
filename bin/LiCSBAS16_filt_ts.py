@@ -52,6 +52,7 @@ LiCSBAS16_filt_ts.py -t tsadir [-s filtwidth_km] [-y filtwidth_yr] [-r deg]
  --hgt_min    Minumum hgt to take into account in hgt-linear (Default: 200m)
  --hgt_max    Maximum hgt to take into account in hgt-linear (Default: 10000m, no effect)
  --nomask     Apply filter to unmasked data (Default: apply to masked)
+ --nofilter   Do not perform neither spatial nor temporal filtering
  --n_para     Number of parallel processing (Default: # of usable CPU)
  --range      Range used in deramp and hgt_linear. Index starts from 0.
               0 for x2/y2 means all. (i.e., 0:0/0:0 means whole area).
@@ -70,6 +71,8 @@ Note: Spatial filter consume large memory. If the processing is stacked, try
 """
 #%% Change log
 '''
+v1.5.2 20211122 Milan Lazecky, Leeds Uni
+ - include no_filter parameter
 v1.5.1 20210311 Yu Morishita, GSI
  - Include noise indices and LOS unit vector in cum.h5 file
 v1.5 20210309 Yu Morishita, GSI
@@ -122,6 +125,7 @@ import LiCSBAS_io_lib as io_lib
 import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_inv_lib as inv_lib
 import LiCSBAS_plot_lib as plot_lib
+import re
 
 class Usage(Exception):
     """Usage context manager"""
@@ -146,6 +150,7 @@ def main(argv=None):
     filtcumdir, filtincdir, imdates, cycle, coef_r2m, models, \
     filtwidth_yr, filtwidth_km, dt_cum, x_stddev, y_stddev, mask2, cmap_wrap
     global cum_org, cum_filt, gpu
+    global ifgdir, ifgdates, synthdir, length, width, synthreffile, corrdir, tsadir
 
 
     #%% Set default
@@ -157,6 +162,7 @@ def main(argv=None):
     hgt_min = 200 ## meter
     hgt_max = 10000 ## meter
     maskflag = True
+    filterflag = True
     gpu = False
 
     try:
@@ -187,7 +193,7 @@ def main(argv=None):
         try:
             opts, args = getopt.getopt(argv[1:], "ht:s:y:r:",
                            ["help", "hgt_linear", "hgt_min=", "hgt_max=",
-                            "nomask", "n_para=", "range=", "range_geo=",
+                            "nomask", "nofilter", "n_para=", "range=", "range_geo=",
                             "ex_range=", "ex_range_geo=", "gpu"])
         except getopt.error as msg:
             raise Usage(msg)
@@ -211,6 +217,8 @@ def main(argv=None):
                 hgt_max = int(a)
             elif o == '--nomask':
                 maskflag = False
+            elif o == '--nofilter':
+                filterflag = False
             elif o == '--n_para':
                 n_para = int(a)
             elif o == '--range':
@@ -246,7 +254,10 @@ def main(argv=None):
 
 
     #%% Directory and file setting
+    ifgdir = tsadir[3:]
+    ifgdir = 'GEOCml10GACOS'
     tsadir = os.path.abspath(tsadir)
+    ifgdir = os.path.join(os.path.dirname(tsadir), ifgdir)
     cumfile = os.path.join(tsadir, cumname)
     resultsdir = os.path.join(tsadir, 'results')
     infodir = os.path.join(tsadir, 'info')
@@ -262,6 +273,7 @@ def main(argv=None):
 
     wavelength = float(io_lib.get_param_par(inparmfile, 'wavelength')) #meter
     coef_r2m = -wavelength/4/np.pi*1000 #rad -> mm, positive is -LOS
+    coef_m2r = 1 / coef_r2m #mm -> rad, positive is -LOS
 
     if wavelength > 0.2: ## L-band
         cycle = 1.5 # 2pi/cycle for comparison png
@@ -452,29 +464,31 @@ def main(argv=None):
         p.close()
         del cum_org
 
+    if filterflag:
+        #%% Filter each image
+        cum_filt = np.zeros((n_im, length, width), dtype=np.float32)
 
-    #%% Filter each image
-    cum_filt = np.zeros((n_im, length, width), dtype=np.float32)
+        print('\nHP filter in time, LP filter in space,', flush=True)
 
-    print('\nHP filter in time, LP filter in space,', flush=True)
+        if n_para == 1:
+            for i in range(n_im):
+                cum_filt[i, :, :] = np.float32(filter_wrapper(i))
+        else:
+            print('with {} parallel processing...'.format(n_para), flush=True)
+            ### Parallel processing
+            p = q.Pool(n_para)
+            cum_filt[:, :, :] = np.array(p.map(filter_wrapper, range(n_im)), dtype=np.float32)
+            p.close()
 
-    if n_para == 1:
-        for i in range(n_im):
-            cum_filt[i, :, :] = np.float32(filter_wrapper(i))
-    else:
-        print('with {} parallel processing...'.format(n_para), flush=True)
-        ### Parallel processing
+
+        ### Only for output increment png files
+        print('\nCreate png for increment with {} parallel processing...'.format(n_para), flush=True)
         p = q.Pool(n_para)
-        cum_filt[:, :, :] = np.array(p.map(filter_wrapper, range(n_im)), dtype=np.float32)
+        p.map(filter_wrapper2, range(1, n_im))
         p.close()
-
-
-    ### Only for output increment png files
-    print('\nCreate png for increment with {} parallel processing...'.format(n_para), flush=True)
-    p = q.Pool(n_para)
-    p.map(filter_wrapper2, range(1, n_im))
-    p.close()
-
+    else:
+        # not filtering
+        cum_filt = cum
 
     #%% Find stable ref point
     print('\nFind stable reference point...', flush=True)
@@ -621,6 +635,31 @@ def main(argv=None):
         plot_lib.make_im_png(vconst_mskd, pngfile, cmap_vel, title, vmin, vmax)
 
 
+
+    # Creating Synth IFGS
+    runSynth = False
+    if runSynth:
+        print('\nCreating LowPass IFGs,', flush=True)
+        ifgdates = tools_lib.get_ifgdates(ifgdir)
+        n_ifg = len(ifgdates)
+        synthdir = os.path.join(tsadir, '16filt_synth')
+        if os.path.exists(synthdir): shutil.rmtree(synthdir)
+        os.mkdir(synthdir)
+        corrdir = os.path.join(os.path.dirname(tsadir), 'GEOCml10GACOSfiltcorr')
+        if os.path.exists(corrdir): shutil.rmtree(corrdir)
+        os.mkdir(corrdir)
+        synthreffile = os.path.join(infodir, '130ref.txt')
+
+        if n_para == 1:
+            for i in range(n_ifg):
+                synth_wrapper(i)
+        else:
+            print('with {} parallel processing...'.format(n_para), flush=True)
+            ### Parallel processing
+            p = q.Pool(n_para)
+            p.map(synth_wrapper, range(n_ifg))
+            p.close()
+
     #%% Finish
     elapsed_time = time.time()-start
     hour = int(elapsed_time/3600)
@@ -744,6 +783,12 @@ def filter_wrapper(i):
 
         cum_hpt = cum[i, :, :] - cum_lpt
 
+        ### Output comparison image
+        data3 = [np.angle(np.exp(1j*(data/coef_r2m/cycle))*cycle) for data in [cum[i, :, :]*mask, cum_lpt*mask, cum_hpt*mask]]
+        title3 = ['Before filter ({}pi/cycle)'.format(cycle*2), 'Low-Pass Temporal ({}pi/cycle)'.format(cycle*2), 'High Pass Temporal ({}pi/cycle)'.format(cycle*2)]
+        pngfile = os.path.join(filtcumdir, imdates[i]+'_tmpfilt.png')
+        plot_lib.make_3im_png(data3, pngfile, cmap_wrap, title3, vmin=-np.pi, vmax=np.pi, cbar=False)
+
 
     ### Third, LP in space and subtract from original
     if filtwidth_km == 0.0:
@@ -757,15 +802,29 @@ def filter_wrapper(i):
             kernel = Gaussian2DKernel(x_stddev, y_stddev)
             cum_hptlps = convolve_fft(cum_hpt*mask, kernel, fill_value=np.nan, allow_huge=True) ## fill edge 0 for interpolation
             cum_hptlps[cum_hptlps == 0] = np.nan ## fill 0 with nan
+            cum_lps = convolve_fft(cum[i, :, :]*mask, kernel, fill_value=np.nan, allow_huge=True) ## fill edge 0 for interpolation
+            cum_lps[cum_hptlps == 0] = np.nan ## fill 0 with nan
 
         _cum_filt = cum[i, :, :] - cum_hptlps
+        cum_hps = cum[i, :, :] - cum_lps
+
+        ### Output comparison image
+        data3 = [np.angle(np.exp(1j*(data/coef_r2m/cycle))*cycle) for data in [cum[i, :, :]*mask, cum_lps*mask, cum_hps*mask]]
+        title3 = ['Before filter ({}pi/cycle)'.format(cycle*2), 'Low-Pass Spatial ({}pi/cycle)'.format(cycle*2), 'High Pass Spatial ({}pi/cycle)'.format(cycle*2)]
+        pngfile = os.path.join(filtcumdir, imdates[i]+'_spafilt.png')
+        plot_lib.make_3im_png(data3, pngfile, cmap_wrap, title3, vmin=-np.pi, vmax=np.pi, cbar=False)
 
 
-    ### Output comparison image
-    data3 = [np.angle(np.exp(1j*(data/coef_r2m/cycle))*cycle) for data in [cum[i, :, :]*mask, cum_hptlps*mask, _cum_filt*mask]]
-    title3 = ['Before filter ({}pi/cycle)'.format(cycle*2), 'Filter phase ({}pi/cycle)'.format(cycle*2), 'After filter ({}pi/cycle)'.format(cycle*2)]
-    pngfile = os.path.join(filtcumdir, imdates[i]+'_filt.png')
-    plot_lib.make_3im_png(data3, pngfile, cmap_wrap, title3, vmin=-np.pi, vmax=np.pi, cbar=False)
+        ### Output comparison image
+        data3 = [np.angle(np.exp(1j*(data/coef_r2m/cycle))*cycle) for data in [cum[i, :, :]*mask, cum_hptlps*mask, _cum_filt*mask]]
+        title3 = ['Before filter ({}pi/cycle)'.format(cycle*2), 'Filter phase ({}pi/cycle)'.format(cycle*2), 'After filter ({}pi/cycle)'.format(cycle*2)]
+        pngfile = os.path.join(filtcumdir, imdates[i]+'_filt.png')
+        plot_lib.make_3im_png(data3, pngfile, cmap_wrap, title3, vmin=-np.pi, vmax=np.pi, cbar=False)
+
+
+
+        # Write out cumulative displacement file for each date
+        (cum_hptlps*mask).astype(np.float32).tofile(os.path.join(filtcumdir, imdates[i]+'.filt'))
 
     return _cum_filt
 
@@ -784,6 +843,80 @@ def filter_wrapper2(i):
               'After filter ({}pi/cycle)'.format(cycle*2)]
     pngfile = os.path.join(filtincdir, '{}_{}_filt.png'.format(imdates[i-1], imdates[i]))
     plot_lib.make_3im_png(data3, pngfile, cmap_wrap, title3, vmin=-np.pi, vmax=np.pi, cbar=False)
+
+def synth_wrapper(i):
+    if np.mod(i + 1, 10) == 0:
+        print("  {0:3}/{1:3}th IFG...".format(i + 1, len(ifgdates)), flush=True)
+
+    with open(synthreffile, "r") as f:
+        refarea = f.read().split()[0]  # str, x1/x2/y1/y2
+    refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
+    ifgd = ifgdates[i]
+    os.mkdir(os.path.join(corrdir, ifgd))
+    ifgd1 = ifgd.split('_')[0]
+    ifgd2 = ifgd.split('_')[1]
+
+    cum1file = os.path.join(filtcumdir, ifgd1 + '.filt')
+    cum2file = os.path.join(filtcumdir, ifgd2 + '.filt')
+    if os.path.exists(cum1file) and os.path.exists(cum2file):
+        synthfile = os.path.join(synthdir, ifgd + '.unw.synth')
+        ifgfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
+
+        cum1 = io_lib.read_img(cum1file, length, width)
+        cum2 = io_lib.read_img(cum2file, length, width)
+        synth = cum2 - cum1
+        synth = io_lib.read_img(os.path.join(tsadir, '130resid', ifgd + '.res'), length, width)
+
+        x1, x2, y1, y2 = refx1, refx2, refy1, refy2
+
+        while np.isnan(synth[y1:y2,x1:x2]).all():
+            y1 -= 1
+            x1 -= 1
+            y2 += 1
+            x2 += 1
+
+        ref = np.nanmean(synth[y1:y2,x1:x2])
+        synth = (synth - ref) / coef_r2m # Convert from mm to rads
+
+        synth.tofile(synthfile)
+
+        plot_lib.make_im_png(np.angle(np.exp(1j*(synth/coef_r2m/cycle))*cycle), synthfile + '.png', cmap_wrap, ifgd, vmin=-np.pi, vmax=np.pi, cbar=False)
+
+        ifg = io_lib.read_img(ifgfile, length, width)
+        plot_lib.make_im_png(np.angle(np.exp(1j*(ifg/coef_r2m/cycle))*cycle), os.path.join(corrdir, ifgd, ifgd + '_unw1.png'), cmap_wrap, ifgd + ' Original', vmin=-np.pi, vmax=np.pi, cbar=False)
+
+
+        kernel = Gaussian2DKernel(x_stddev, y_stddev)
+        ifg_lps = convolve_fft(ifg*mask, kernel, fill_value=np.nan, allow_huge=True) ## fill edge 0 for interpolation
+        ifg_lps[np.where(np.isnan(ifg))] = np.nan ## fill 0 with nan
+        ifg_lps = ifg.copy()
+        x1, x2, y1, y2 = refx1, refx2, refy1, refy2
+
+        while np.isnan(ifg_lps[y1:y2,x1:x2]).all():
+            y1 -= 1
+            x1 -= 1
+            y2 += 1
+            x2 += 1
+
+        npi = 2
+        ref = np.nanmean(ifg_lps[y1:y2,x1:x2])
+        ifg_lps = ifg_lps - ref # Low-Pass filter of the IFG, referenced to a common area
+        res = ((ifg_lps - synth) / (npi * np.pi)).round() # Residual between the Low-Pass IFG, and Synth, in integer 2pi radians
+        plot_lib.make_im_png(np.angle(np.exp(1j*((ifg - (res * npi * np.pi))/coef_r2m/cycle))*cycle), os.path.join(corrdir, ifgd, ifgd + '_unw2.png'), cmap_wrap, ifgd + ' Resid Corrected', vmin=-np.pi, vmax=np.pi, cbar=False)
+        if i == 0:
+            print(np.unique(res, return_counts=True))
+        ### Output comparison image of LPS Unw, LPS Synth, and res
+        data3 = [np.angle(np.exp(1j*(data/coef_r2m/cycle))*cycle) for data in [ifg_lps, synth]]
+        data3.append(res)
+        title3 = ['Original LPS UNW ({}pi/cycle)'.format(cycle*2), 'Synth IFG ({}pi/cycle)'.format(cycle*2), 'Residual (N * {}pi)'.format(npi)]
+        pngfile = os.path.join(synthdir, ifgd + '_res.png')
+        plot_lib.make_3im_png(data3, pngfile, cmap_wrap, title3, vmin=-np.pi, vmax=np.pi, cbar=True)
+
+
+        (ifg - (res * npi * np.pi)).astype(np.float32).tofile(os.path.join(corrdir, ifgd, ifgd + '.unw'))
+        plot_lib.make_im_png((ifg_lps - synth) / (npi * np.pi), os.path.join(corrdir, ifgd, ifgd + '_diff.png'), 'tab20c', ifgd + ' Residual (N * {}pi)'.format(npi), cbar=True)
+        plot_lib.make_im_png(res, os.path.join(corrdir, ifgd, ifgd + '_res.png'), 'tab20c', ifgd + ' Residual (modulo N * {}pi)'.format(npi), cbar=True)
+
 
 
 #%% main

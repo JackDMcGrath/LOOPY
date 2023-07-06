@@ -53,7 +53,7 @@ Outputs in TS_GEOCml*/:
 =====
 Usage
 =====
-LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [--full_res] [--reset] [--n_para]
+LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-m int] [--fullres] [--reset] [--n_para]
 
 -d        Path to the GEOCml* dir containing stack of unw data
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)

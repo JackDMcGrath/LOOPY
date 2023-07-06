@@ -1,0 +1,20 @@
+name: loopy-whitebox
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - astropy
+  - beautifulsoup4
+  - gdal=3.0.2
+  - h5py
+  - matplotlib=3.4.2
+  - numpy=1.21.5
+  - psutil
+  - requests
+  - shapely
+  - statsmodels
+  - scipy
+  - scikit-image
+  - cvxopt
+  - whitebox_tools

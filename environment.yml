@@ -1,0 +1,27 @@
+name: licsbas_qi
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - astropy
+  - beautifulsoup4
+  - gdal>=2.4
+  - h5py
+  - matplotlib=3.4.2
+  - numpy
+  - psutil
+  - requests
+  - shapely
+  - statsmodels
+  - xarray
+  - rioxarray
+  - lapack
+  - geoviews
+  - cartopy
+  - panel
+  - holoviews
+  - netCDF4
+  - bottleneck
+  - scikit-learn
+  - dask
+  - networkx

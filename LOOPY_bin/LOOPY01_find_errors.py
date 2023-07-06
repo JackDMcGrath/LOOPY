@@ -66,7 +66,7 @@ Outputs in GEOCml*LoopMask/:
 =====
 Usage
 =====
-LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-e errorfile] [-v int] [--full_res] [--reset] [--n_para]
+LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-f int] [-e errorfile] [-v int] [--fullres] [--reset] [--n_para] [--onlylisted] [--autoerror]
 
 -d        Path to the GEOCml* dir containing stack of unw data
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
@@ -78,6 +78,8 @@ LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-e errorfile
 --fullres Create masks from full res data (ie. orginal geotiffs) (Assume in folder called GEOC)
 --reset   Remove previous corrections
 --n_para  Number of parallel processing (Default: # of usable CPU)
+--autoerror Try and automatically guess where errors will be based on coherence
+--onlylisted Use only errors that have been user defined
 
 =========
 Changelog
@@ -138,7 +140,8 @@ def main(argv=None):
 
     global plot_figures, tol, ml_factor, refx1, refx2, refy1, refy2, n_ifg, \
         length, width, ifgdir, ifgdates, coh, i, v, begin, fullres, geocdir, \
-        corrdir, bool_mask, cycle, n_valid_thre, min_error, coh_thresh
+        corrdir, bool_mask, cycle, n_valid_thre, min_error, coh_thresh, onlylisted, \
+        poly_strings_all, lon, lat
 
     # %% Set default
     ifgdir = []  # GEOCml* dir
@@ -151,6 +154,7 @@ def main(argv=None):
     fullres = False
     reset = False
     plot_figures = False
+    onlylisted = False
     v = -1
     cycle = 3
     n_valid_thre = 0.5
@@ -170,7 +174,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:f:", ["help", "reset", "n_para=", "fullres", "autoerror", "coh_thresh="])
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:m:e:v:f:", ["help", "reset", "n_para=", "fullres", "autoerror", "coh_thresh=", "onlylisted"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -201,6 +205,8 @@ def main(argv=None):
                 autoerror = True
             elif o == '--coh_thresh':
                 coh_thresh = float(a)
+            elif o == '--onlylisted':
+                onlylisted = True
 
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
@@ -372,10 +378,30 @@ def main(argv=None):
             lon2 = lon1 + postlon * (width - 1)  # east
             lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
 
-        for poly_str in poly_strings_all:
-            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat, radius=2)
 
-        bool_mask[np.where(bool_mask != 0)] = 1
+        # %% Run correction in parallel
+
+        _n_para = n_para if n_para < len(poly_strings_all) else len(poly_strings_all)
+        print('\nMapping Likely Errors, '.format(n_ifg), flush=True)
+
+        if n_para == 0:
+            print('with no parallel processing...', flush=True)
+            strnum = 0
+            for poly_str in poly_strings_all:
+                start = time.time()
+                strnum += 1
+                bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat, radius=2)
+                print('Plotted Likely Error {}/{}\t({:.3f}s)'.format(i, len(poly_strings_all), time.time() - start))
+            bool_mask[np.where(bool_mask != 0)] = 1
+
+        else:
+            print('with {} parallel processing...'.format(_n_para), flush=True)
+            # Parallel processing
+            p = q.Pool(_n_para)
+            bool_all = np.array(p.map(plotKnown, range(len(poly_strings_all))))
+            p.close()
+            bool_mask[np.where(np.sum(bool_all, axis=0) != 0)] = 1
+
 # %%
     if autoerror:
         statsfile = os.path.join(infodir, '11ifg_stats.txt')
@@ -398,7 +424,47 @@ def main(argv=None):
             n_coh = np.zeros((length, width), dtype=np.int16)
             n_unw = np.zeros((length, width), dtype=np.int16)
 
+
+#            # %% Run correction in parallel
+#            _n_para = n_para if n_para < n_ifg else n_ifg
+#            print('\nCalculating Mean Coherence from {} ifgs, '.format(n_ifg), flush=True)
+#
+#            if n_para == 1:
+#                print('with no parallel processing...', flush=True)
+#                if v >= 0:
+#                    print('In an overly verbose way for IFG {}'.format(v + 1))
+#
+#               for ifgd in ifgdates:
+#                    print(ifgd)
+#                    ccfile = os.path.join(ifgdir, ifgd, ifgd + '.cc')
+#                    if os.path.getsize(ccfile) == length * width:
+#                        coh1 = io_lib.read_img(ccfile, length, width, np.uint8)
+#                        coh1 = coh1.astype(np.float32) / 255
+#                  else:
+#                        coh1 = io_lib.read_img(ccfile, length, width)
+#                        coh1[np.isnan(coh)] = 0  # Fill nan with 0
+#
+#                   coh_avg += coh1
+#                    n_coh += (coh1 != 0)
+#
+#                   unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
+#                   unw = io_lib.read_img(unwfile, length, width)
+#
+#                   unw[unw == 0] = np.nan  # Fill 0 with nan
+#                   n_unw += ~np.isnan(unw)  # Summing number of unnan unw
+#
+#            else:
+#                print('with {} parallel processing...'.format(_n_para), flush=True)
+#
+#                # Parallel processing
+#                p = q.Pool(_n_para)
+#                p.map(mask_unw_errors, range(n_ifg))
+#                p.close()
+
+
+
             for ifgd in ifgdates:
+                print(ifgd)
                 ccfile = os.path.join(ifgdir, ifgd, ifgd + '.cc')
                 if os.path.getsize(ccfile) == length * width:
                     coh1 = io_lib.read_img(ccfile, length, width, np.uint8)
@@ -418,7 +484,9 @@ def main(argv=None):
 
             coh_avg[n_coh == 0] = np.nan
             n_coh[n_coh == 0] = 1  # to avoid zero division
-            coh_avg = coh_avg / n_coh
+            print('New Version - divide by n_ifg not n_unw for each pixel')
+            #coh_avg = coh_avg / n_coh
+            coh_avg = coh_avg / n_ifg
 
         # loopy_lib.plotim(coh_avg, title='Coherence Average', centerz=False)
         errs = np.zeros((length, width))
@@ -565,6 +633,17 @@ def main(argv=None):
         p.map(mask_unw_errors, range(n_ifg))
         p.close()
 
+
+    if ml_factor != 1:
+        print('Multilooking the metadata')
+
+        for file in ['E.geo', 'N.geo', 'U.geo', 'slc.mli', 'hgt']:
+            data = io_lib.read_img(os.path.join(tsdir, file), length, width)
+            data = tools_lib.multilook(data, ml_factor, ml_factor)
+            outfile = os.path.join(tsdir, file)
+            data.tofile(outfile)
+            print('  {} multilooked'.format(file), flush=True)
+
     # %% Finish
     elapsed_time = time.time() - start
     hour = int(elapsed_time / 3600)
@@ -610,17 +689,18 @@ def mask_unw_errors(i):
         unw[np.where(cc_map < coh_thresh)] = np.nan
 
     # Find Reference Value, and reference all IFGs to same value
+    ifg = unw.copy()
     if np.all(np.isnan(unw[refy1:refy2, refx1:refx2])):
         print('Invalid Ref Value found for IFG {}. Setting to 0'.format(date))
         ref = 0
     else:
         ref = np.nanmean(unw[refy1:refy2, refx1:refx2])
-
-    ifg = unw.copy()
-    ifg = ifg - ref  # Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
+        ifg = ifg - ref  # Maybe no need to use a reference - would be better to subtract 0.5 pi or something, incase IFG is already referenced
     if i == v:
         print('        Reffed {:.2f}'.format(time.time() - begin))
     # %%
+
+
     # Interpolate IFG to entire frame
     filled_ifg = NN_interp(ifg)
 
@@ -642,31 +722,44 @@ def mask_unw_errors(i):
     if i == v:
         print('        Scipy filtered {:.2f} ({:.2f} s)'.format(time.time() - begin, time.time() - start))
 
-    # %%
-    errors = np.zeros(npi.shape) * np.nan
-    errors[np.where(~np.isnan(npi))] = 0
+    if not onlylisted:
+        if i == v:
+            print('        Searching for errors')
+        # %%
+        errors = np.zeros(npi.shape) * np.nan
+        errors[np.where(~np.isnan(npi))] = 0
 
-    # Compare with 1 row below
-    error_rows, error_cols = np.where((np.abs(npi[:-1, :] - npi[1:, :]) > 1))
-    errors[error_rows, error_cols] = 1
+        # Compare with 1 row below
+        error_rows, error_cols = np.where((np.abs(npi[:-1, :] - npi[1:, :]) > 1))
+        errors[error_rows, error_cols] = 1
 
-    # Compare with 1 row above
-    error_rows, error_cols = np.where((np.abs(npi[1:, :] - npi[:-1, :]) > 1))
-    errors[error_rows + 1, error_cols] = 1
+        # Compare with 1 row above
+        error_rows, error_cols = np.where((np.abs(npi[1:, :] - npi[:-1, :]) > 1))
+        errors[error_rows + 1, error_cols] = 1
 
-    # Compare to column to the left
-    error_rows, error_cols = np.where((np.abs(npi[:, 1:] - npi[:, :-1]) > 1))
-    errors[error_rows, error_cols] = 1
+        # Compare to column to the left
+        error_rows, error_cols = np.where((np.abs(npi[:, 1:] - npi[:, :-1]) > 1))
+        errors[error_rows, error_cols] = 1
 
-    # Compare to column to the right
-    error_rows, error_cols = np.where((np.abs(npi[:, :-1] - npi[:, 1:]) > 1))
-    errors[error_rows, error_cols + 1] = 1
+        # Compare to column to the right
+        error_rows, error_cols = np.where((np.abs(npi[:, :-1] - npi[:, 1:]) > 1))
+        errors[error_rows, error_cols + 1] = 1
 
-    # Add know error locations
-    errors[np.where(bool_mask == 1)] = 1
+        # Add known error locations
+        errors[np.where(bool_mask == 1)] = 1
 
-    if i == v:
-        print('        Boundaries Classified {:.2f}'.format(time.time() - begin))
+        if i == v:
+            print('        Boundaries Classified {:.2f}'.format(time.time() - begin))
+
+    else:
+        if i == v:
+            print('        Using pre-defined errors')
+        errors = np.zeros(unw.shape) * np.nan
+        errors[np.where(~np.isnan(unw))] = 0
+        # Add known error locations
+        errors[np.where(bool_mask == 1)] = 1
+        if i == v:
+            print('        Only defined errors used {:.2f}'.format(time.time() - begin))
 
     # %%
     # Add error lines to the original IFG, and interpolate with these values to
@@ -837,6 +930,8 @@ def mask_unw_errors(i):
                '{} Corrected'.format(ifgdates[i]),
                'Modulo nPi',
                'Mask Correction (n * 2Pi)']
+    npi[np.where(np.isnan(unw))] = np.nan
+    correction[np.where(np.isnan(unw))] = np.nan
     loopy_lib.make_compare_png(unw, corr_unw, npi, correction / (2 * np.pi), corrcomppng, titles4, 3)
 
     title = 'Error Map'
@@ -866,8 +961,12 @@ def NN_interp(data):
     interp = NearestNDInterpolator(np.transpose(mask), data[mask])
     interped_data = data.copy()
     interp_to = np.where(((~np.isnan(coh)).astype('int') + np.isnan(data).astype('int')) == 2)
-    nearest_data = interp(*interp_to)
-    interped_data[interp_to] = nearest_data
+    try:
+        nearest_data = interp(*interp_to)
+        interped_data[interp_to] = nearest_data
+    except IndexError:
+        print('IndexError: Interpolation Failed - check IFG data coverage')
+
     return interped_data
 
 
@@ -886,6 +985,15 @@ def mode_filter(data, filtSize=21):
     dataMode[np.where(dataMode == npi_min)] = np.nan
 
     return dataMode
+
+
+def plotKnown(i):
+    poly_str = poly_strings_all[i]
+    start = time.time()
+    poly_mask = tools_lib.poly_mask(poly_str, lon, lat, radius=2)
+    if np.mod(i + 1, 25) == 0:
+        print('Plotting Likely Error {}/{}\t({:.3f}s)'.format(i + 1, len(poly_strings_all), time.time() - start))
+    return poly_mask
 
 # %% main
 if __name__ == "__main__":

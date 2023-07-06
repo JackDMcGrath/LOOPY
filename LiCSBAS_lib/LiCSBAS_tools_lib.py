@@ -8,11 +8,6 @@ Python3 library of time series analysis tools for LiCSBAS.
 =========
 Changelog
 =========
-20230323, Jack McGrath
- - add line option to polymask
-20220121, Andrew Watson
- - added poly_mask function (in progres)
-
 v1.8 20210309 Yu Morishita, GSI
  - Add GPU option to fit2dh (but not recommended)
 v1.7 20210205 Yu Morishita, GSI
@@ -51,6 +46,11 @@ import warnings
 from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib import pyplot as plt
 import matplotlib.path as path
+import networkx as nx
+
+with warnings.catch_warnings(): ## To silence user warning about registered colourmaps
+    #warnings.simplefilter('ignore', UserWarning)
+    warnings.filterwarnings("ignore", category=UserWarning)
 
 #%%
 def bl2xy(lon, lat, width, length, lat1, postlat, lon1, postlon):
@@ -433,7 +433,9 @@ def get_cmap(cmap_name, cmapN=256):
     if flag >= 1:
         if cmap_name.endswith('_r'):
             _cmap = _cmap.reversed()
-        plt.cm.register_cmap(name = cmap_name, cmap = _cmap)
+        with warnings.catch_warnings(): ## To silence user warning about registered colourmaps
+            warnings.filterwarnings("ignore", category=UserWarning)
+            plt.cm.register_cmap(name = cmap_name, cmap = _cmap)
 
     cmap = plt.get_cmap(cmap_name, cmapN)
 
@@ -496,6 +498,172 @@ def ifgdates2imdates(ifgdates):
     imdates.sort()
 
     return imdates
+
+
+#%%
+def ifgdates_to_edges(ifgdates):
+    """ convert list of "20xxxxxx_20xxxxxx" into list of tuples ("20xxxxxx", "20xxxxxx") for networkx analysis"""
+    edges = []
+    for ifgd in ifgdates:
+        edges.append(tuple((ifgd[:8], ifgd[9:])))
+    return edges
+
+
+def edges_to_ifgdates(edges):
+    """ convert list of tuples ("20xxxxxx", "20xxxxxx") back to list of "20xxxxxx_20xxxxxx" """
+    ifgdates = []
+    for edge in edges:
+        epoch1 = str(min(int(edge[0]), int(edge[1])))
+        epoch2 = str(max(int(edge[0]), int(edge[1])))
+        ifgdates.append(epoch1 + "_" + epoch2)
+    return ifgdates
+
+
+def select_ifgs_by_months(ifg_list, allowed_month, strict=True):
+    """ Choose IFGs based on a list of allowed months given as string "1.2.3.10" separated by period
+    strict = True: both epochs have to be in the allowed month
+    strict = False: either epoch can be in the allowed month
+    """
+    primary_month = []
+    secondary_month = []
+    for pairs in ifg_list:
+        primary_month.append(int(pairs[4:6]))
+        secondary_month.append(int(pairs[13:15]))
+    allowed_month = [int(i) for i in allowed_month.split(".")]
+    primary_month_allowed = [month in allowed_month for month in primary_month]
+    secondary_month_allowed = [month in allowed_month for month in secondary_month]
+    if strict:
+        mask = [a and b for a, b in zip(primary_month_allowed, secondary_month_allowed)]
+    else:
+        mask = [a or b for a, b in zip(primary_month_allowed, secondary_month_allowed)]
+    selected_ifgs = [i for (i, v) in zip(ifg_list, mask) if v]
+    return selected_ifgs
+
+def calc_temporal_baseline(ifg_list):
+    dt_list = []
+    for ifg in ifg_list:
+        mday = dt.datetime.strptime(ifg[:8], '%Y%m%d').toordinal()
+        sday = dt.datetime.strptime(ifg[-8:], '%Y%m%d').toordinal()
+        dt_ifg = sday - mday
+        dt_list.append(dt_ifg)
+    return dt_list
+
+def separate_strong_and_weak_links(ifg_list, component_statsfile, remove_edge_cuts=True, remove_node_cuts=True, skip_node_cuts=False):
+    """return a list of strong ifgs and a list of weak ifgs"""
+    primarylist = []
+    secondarylist = []
+    for pairs in ifg_list:
+        primarylist.append(pairs[:8])
+        secondarylist.append(pairs[-8:])
+
+    all_epochs = primarylist + secondarylist
+    all_epochs.sort()
+    epochs, counts = np.unique(all_epochs, return_counts=True)
+
+    # iteratively drop weak ifgs associated with epochs with 1 or 2 links
+    while len(epochs) > 0 and np.min(counts) < 3:
+        strong_epoch_list = epochs[counts > 2]
+        strong_primary_check = np.array([x in strong_epoch_list for x in primarylist])
+        strong_secondary_check = np.array([x in strong_epoch_list for x in secondarylist])
+        strong_ifg_check = np.logical_and(strong_primary_check, strong_secondary_check)
+        primarylist = np.array(primarylist)[strong_ifg_check].tolist()
+        secondarylist = np.array(secondarylist)[strong_ifg_check].tolist()
+
+        epochs = primarylist + secondarylist
+        epochs.sort()
+        epochs, counts = np.unique(epochs, return_counts=True)
+
+    edge_cuts = []
+    node_cuts = []
+    if len(epochs) > 0:
+        strong_ifgs = [p+'_'+s for p, s in zip(primarylist, secondarylist)]
+
+        # check if the ifgs after removing epochs with 1 or 2 ifgs form on connected network
+        edges = ifgdates_to_edges(strong_ifgs)
+        G = nx.Graph()
+        G.add_edges_from(edges)
+        number_of_components = len(list(nx.connected_components(G)))
+
+        # compute other stats about the largest connected components
+        if os.path.exists(component_statsfile): os.remove(component_statsfile)
+        with open(component_statsfile, 'w') as f:
+            print("Number_of_connected_components: {}".format(number_of_components), file=f)
+            print("Number_of_connected_components: {}".format(number_of_components))
+
+        # if not connected, extract the largest connected component based on number of epochs involved
+        if not nx.is_connected(G):
+            largest_cc = max(nx.connected_components(G), key=len)
+            print("Not connected, hence largest_cc extracted...")
+            Gs = nx.subgraph(G, largest_cc)
+            G = nx.Graph(Gs)
+            nx.draw(G, with_labels=True)
+            plt.savefig('labels.png')
+
+
+        # if the largest component network is not well-connected, highlight the edge cuts and node cuts
+        if nx.edge_connectivity(G) == 1:
+            print("Edge connectivity is {}".format(nx.edge_connectivity(G)))
+
+            edge_cuts = edges_to_ifgdates(list(nx.bridges(G)))
+            print("{} edge cuts".format(len(edge_cuts)))
+            if remove_edge_cuts:
+                # remove edge cuts and extract the largest connected component
+                G.remove_edges_from(nx.bridges(G))
+                largest_cc = max(nx.connected_components(G), key=len)
+                Gs = nx.subgraph(G, largest_cc)
+                G = nx.Graph(Gs)
+
+        if nx.node_connectivity(G) == 1:
+            print("Node connectivity is {}".format(nx.node_connectivity(G)))
+            #
+            # output a record of the node_cuts
+            node_cuts = []
+            # print("skipping node cut searching")
+            if not skip_node_cuts:
+                print(list(nx.all_node_cuts(G)))
+                for i in list(nx.all_node_cuts(G)):
+                    print(i)
+                    for j in list(i):
+                        print(j)
+                        node_cuts.append(j)
+                        print(node_cuts)
+                print("{} node cuts".format(len(node_cuts)))
+                if remove_node_cuts:
+                    # remove node cuts, which will waste edges connected to the node cuts. The remaining should be robust
+                    while nx.node_connectivity(G) == 1:
+                        # iteratively remove the first node cut from all_node_cuts and see if the remaining largest component has node cuts
+                        G.remove_nodes_from(list(nx.all_node_cuts(G))[0])
+                        largest_cc = max(nx.connected_components(G), key=len)
+                        Gs = nx.subgraph(G, largest_cc)
+                        G = nx.Graph(Gs)
+
+        # compute other stats about the largest connected components
+        degrees = [len(list(G.neighbors(n))) for n in G.nodes()]
+        average_degree = np.mean(degrees)
+        with open(component_statsfile, 'a') as f:
+            print("Largest_cc_edge_number: {}".format(len(G.edges)), file=f)
+            print("Largest_cc_edge_number: {}".format(len(G.edges)))
+            print("Largest_cc_node_number: {}".format(len(G.nodes)), file=f)
+            print("Largest_cc_node_number: {}".format(len(G.nodes)))
+            print("Largest_cc_average_degree: {}".format(int(average_degree)), file=f)
+            print("Largest_cc_average_degree: {}".format(int(average_degree)))
+            print("Largest_cc_edge_connectivity: {}".format(nx.edge_connectivity(G)), file=f)
+            print("Largest_cc_edge_connectivity: {}".format(nx.edge_connectivity(G)))
+            print("Largest_cc_node_connectivity: {}".format(nx.node_connectivity(G)), file=f)
+            print("Largest_cc_node_connectivity: {}".format(nx.node_connectivity(G)))
+
+        # now only strong links in the largest connected component of the network is considered strong
+        strong_ifgs = sorted(edges_to_ifgdates(G.edges))
+        weak_ifgs = list(set(ifg_list)-set(strong_ifgs))
+        weak_ifgs.sort()
+        print("{} edges in total".format(len(ifg_list)))
+        print("{} weak edges removed".format(len(weak_ifgs)))
+
+    else:
+        strong_ifgs = []
+        weak_ifgs = ifg_list
+
+    return strong_ifgs, weak_ifgs, edge_cuts, node_cuts
 
 
 #%%
