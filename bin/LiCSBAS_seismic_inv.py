@@ -46,7 +46,7 @@ def init_args():
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('--n_para', dest='n_para', default=False, help='number of parallel processing')
-    parser.add_argument('--tau', dest='tau', default=0.178, help='Post-Seismic Decay Constant')
+    parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relazation time (days)')
 
     args = parser.parse_args()
 
@@ -281,7 +281,7 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
 def fit_pixel_velocities():
     # %% Constant Linear with Co- and post-seismic
     # Define post-seismic constant
-    pcst = args.tau
+    pcst = 1 / args.tau
 
     # Currently works on a pixel-by-pixel basis
     # Gradient, intercept, offset, log-param, post-velocity?
