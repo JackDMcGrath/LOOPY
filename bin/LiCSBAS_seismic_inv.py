@@ -261,6 +261,41 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
         ixs_dict[i] = ixs
     return ixs_dict
 
+def fit_pixel_velocities():
+    # %% Constant Linear with Co- and post-seismic
+    # Define post-seismic constant
+    pcst = args.tau
+
+    # Currently works on a pixel-by-pixel basis
+    # Gradient, intercept, offset, log-param, post-velocity?
+    G = np.zeros([n_im, 2 + n_eq * 3])
+    G[:, 0] = date_ord
+    G[:, 1] = 1
+    for i in range(0, n_eq):
+        G[eq_ix[i]:eq_ix[i + 1], 2 + i * 3] = 1
+        G[eq_ix[i]:eq_ix[i + 1], 3 + i * 3] = np.log(1 + pcst * (date_ord[eq_ix[i]:eq_ix[i + 1]] - ord_eq[i]))
+        G[eq_ix[i]:eq_ix[i + 1], 4 + i * 3] = date_ord[eq_ix[i]:eq_ix[i + 1]]
+
+    x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
+    
+    # Plot the inverted velocity time series
+    invvel = np.matmul(G, x)
+
+    print('Constant Velocity with co- and post-seismic effects')
+    print('    Initial Velocity and y-intercept: {:.2f} mm/yr, {:.2f} mm'.format(x[0] * 365.25, x[1]))
+    for i in range(0, n_eq):
+        pre_G = G[eq_ix[i] - 1]
+        pre_G[0] = ord_eq[i]
+        if i != 0:
+            pre_G[4 + i * 3] = ord_eq[i]
+        post_G = G[eq_ix[i]]
+        post_G[[0, 4 + i * 3]] = ord_eq[i]
+
+        offset = np.matmul(post_G, x) - np.matmul(pre_G, x)
+        print('    Co-seismic offset and log param for {}: {:.0f} mm, {:.2f}'.format(eq_dates[i], offset, x[3 + i * 3]))
+
+
+
 def even_split(a, n):
     """ Divide a list, a, in to n even parts"""
     n = min(n, len(a)) # to avoid empty lists
@@ -276,11 +311,11 @@ def main():
     # Remove outliers from image displacements to improve velocity fitting
     temporal_filter()
 
+    # Fit velocities
+    #fit_pixel_velocities()
+    
+
     finish()
 
 if __name__ == "__main__":
     main()
-
-
-
-
