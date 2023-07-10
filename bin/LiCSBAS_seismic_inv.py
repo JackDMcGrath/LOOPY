@@ -10,6 +10,7 @@ Based off Liu et al. (2021), Improving the Resolving Power of InSAR for Earthqua
 import os
 import sys
 import h5py
+import time
 import warnings
 import multiprocessing as multi
 import matplotlib.pyplot as plt
