@@ -29,12 +29,10 @@ class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescri
     '''
     pass
 
-
 class Usage(Exception):
     """Usage context manager"""
     def __init__(self, msg):
         self.msg = msg
-
 
 def init_args():
     global args
@@ -44,11 +42,12 @@ def init_args():
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
     parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
-    parser.add_argument('-m', dest='mask_file', default=None, help='mask file to apply to velocities')
+    parser.add_argument('-m', dest='apply_mask', default=None, help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('--n_para', dest='n_para', default=False, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relazation time (days)')
+    parser.add_argument('--max_its', dest='max_its', defualt=5, help='Maximum number of iterations for temporal filter')
 
     args = parser.parse_args()
 
@@ -81,13 +80,14 @@ def set_input_output():
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
     reffile = os.path.join(tsadir, args.ref_file)
-    maskfile = os.path.join(resultdir, 'mask')
+    if args.apply_mask:
+        maskfile = os.path.join(resultdir, 'mask')
     eqfile = os.path.abspath(args.eq_list)
 
     outlier_thresh = args.outlier_thre
 
 def load_data():
-    global width, length, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord
+    global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates
 
     data = h5py.File(h5file, 'r')
     cum = np.array(data['cum'])
@@ -146,7 +146,7 @@ def reference_disp():
     return cum
 
 def temporal_filter():
-    global ixs_dict, dt_cum, filterdates, filtwidth_yr, cum_lpt, n_its
+    global ixs_dict, dt_cum, filterdates, filtwidth_yr, cum_lpt, n_its, filt_std
     """
     Apply a low pass temporal filter, and remove outliers.
      Iterate until no outliers left so filter is not distorted 
@@ -160,7 +160,6 @@ def temporal_filter():
     filtwidth_yr = dt_cum[-1] / (n_im - 1) * 3  # Set the filter width based on n * average epoch seperation
     cum_lpt = np.zeros((n_im, length, width), dtype=np.float32)
     filterdates = np.linspace(0, n_im - 1, n_im, dtype='int').tolist()
-    valid = np.where(~np.isnan(data['vel']))
     n_its = 1
     ixs_dict = get_filter_dates(dt_cum, filtwidth_yr, filterdates)
 
@@ -172,29 +171,32 @@ def temporal_filter():
 
     # Replace all outliers with filtered values
     cum[outlier] = cum_lpt[outlier]
+    all_outliers = outlier.copy()
 
     ## Here would be the place to add in iterations (as a while loop of while len(outlier) > 0)
     while len(outlier) > 0:
         n_its += 1
+        print('Running Iteration {}/{}'.format(n_its, args.max_its))
         cum_lpt, outlier = find_outliers()
         # Replace all outliers with filtered values
         cum[outlier] = cum_lpt[outlier]
+        all_outliers = np.unique(np.concatenate((all_outliers, outlier), axis=1), axis=1)
+    
+    # Reload original data, replace identified outliers with final filtered values
+    cum = np.array(data['cum'])
+    cum[all_outliers] = cum_lpt[all_outliers]
 
-    # %% Set cum to be the data, with pixels outside the 2std limit replaced by filtered values
-    print('Running final Check')
-    cum = cum_replaced2.copy()
-
-    # %% Find a moving stddev of the data, relative to the filter values, across same time window
     print('Finding moving stddev')
     filt_std = np.ones(cum.shape) * np.nan
-    diff = cum[:, valid[0], valid[1]] - cum_lpt[:, valid[0], valid[1]]
+    filterdates = np.linspace(0, n_im - 1, n_im, dtype='int')
+    valid = np.where(~np.isnan(data['vel']))
+    diff = cum[:, valid[0], valid[1]] - cum_filt2[:, valid[0], valid[1]]
 
     for i in filterdates:
         if np.mod(i, 10) == 0:
             print("  {0:3}/{1:3}th image...".format(i, n_im), flush=True)
 
         filt_std[i, valid[0], valid[1]] = np.nanstd(diff[ixs_dict[i], :], axis=0)
-        # Why did I do that?
 
 def find_outliers():
     print('Outlier removal iteration {}'.format(n_its))
@@ -280,36 +282,62 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
         ixs_dict[i] = ixs
     return ixs_dict
 
-def fit_pixel_velocities():
-    # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
+def fit_velocities():
+    global pcst, valid, n_valid
+
+    # Identify all pixels where the is time series data
+    vel = data['vel']
+    if args.apply_mask:
+        mask = io_lib.read_img(maskfile, length, width)
+        vel[np.where(mask == 0)] = np.nan
+    valid = np.where(~np.isnan(vel))
+    n_valid = valid[0].shape[0]
+
+    # Preallocate shape (n_pixels x 6 (5 inversion params, and std))
+    results = np.zeros(n_valid, 6) * np.nan
+
     # Define post-seismic constant
     pcst = 1 / args.tau
 
-    # Currently works on a pixel-by-pixel basis
-    # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
-    G = np.zeros([n_im, 2 + n_eq * 3])
-    G[:, 0] = 1
-    G[:eq_ix[0], 1] = date_ord[:eq_ix[0]]
-    for i in range(0, n_eq):
-        G[eq_ix[i]:eq_ix[i + 1], 2 + i * 3] = 1
-        G[eq_ix[i]:eq_ix[i + 1], 3 + i * 3] = np.log(1 + pcst * (date_ord[eq_ix[i]:eq_ix[i + 1]] - ord_eq[i]))
-        G[eq_ix[i]:eq_ix[i + 1], 4 + i * 3] = date_ord[eq_ix[i]:eq_ix[i + 1]]
+    if n_para > 1 and n_valid > 100:
+        pool = multi.Pool(processes=n_para)
+        results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
+    else:
+        fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
 
-    x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
+
     
-    # Plot the inverted velocity time series
-    invvel = np.matmul(G, x)
-    vstd = (1 / n_im) * ((disp - invvel) ** 2)
+def fit_pixel_velocities(ix):
+    # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
+    results = np.zeros((len(ix), 6)) * np.nan
 
+    for pix in ix:
+        disp = cum[:, valid[0][pix], valid[1][pix]]
+        # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
+        G = np.zeros([n_im, 2 + n_eq * 3])
+        G[:, 0] = 1
+        G[:eq_ix[0], 1] = date_ord[:eq_ix[0]]
+        for i in range(0, n_eq):
+            G[eq_ix[i]:eq_ix[i + 1], 2 + i * 3] = 1
+            G[eq_ix[i]:eq_ix[i + 1], 3 + i * 3] = np.log(1 + pcst * (date_ord[eq_ix[i]:eq_ix[i + 1]] - ord_eq[i]))
+            G[eq_ix[i]:eq_ix[i + 1], 4 + i * 3] = date_ord[eq_ix[i]:eq_ix[i + 1]]
 
-    print('Constant Velocity with co- and post-seismic effects')
-    print('    Initial Velocity and InSAR Offset: {:.2f} mm/yr, {:.2f} mm'.format(x[1] * 365.25, x[0]))
-    for i in range(0, n_eq):
-        print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[i], x[2 + i * 3]))
-        print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + i * 3], x[4 + i * 3] * 365.25))
+        x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
+        
+        # Plot the inverted velocity time series
+        invvel = np.matmul(G, x)
+        x[5] = (1 / n_im) * ((disp - invvel) ** 2)
 
+        if np.mod(pix, 10) == 0:
+            print('{}/{} Velocity STD: {}'.format(pix, n_valid, x[5])')
+            print('    Initial Velocity and InSAR Offset: {:.2f} mm/yr, {:.2f} mm'.format(x[1] * 365.25, x[0]))
+            for i in range(0, n_eq):
+                print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[i], x[2 + i * 3]))
+                print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + i * 3], x[4 + i * 3] * 365.25))
 
-    return x, vstd
+        results[pix, :] = x
+
+    return results
 
 
 def even_split(a, n):
@@ -328,7 +356,7 @@ def main():
     temporal_filter()
 
     # Fit velocities
-    #fit_pixel_velocities()
+    fit_velocities()
     
 
     finish()
