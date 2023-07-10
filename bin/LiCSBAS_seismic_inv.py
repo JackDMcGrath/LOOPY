@@ -28,7 +28,7 @@ def init_args():
     parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
     parser.add_argument('-m', dest='mask_file', default=None, help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
-    parser.add_argument('-s', dest='outlier_thre', default=10, type=float, help='StdDev threshold used to remove outliers')
+    parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('--n_para', dest='n_para', default=False, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=0.178, help='Post-Seismic Decay Constant')
 
