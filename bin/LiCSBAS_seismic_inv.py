@@ -8,6 +8,7 @@ Based off Liu et al. (2021), Improving the Resolving Power of InSAR for Earthqua
 """
 
 import os
+import re
 import sys
 import h5py
 import time
@@ -47,7 +48,7 @@ def init_args():
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('--n_para', dest='n_para', default=False, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relazation time (days)')
-    parser.add_argument('--max_its', dest='max_its', defualt=5, help='Maximum number of iterations for temporal filter')
+    parser.add_argument('--max_its', dest='max_its', default=5, help='Maximum number of iterations for temporal filter')
 
     args = parser.parse_args()
 
@@ -116,12 +117,12 @@ def load_data():
     eq_dates = io_lib.read_ifg_list(eqfile)
     eq_dates.sort()
     n_eq = len(eq_dates)
-    
+
     # Find which index each earthquake correlates to
     eq_dt = [dt.datetime.strptime(str(eq_date), '%Y%m%d').date() for eq_date in eq_dates]
     eq_ix = []
     for eq_date in eq_dates:
-        eq_ix.append(np.sum([1 for d in dates if d < eq_date], dtype='int'))
+        eq_ix.append(np.sum([1 for d in dates if str(d) < eq_date], dtype='int'))
     eq_ix.append(n_im)
 
     # Make all dates ordinal
@@ -129,27 +130,30 @@ def load_data():
     date_ord = np.array([x.toordinal() for x in dates]) - dates[0].toordinal()
 
 def reference_disp():
+    global cum, refx1, refx2, refy1, refy2
     # Reference all data to reference area through static offset
     ref = np.nanmean(cum[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(cum.shape[0], 1, 1)
     # Check that one of the refs is not all nan. If so, increase ref area
     if np.isnan(ref).any():
         print('NaN Value for reference for {} dates. Increasing ref area kernel'.format(np.sum(np.isnan(ref))))
         while np.isnan(ref).any():
-            ref_x = [ref_x[0] - 1, ref_x[1] + 1]
-            ref_y = [ref_y[0] - 1, ref_y[1] + 1]
-            ref = np.nanmean(cum[:, ref_y[0]:ref_y[1], ref_x[0]:ref_x[1]], axis=(2, 1)).reshape(cum.shape[0], 1, 1)
-    
-    print('Reference area ({}:{}, {}:{})'.format(ref_x[0], ref_x[1], ref_y[0], ref_y[1]))
-    
+            refx1 -= 1
+            refx2 += 1
+            refy1 -= 1
+            refy2 += 1
+            ref = np.nanmean(cum[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(cum.shape[0], 1, 1)
+
+    print('Reference area ({}:{}, {}:{})'.format(refx1, refx2, refy1, refy2))
+
     cum = cum - ref
- 
+
     return cum
 
 def temporal_filter():
     global ixs_dict, dt_cum, filterdates, filtwidth_yr, cum_lpt, n_its, filt_std
     """
     Apply a low pass temporal filter, and remove outliers.
-     Iterate until no outliers left so filter is not distorted 
+     Iterate until no outliers left so filter is not distorted
      by outliers, then on the final pass, remove outliers between
      the original data and final iteration filter
     """
@@ -181,7 +185,7 @@ def temporal_filter():
         # Replace all outliers with filtered values
         cum[outlier] = cum_lpt[outlier]
         all_outliers = np.unique(np.concatenate((all_outliers, outlier), axis=1), axis=1)
-    
+
     # Reload original data, replace identified outliers with final filtered values
     cum = np.array(data['cum'])
     cum[all_outliers] = cum_lpt[all_outliers]
@@ -217,7 +221,7 @@ def find_outliers():
     outlier = np.where(abs(diff) > outlier_thresh * filt_std)
 
     print('\t{} outliers identified'.format(len(outliers)))
-    
+
     return cum_lpt, outlier
 
 def lpt_filter():
@@ -306,7 +310,7 @@ def fit_velocities():
         fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
 
 
-    
+
 def fit_pixel_velocities(ix):
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     results = np.zeros((len(ix), 6)) * np.nan
@@ -323,13 +327,13 @@ def fit_pixel_velocities(ix):
             G[eq_ix[i]:eq_ix[i + 1], 4 + i * 3] = date_ord[eq_ix[i]:eq_ix[i + 1]]
 
         x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
-        
+
         # Plot the inverted velocity time series
         invvel = np.matmul(G, x)
         x[5] = (1 / n_im) * ((disp - invvel) ** 2)
 
         if np.mod(pix, 10) == 0:
-            print('{}/{} Velocity STD: {}'.format(pix, n_valid, x[5])')
+            print('{}/{} Velocity STD: {}'.format(pix, n_valid, x[5]))
             print('    Initial Velocity and InSAR Offset: {:.2f} mm/yr, {:.2f} mm'.format(x[1] * 365.25, x[0]))
             for i in range(0, n_eq):
                 print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[i], x[2 + i * 3]))
@@ -357,7 +361,7 @@ def main():
 
     # Fit velocities
     fit_velocities()
-    
+
 
     finish()
 
