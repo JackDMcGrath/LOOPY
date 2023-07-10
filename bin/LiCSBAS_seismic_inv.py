@@ -352,6 +352,7 @@ def even_split(a, n):
 
 def main():
     start()
+    print(start_time)
     init_args()
     set_input_output()
     load_data()
