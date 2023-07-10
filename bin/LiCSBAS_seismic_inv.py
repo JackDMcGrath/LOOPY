@@ -19,6 +19,21 @@ import datetime as dt
 import numpy as np
 import LiCSBAS_io_lib as io_lib
 
+class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
+    '''
+    Use a multiple inheritance approach to use features of both classes.
+    The ArgumentDefaultsHelpFormatter class adds argument default values to the usage help message
+    The RawDescriptionHelpFormatter class keeps the indentation and line breaks in the ___doc___
+    '''
+    pass
+
+
+class Usage(Exception):
+    """Usage context manager"""
+    def __init__(self, msg):
+        self.msg = msg
+
+
 def init_args():
     global args
 
