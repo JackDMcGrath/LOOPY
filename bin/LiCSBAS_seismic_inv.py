@@ -87,7 +87,7 @@ def set_input_output():
 def load_data():
     global width, length, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord
 
-    data = h5py.File(filename, 'r')
+    data = h5py.File(h5file, 'r')
     cum = np.array(data['cum'])
     dates = np.array(data['imdates'])
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in dates]
