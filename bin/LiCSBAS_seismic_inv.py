@@ -101,7 +101,7 @@ def load_data():
         refarea = f.read().split()[0]  # str, x1/x2/y1/y2
     refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
 
-    cum = reference_disp()
+    cum = reference_disp(cum, refx1, refx2, refy1, refy2)
 
     # multi-processing
     if not args.n_para:
@@ -129,8 +129,8 @@ def load_data():
     ord_eq = np.array([eq.toordinal() for eq in eq_dt]) - dates[0].toordinal()
     date_ord = np.array([x.toordinal() for x in dates]) - dates[0].toordinal()
 
-def reference_disp():
-    global cum, refx1, refx2, refy1, refy2
+def reference_disp(cum, refx1, refx2, refy1, refy2):
+
     # Reference all data to reference area through static offset
     ref = np.nanmean(cum[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(cum.shape[0], 1, 1)
     # Check that one of the refs is not all nan. If so, increase ref area
@@ -194,7 +194,7 @@ def temporal_filter():
     filt_std = np.ones(cum.shape) * np.nan
     filterdates = np.linspace(0, n_im - 1, n_im, dtype='int')
     valid = np.where(~np.isnan(data['vel']))
-    diff = cum[:, valid[0], valid[1]] - cum_filt2[:, valid[0], valid[1]]
+    diff = cum[:, valid[0], valid[1]] - cum_lpt[:, valid[0], valid[1]]
 
     for i in filterdates:
         if np.mod(i, 10) == 0:
@@ -220,7 +220,7 @@ def find_outliers():
     # Find location of outliers
     outlier = np.where(abs(diff) > outlier_thresh * filt_std)
 
-    print('\t{} outliers identified'.format(len(outliers)))
+    print('\t{} outliers identified'.format(len(outlier)))
 
     return cum_lpt, outlier
 
