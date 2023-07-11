@@ -367,7 +367,7 @@ def write_outputs():
         os.mkdir(outdir)
     names = ['pre_vel', 'intercept']
     titles = ['Preseismic Velocity (mm/yr)', 'Intercept of Velocity (mm/yr)']
-    for n in n_eq:
+    for n in range(n_eq):
         eq_names = ['coseismic{}'.format(n), 'a_value{}'.format(n), 'post_vel{}'.format(n)]
         eq_titles = ['Coseismic Displacement {} (mm)'.format(n), 'Postseismc A-value {}'.format(n), 'Postseismic velocity {} (mm/yr)'.format(n)]
         names.append(eq_names)
@@ -378,7 +378,7 @@ def write_outputs():
     print('Writing Outputs to file')
 
     cmap_vel = SCM.roma.reversed()
-    data = np.zeros((len(names), length, width), dtype=np.float32) * np.nan 
+    data = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
     for n in range(len(names)):
         filename = os.path.join(outdir, names[n])
@@ -388,9 +388,9 @@ def write_outputs():
 
         vmin = np.percentile(data[n, :, :], 5)
         vmax = np.percentile(data[n, :, :], 95)
-        vlim = np.max(abs(vmin), abs(vmax))
+        vlim = np.max([abs(vmin), abs(vmax)])
 
-        plot_lib.make_im_png(data, pngname, cmap_vel, titles[n], -vlim, vlim)
+        plot_lib.make_im_png(data[n, :, :], pngname, cmap_vel, titles[n], -vlim, vlim)
 
     filename = os.path.join(resultdir, names[-1])
     pngname = '{}.png'.format(filename)
@@ -400,11 +400,7 @@ def write_outputs():
     vmin = np.percentile(data[-1, :, :], 5)
     vmax = np.percentile(data[-1, :, :], 95)
 
-    plot_lib.make_im_png(data, pngname, 'viridis', titles[-1], 0, vmax)
-
-           
-        
-    
+    plot_lib.make_im_png(data[-1, :, :], pngname, 'viridis', titles[-1], 0, vmax)
 
 def even_split(a, n):
     """ Divide a list, a, in to n even parts"""
