@@ -340,10 +340,14 @@ def fit_pixel_velocities(i):
     G = np.zeros([n_im, 2 + n_eq * 3])
     G[:, 0] = 1
     G[:eq_ix[0], 1] = date_ord[:eq_ix[0]]
+
+    daily_rates = [1]
+
     for e in range(0, n_eq):
         G[eq_ix[e]:eq_ix[e + 1], 2 + e * 3] = 1
         G[eq_ix[e]:eq_ix[e + 1], 3 + e * 3] = np.log(1 + pcst * (date_ord[eq_ix[e]:eq_ix[e + 1]] - ord_eq[e]))
         G[eq_ix[e]:eq_ix[e + 1], 4 + e * 3] = date_ord[eq_ix[e]:eq_ix[e + 1]]
+        daily_rates.append(4 + e * 3)
 
     x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
 
@@ -351,12 +355,16 @@ def fit_pixel_velocities(i):
     invvel = np.matmul(G, x)
     x = np.append(x, np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2))))
 
-    # if np.mod(i, 1000) == 0:
-    #     print('{}/{} Velocity STD: {}'.format(i, n_valid, x[5]))
-    #     print('    Initial Velocity and InSAR Offset: {:.2f} mm/yr, {:.2f} mm'.format(x[1] * 365.25, x[0]))
-    #     for n in range(0, n_eq):
-    #         print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[n], x[2 + n * 3]))
-    #         print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + n * 3], x[4 + n * 3] * 365.25))
+    # Convert mm/day to mm/yr
+    for i in daily_rates:
+        x[i] *= 365.25
+
+    if np.mod(i, 10000) == 0:
+        print('{}/{} Velocity STD: {}'.format(i, n_valid, x[5]))
+        print('    InSAR Offset and Initial Velocity: {:.2f} mm/yr, {:.2f} mm'.format(x[0], x[1]))
+        for n in range(0, n_eq):
+            print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[n], x[2 + n * 3]))
+            print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + n * 3], x[4 + n * 3]))
 
     return x
 
@@ -365,12 +373,13 @@ def write_outputs():
     outdir = os.path.join(resultdir, 'seismic_vels')
     if not os.path.exists(outdir):
         os.mkdir(outdir)
-    names = ['pre_vel', 'intercept']
-    titles = ['Preseismic Velocity (mm/yr)', 'Intercept of Velocity (mm/yr)']
+    names = ['intercept', 'pre_vel']
+    titles = ['Intercept of Velocity (mm/yr)', 'Preseismic Velocity (mm/yr)']
     for n in range(n_eq):
         eq_names = ['coseismic{}'.format(n), 'a_value{}'.format(n), 'post_vel{}'.format(n)]
         eq_titles = ['Coseismic Displacement {} (mm)'.format(n), 'Postseismc A-value {}'.format(n), 'Postseismic velocity {} (mm/yr)'.format(n)]
-        names.append(eq_names)
+        names = names + eq_names
+        titles = titles + eq_titles
 
     names.append('vstd')
     titles.append('Velocity Std (mm/yr)')
@@ -380,25 +389,28 @@ def write_outputs():
     cmap_vel = SCM.roma.reversed()
     data = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
-    for n in range(len(names)):
+    for n in range(len(names) - 1):
+        print(titles[n])
         filename = os.path.join(outdir, names[n])
         pngname = '{}.png'.format(filename)
         data[n, valid[0], valid[1]] = results[:, n]
         data[n, :, :].tofile(filename)
 
-        vmin = np.percentile(data[n, :, :], 5)
-        vmax = np.percentile(data[n, :, :], 95)
-        vlim = np.max([abs(vmin), abs(vmax)])
+        vmin = np.nanpercentile(data[n, :, :], 5)
+        vmax = np.nanpercentile(data[n, :, :], 95)
+        vlim = np.nanmax([abs(vmin), abs(vmax)])
+        print(vmin, vmax, vlim)
 
         plot_lib.make_im_png(data[n, :, :], pngname, cmap_vel, titles[n], -vlim, vlim)
 
+    print(titles[-1])
     filename = os.path.join(resultdir, names[-1])
     pngname = '{}.png'.format(filename)
     data[-1, valid[0], valid[1]] = results[:, -1]
     data[-1, :, :].tofile(filename)
 
-    vmin = np.percentile(data[-1, :, :], 5)
-    vmax = np.percentile(data[-1, :, :], 95)
+    vmax = np.nanpercentile(data[-1, :, :], 95)
+    print(vmax)
 
     plot_lib.make_im_png(data[-1, :, :], pngname, 'viridis', titles[-1], 0, vmax)
 
