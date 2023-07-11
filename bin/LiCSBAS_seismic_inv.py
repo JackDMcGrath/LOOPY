@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import datetime as dt
 import numpy as np
 import LiCSBAS_io_lib as io_lib
-from astropy.stats import bootstrap
-from astropy.utils import NumpyRNGContext
+import LiCSBAS_plot_lib as plot_lib
+import SCM
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -332,8 +332,6 @@ def fit_velocities():
     else:
         results = fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
 
-    print(results.shape)
-
 def fit_pixel_velocities(i):
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
 
@@ -362,6 +360,52 @@ def fit_pixel_velocities(i):
 
     return x
 
+def write_outputs():
+
+    outdir = os.path.join(resultdir, 'seismic_vels')
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    names = ['pre_vel', 'intercept']
+    titles = ['Preseismic Velocity (mm/yr)', 'Intercept of Velocity (mm/yr)']
+    for n in n_eq:
+        eq_names = ['coseismic{}'.format(n), 'a_value{}'.format(n), 'post_vel{}'.format(n)]
+        eq_titles = ['Coseismic Displacement {} (mm)'.format(n), 'Postseismc A-value {}'.format(n), 'Postseismic velocity {} (mm/yr)'.format(n)]
+        names.append(eq_names)
+
+    names.append('vstd')
+    titles.append('Velocity Std (mm/yr)')
+
+    print('Writing Outputs to file')
+
+    cmap_vel = SCM.roma.reversed()
+    data = np.zeros((len(names), length, width), dtype=np.float32) * np.nan 
+
+    for n in range(len(names)):
+        filename = os.path.join(outdir, names[n])
+        pngname = '{}.png'.format(filename)
+        data[n, valid[0], valid[1]] = results[:, n]
+        data[n, :, :].tofile(filename)
+
+        vmin = np.percentile(data[n, :, :], 5)
+        vmax = np.percentile(data[n, :, :], 95)
+        vlim = np.max(abs(vmin), abs(vmax))
+
+        plot_lib.make_im_png(data, pngname, cmap_vel, titles[n], -vlim, vlim)
+
+    filename = os.path.join(resultdir, names[-1])
+    pngname = '{}.png'.format(filename)
+    data[-1, valid[0], valid[1]] = results[:, -1]
+    data[-1, :, :].tofile(filename)
+
+    vmin = np.percentile(data[-1, :, :], 5)
+    vmax = np.percentile(data[-1, :, :], 95)
+
+    plot_lib.make_im_png(data, pngname, 'viridis', titles[-1], 0, vmax)
+
+           
+        
+    
+
 def even_split(a, n):
     """ Divide a list, a, in to n even parts"""
     n = min(n, len(a)) # to avoid empty lists
@@ -379,6 +423,9 @@ def main():
 
     # Fit velocities
     fit_velocities()
+
+    # Write Outputs
+    write_outputs()
 
 
     finish()
