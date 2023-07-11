@@ -177,7 +177,7 @@ def temporal_filter(cum):
 
     # Replace all outliers with filtered values
     cum[outlier] = cum_lpt[outlier]
-    all_outliers = outlier.copy()
+    all_outliers = outlier
 
     ## Here would be the place to add in iterations (as a while loop of while len(outlier) > 0)
     while len(outlier) > 0:
@@ -226,9 +226,11 @@ def find_outliers():
             filt_std[i, :, :] = np.nanstd(diff[ixs_dict[i], :, :], axis=0)
 
     # Find location of outliers
-    outlier = np.where(abs(diff) > outlier_thresh * filt_std)
+    outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
 
     print('\t{} outliers identified'.format(len(outlier)))
+    print(outlier)
+    print(diff)
 
     return cum_lpt, outlier
 
@@ -259,7 +261,6 @@ def lpt_filter(datelist):
         lpt[np.where(np.isnan(cum[i, :, :]))] = np.nan
 
         cum_lpt[i, :, :] = lpt
-
 
 def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     """
@@ -317,8 +318,6 @@ def fit_velocities():
     else:
         results = fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
 
-
-
 def fit_pixel_velocities(ix):
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     for pix in ix:
@@ -348,7 +347,6 @@ def fit_pixel_velocities(ix):
         results[pix, :] = x
 
     return results
-
 
 def even_split(a, n):
     """ Divide a list, a, in to n even parts"""
