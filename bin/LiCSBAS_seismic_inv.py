@@ -111,7 +111,10 @@ def load_data():
     if args.apply_mask:
         print('Applying Mask')
         mask = io_lib.read_img(maskfile, length, width)
+        print('Mask Good: {}\nMask Bad:  {}\nMask Null: {}'.format(np.sum(mask.flatten()==1),np.sum(mask.flatten()==0), np.sum(np.isnan(mask.flatten()))))
+        print('Nans before masking: {}'.format(np.sum(np.isnan(cum.flatten()))))
         cum[:, np.where(mask == 0)] = np.nan
+        print('Nans after masking: {}'.format(np.sum(np.isnan(cum.flatten()))))
 
     # multi-processing
     try:
@@ -247,8 +250,6 @@ def find_outliers():
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
 
     print('\t{} outliers identified'.format(len(outlier[0])))
-    print(outlier)
-    print(diff)
 
     return cum_lpt, outlier
 
