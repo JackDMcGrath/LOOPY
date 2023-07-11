@@ -93,8 +93,6 @@ def load_data():
     global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid
 
     data = h5py.File(h5file, 'r')
-    # cum = np.array(data['cum'])
-    # dates = np.array(data['imdates'])
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in np.array(data['imdates'])]
 
     # read reference
@@ -127,6 +125,11 @@ def load_data():
 
     if args.n_para:
         n_para = args.n_para if args.n_para <= n_para else n_para
+
+    if n_para > 1:
+        print('Using {} parallel processing'.format(n_para))
+    else:
+        print('Using no parallel processing')
 
     ## Sort dates
     # Get list of earthquake dates and index
@@ -212,11 +215,7 @@ def temporal_filter(cum):
         maskx, masky = np.where(mask == 0)
         cum[:, maskx, masky] = np.nan
 
-    print(cum.shape)
-    print(type(all_outliers))
-    print(all_outliers.shape)
     cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
-    print(cum.shape)
 
     print('Finding moving stddev')
     filt_std = np.ones(cum.shape) * np.nan
@@ -319,7 +318,7 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     return ixs_dict
 
 def fit_velocities():
-    global pcst, valid, n_valid, results
+    global pcst, results
 
     # Define post-seismic constant
     pcst = 1 / args.tau
@@ -328,7 +327,7 @@ def fit_velocities():
         # pool = multi.Pool(processes=n_para)
         # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
         p = q.Pool(n_para)
-        cum_lpt = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype=np.float32)
+        results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype=np.float32)
         p.close()
     else:
         results = fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
@@ -352,7 +351,7 @@ def fit_pixel_velocities(i):
 
     # Plot the inverted velocity time series
     invvel = np.matmul(G, x)
-    x[5] = np.sqrt((1 / n_im) * ((disp - invvel) ** 2))
+    x = np.append(x, np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2))))
 
     # if np.mod(i, 1000) == 0:
     #     print('{}/{} Velocity STD: {}'.format(i, n_valid, x[5]))
@@ -361,9 +360,7 @@ def fit_pixel_velocities(i):
     #         print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[n], x[2 + n * 3]))
     #         print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + n * 3], x[4 + n * 3] * 365.25))
 
-    results[i, :] = x
-
-    return results
+    return x
 
 def even_split(a, n):
     """ Divide a list, a, in to n even parts"""
