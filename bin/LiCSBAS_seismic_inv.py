@@ -102,17 +102,24 @@ def load_data():
     refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
 
     cum = reference_disp(np.array(data['cum']), refx1, refx2, refy1, refy2)
+
+    if args.apply_mask:
+        print('Applying Mask')
+        mask = io_lib.read_img(maskfile, length, width)
+        cum[:, np.where(mask == 0)] = np.nan
+
+
     n_im, length, width = cum.shape
     print(n_im, length, width)
 
     # multi-processing
-    if not args.n_para:
-        try:
-            n_para = min(len(os.sched_getaffinity(0)), 8) # maximum use 8 cores
-        except:
-            n_para = multi.cpu_count()
-    else:
-        n_para = args.n_para
+    try:
+        n_para = min(len(os.sched_getaffinity(0)), 8) # maximum use 8 cores
+    except:
+        n_para = multi.cpu_count()
+    
+    if args.n_para:
+        n_para = args.n_para if args.n_para <= n_para else n_para
 
     ## Sort dates
     # Get list of earthquake dates and index
@@ -228,7 +235,7 @@ def find_outliers():
     # Find location of outliers
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
 
-    print('\t{} outliers identified'.format(len(outlier)))
+    print('\t{} outliers identified'.format(len(outlier[0])))
     print(outlier)
     print(diff)
 
@@ -301,6 +308,7 @@ def fit_velocities():
     # Identify all pixels where the is time series data
     vel = data['vel']
     if args.apply_mask:
+        print('Applying Mask')
         mask = io_lib.read_img(maskfile, length, width)
         vel[np.where(mask == 0)] = np.nan
     valid = np.where(~np.isnan(vel))
