@@ -90,7 +90,7 @@ def set_input_output():
     q = multi.get_context('fork')
 
 def load_data():
-    global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates
+    global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid
 
     data = h5py.File(h5file, 'r')
     # cum = np.array(data['cum'])
@@ -108,11 +108,18 @@ def load_data():
     n_im, length, width = cum.shape
     print(n_im, length, width)
 
+    # Identify all pixels where the is time series data
+    vel = data['vel']
+
     if args.apply_mask:
         print('Applying Mask')
         mask = io_lib.read_img(maskfile, length, width)
         maskx, masky = np.where(mask == 0)
         cum[:, maskx, masky] = np.nan
+        vel[maskx, masky] = np.nan
+
+    valid = np.where(~np.isnan(vel))
+    n_valid = valid[0].shape[0]
 
     # multi-processing
     try:
@@ -201,6 +208,14 @@ def temporal_filter(cum):
 
     # Reload original data, replace identified outliers with final filtered values
     cum = np.array(data['cum'])
+    if args.apply_mask:
+        print('Applying Mask to relaoded data')
+        mask = io_lib.read_img(maskfile, length, width)
+        maskx, masky = np.where(mask == 0)
+        cum[:, maskx, masky] = np.nan
+    print(cum.shape)
+    print(len(all_outliers))
+    print(all_outliers[0])
     cum[all_outliers] = cum_lpt[all_outliers]
 
     print('Finding moving stddev')
@@ -235,10 +250,12 @@ def find_outliers():
 
     # Find STD
     diff = cum - cum_lpt  # Difference between data and filtered data
+    filt_std = np.zeros((n_im, length, width)) * np.nan
     for i in filterdates:
         with warnings.catch_warnings():  # To silence warning by zero division
             warnings.simplefilter('ignore', RuntimeWarning)
-            filt_std[i, :, :] = np.nanstd(diff[ixs_dict[i], :, :], axis=0)
+            # Just search valid pixels to speed up
+            filt_std[i, valid[0], valid[1]] = np.nanstd(diff[ixs_dict[i], valid[0], valid[1]], axis=0)
 
     # Find location of outliers
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
@@ -258,7 +275,7 @@ def lpt_filter(i):
     # Find time difference between filter date and other dates
     time_diff_sq = (dt_cum[i] - dt_cum) ** 2
 
-    # Get data limits
+    # Get data limits (ie only dates within filtwidth_yr)
     ixs = ixs_dict[i]
 
     weight_factor = np.tile(np.exp(-time_diff_sq[ixs] / 2 / filtwidth_yr ** 2)[:, np.newaxis, np.newaxis], (1, length, width))  # len(ixs), length, width
@@ -314,14 +331,14 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
 def fit_velocities():
     global pcst, valid, n_valid, results
 
-    # Identify all pixels where the is time series data
-    vel = data['vel']
-    if args.apply_mask:
-        print('Applying Mask')
-        mask = io_lib.read_img(maskfile, length, width)
-        vel[np.where(mask == 0)] = np.nan
-    valid = np.where(~np.isnan(vel))
-    n_valid = valid[0].shape[0]
+    # # Identify all pixels where the is time series data
+    # vel = data['vel']
+    # if args.apply_mask:
+    #     print('Applying Mask')
+    #     mask = io_lib.read_img(maskfile, length, width)
+    #     vel[np.where(mask == 0)] = np.nan
+    # valid = np.where(~np.isnan(vel))
+    # n_valid = valid[0].shape[0]
 
     # Preallocate shape (n_pixels x 6 (5 inversion params, and std))
     results = np.zeros(n_valid, 6) * np.nan
