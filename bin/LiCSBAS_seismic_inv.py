@@ -151,7 +151,7 @@ def reference_disp(data, refx1, refx2, refy1, refy2):
 
     return data
 
-def temporal_filter():
+def temporal_filter(cum):
     global ixs_dict, dt_cum, filterdates, filtwidth_yr, cum_lpt, n_its, filt_std
     """
     Apply a low pass temporal filter, and remove outliers.
@@ -363,7 +363,7 @@ def main():
     load_data()
 
     # Remove outliers from image displacements to improve velocity fitting
-    temporal_filter()
+    temporal_filter(cum)
 
     # Fit velocities
     fit_velocities()
