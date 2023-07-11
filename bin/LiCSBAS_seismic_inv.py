@@ -103,14 +103,14 @@ def load_data():
 
     cum = reference_disp(np.array(data['cum']), refx1, refx2, refy1, refy2)
 
+    n_im, length, width = cum.shape
+    print(n_im, length, width)
+
     if args.apply_mask:
         print('Applying Mask')
         mask = io_lib.read_img(maskfile, length, width)
         cum[:, np.where(mask == 0)] = np.nan
 
-
-    n_im, length, width = cum.shape
-    print(n_im, length, width)
 
     # multi-processing
     try:
