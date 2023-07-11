@@ -94,8 +94,8 @@ def load_data():
 
     data = h5py.File(h5file, 'r')
     # cum = np.array(data['cum'])
-    dates = np.array(data['imdates'])
-    dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in dates]
+    # dates = np.array(data['imdates'])
+    dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in np.array(data['imdates'])]
 
 
     # read reference
@@ -113,7 +113,8 @@ def load_data():
         mask = io_lib.read_img(maskfile, length, width)
         print('Mask Good: {}\nMask Bad:  {}\nMask Null: {}'.format(np.sum(mask.flatten()==1),np.sum(mask.flatten()==0), np.sum(np.isnan(mask.flatten()))))
         print('Nans before masking: {}'.format(np.sum(np.isnan(cum.flatten()))))
-        cum[:, np.where(mask == 0)] = np.nan
+        maskx, masky = np.where(mask == 0)
+        cum[:, maskx, masky] = np.nan
         print('Nans after masking: {}'.format(np.sum(np.isnan(cum.flatten()))))
 
     # multi-processing
