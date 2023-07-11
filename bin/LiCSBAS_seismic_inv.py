@@ -109,7 +109,7 @@ def load_data():
     print(n_im, length, width)
 
     # Identify all pixels where the is time series data
-    vel = data['vel']
+    vel = np.array(data['vel'])
 
     if args.apply_mask:
         print('Applying Mask')
