@@ -46,7 +46,7 @@ def init_args():
     parser.add_argument('-m', dest='apply_mask', default=None, help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
-    parser.add_argument('--n_para', dest='n_para', default=False, help='number of parallel processing')
+    parser.add_argument('--n_para', dest='n_para', default=False, type=int, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relazation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, help='Maximum number of iterations for temporal filter')
 
@@ -91,17 +91,19 @@ def load_data():
     global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates
 
     data = h5py.File(h5file, 'r')
-    cum = np.array(data['cum'])
+    # cum = np.array(data['cum'])
     dates = np.array(data['imdates'])
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in dates]
-    n_im, length, width = cum.shape
+
 
     # read reference
     with open(reffile, "r") as f:
         refarea = f.read().split()[0]  # str, x1/x2/y1/y2
     refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
 
-    cum = reference_disp(cum, refx1, refx2, refy1, refy2)
+    cum = reference_disp(np.array(data['cum']), refx1, refx2, refy1, refy2)
+    n_im, length, width = cum.shape
+    print(n_im, length, width)
 
     # multi-processing
     if not args.n_para:
@@ -129,10 +131,10 @@ def load_data():
     ord_eq = np.array([eq.toordinal() for eq in eq_dt]) - dates[0].toordinal()
     date_ord = np.array([x.toordinal() for x in dates]) - dates[0].toordinal()
 
-def reference_disp(cum, refx1, refx2, refy1, refy2):
+def reference_disp(data, refx1, refx2, refy1, refy2):
 
     # Reference all data to reference area through static offset
-    ref = np.nanmean(cum[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(cum.shape[0], 1, 1)
+    ref = np.nanmean(data[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(data.shape[0], 1, 1)
     # Check that one of the refs is not all nan. If so, increase ref area
     if np.isnan(ref).any():
         print('NaN Value for reference for {} dates. Increasing ref area kernel'.format(np.sum(np.isnan(ref))))
@@ -141,13 +143,13 @@ def reference_disp(cum, refx1, refx2, refy1, refy2):
             refx2 += 1
             refy1 -= 1
             refy2 += 1
-            ref = np.nanmean(cum[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(cum.shape[0], 1, 1)
+            ref = np.nanmean(data[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(data.shape[0], 1, 1)
 
     print('Reference area ({}:{}, {}:{})'.format(refx1, refx2, refy1, refy2))
 
-    cum = cum - ref
+    data = data - ref
 
-    return cum
+    return data
 
 def temporal_filter():
     global ixs_dict, dt_cum, filterdates, filtwidth_yr, cum_lpt, n_its, filt_std
@@ -159,8 +161,8 @@ def temporal_filter():
     """
 
     print('Filtering Temporally for outliers > {} std'.format(outlier_thresh))
+
     dt_cum = date_ord / 365.25  # Set dates in terms of years
-    n_im, length, width = cum.shape  # Get shape information of data
     filtwidth_yr = dt_cum[-1] / (n_im - 1) * 3  # Set the filter width based on n * average epoch seperation
     cum_lpt = np.zeros((n_im, length, width), dtype=np.float32)
     filterdates = np.linspace(0, n_im - 1, n_im, dtype='int').tolist()
@@ -204,13 +206,19 @@ def temporal_filter():
 
 def find_outliers():
     print('Outlier removal iteration {}'.format(n_its))
+
+    # cum_lpt = np.zeros(cum.shape) * np.nan
     if n_para > 1 and len(filterdates) > 20:
         pool = multi.Pool(processes=n_para)
+        # cum_lpt = np.array(pool.map(lpt_filter, even_split(filterdates, n_para)))
         cum_lpt = pool.map(lpt_filter, even_split(filterdates, n_para))
     else:
         cum_lpt = lpt_filter(filterdates)
 
     # Find STD
+    # print(cum_lpt)
+    print(len(cum_lpt))
+    print(cum_lpt.shape)
     diff = cum - cum_lpt  # Difference between data and filtered data
     for i in filterdates:
         with warnings.catch_warnings():  # To silence warning by zero division
@@ -224,10 +232,11 @@ def find_outliers():
 
     return cum_lpt, outlier
 
-def lpt_filter():
-    for i in filterdates:
-        if np.mod(i, 10) == 0:
-            print("  {0:3}/{1:3}th image...".format(i, len(filterdates)), flush=True)
+def lpt_filter(datelist):
+
+    for i in datelist:
+        if np.mod(i + 1, 10) == 0:
+            print("  {0:3}/{1:3}th image...".format(i + 1, len(filterdates)), flush=True)
 
         # Find time difference between filter date and other dates
         time_diff_sq = (dt_cum[i] - dt_cum) ** 2
@@ -352,7 +361,6 @@ def even_split(a, n):
 
 def main():
     start()
-    print(start_time)
     init_args()
     set_input_output()
     load_data()
