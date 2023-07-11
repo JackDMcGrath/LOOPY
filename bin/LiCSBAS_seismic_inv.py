@@ -71,7 +71,7 @@ def finish():
     print('Output directory: {}\n'.format(os.path.relpath(tsadir)))
 
 def set_input_output():
-    global tsadir, infodir, resultdir, h5file, reffile, maskfile, eqfile, outlier_thresh
+    global tsadir, infodir, resultdir, h5file, reffile, maskfile, eqfile, outlier_thresh, q
 
     # define input directories
     tsadir = os.path.abspath(os.path.join(args.frame_dir, args.ts_dir))
@@ -86,6 +86,8 @@ def set_input_output():
     eqfile = os.path.abspath(args.eq_list)
 
     outlier_thresh = args.outlier_thre
+
+    q = multi.get_context('fork')
 
 def load_data():
     global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates
@@ -110,7 +112,6 @@ def load_data():
         print('Applying Mask')
         mask = io_lib.read_img(maskfile, length, width)
         cum[:, np.where(mask == 0)] = np.nan
-
 
     # multi-processing
     try:
@@ -221,7 +222,10 @@ def find_outliers():
     if n_para > 1 and len(filterdates) > 20:
         pool = multi.Pool(processes=n_para)
         # cum_lpt = np.array(pool.map(lpt_filter, even_split(filterdates, n_para)))
-        pool.map(lpt_filter, even_split(filterdates, n_para))
+        # pool.map(lpt_filter, even_split(filterdates, n_para))
+        p = q.Pool(n_para)
+        cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
+        p.close()
     else:
         lpt_filter(filterdates)
 
@@ -241,33 +245,34 @@ def find_outliers():
 
     return cum_lpt, outlier
 
-def lpt_filter(datelist):
+def lpt_filter():
 
-    for i in datelist:
-        if np.mod(i + 1, 10) == 0:
-            print("  {0:3}/{1:3}th image...".format(i + 1, len(filterdates)), flush=True)
+    # for i in datelist:
+    if np.mod(i + 1, 10) == 0:
+        print("  {0:3}/{1:3}th image...".format(i + 1, len(filterdates)), flush=True)
 
-        # Find time difference between filter date and other dates
-        time_diff_sq = (dt_cum[i] - dt_cum) ** 2
+    # Find time difference between filter date and other dates
+    time_diff_sq = (dt_cum[i] - dt_cum) ** 2
 
-        # Get data limits
-        ixs = ixs_dict[i]
+    # Get data limits
+    ixs = ixs_dict[i]
 
-        weight_factor = np.tile(np.exp(-time_diff_sq[ixs] / 2 / filtwidth_yr ** 2)[:, np.newaxis, np.newaxis], (1, length, width))  # len(ixs), length, width
+    weight_factor = np.tile(np.exp(-time_diff_sq[ixs] / 2 / filtwidth_yr ** 2)[:, np.newaxis, np.newaxis], (1, length, width))  # len(ixs), length, width
 
-        # Take into account nan in cum
-        weight_factor = weight_factor * (~np.isnan(cum[ixs, :, :]))
+    # Take into account nan in cum
+    weight_factor = weight_factor * (~np.isnan(cum[ixs, :, :]))
 
-        # Normalize weight
-        with warnings.catch_warnings():  # To silence warning by zero division
-            warnings.simplefilter('ignore', RuntimeWarning)
-            weight_factor = weight_factor / np.sum(weight_factor, axis=0)
+    # Normalize weight
+    with warnings.catch_warnings():  # To silence warning by zero division
+        warnings.simplefilter('ignore', RuntimeWarning)
+        weight_factor = weight_factor / np.sum(weight_factor, axis=0)
 
-        # Find Low-Pass Temporal displacements
-        lpt = np.nansum(cum[ixs, :, :] * weight_factor, axis=0)
-        lpt[np.where(np.isnan(cum[i, :, :]))] = np.nan
+    # Find Low-Pass Temporal displacements
+    lpt = np.nansum(cum[ixs, :, :] * weight_factor, axis=0)
+    lpt[np.where(np.isnan(cum[i, :, :]))] = np.nan
 
-        cum_lpt[i, :, :] = lpt
+    # cum_lpt[i, :, :] = lpt
+    return lpt
 
 def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     """
