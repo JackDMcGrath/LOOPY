@@ -287,7 +287,7 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     return ixs_dict
 
 def fit_velocities():
-    global pcst, valid, n_valid
+    global pcst, valid, n_valid, results
 
     # Identify all pixels where the is time series data
     vel = data['vel']
@@ -307,14 +307,12 @@ def fit_velocities():
         pool = multi.Pool(processes=n_para)
         results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
     else:
-        fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
+        results = fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
 
 
 
 def fit_pixel_velocities(ix):
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
-    results = np.zeros((len(ix), 6)) * np.nan
-
     for pix in ix:
         disp = cum[:, valid[0][pix], valid[1][pix]]
         # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
