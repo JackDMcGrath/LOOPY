@@ -251,7 +251,7 @@ def find_outliers():
 
     return cum_lpt, outlier
 
-def lpt_filter():
+def lpt_filter(i):
 
     # for i in datelist:
     if np.mod(i + 1, 10) == 0:
