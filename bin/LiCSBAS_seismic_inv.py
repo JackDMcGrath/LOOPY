@@ -118,7 +118,7 @@ def load_data():
         n_para = min(len(os.sched_getaffinity(0)), 8) # maximum use 8 cores
     except:
         n_para = multi.cpu_count()
-    
+
     if args.n_para:
         n_para = args.n_para if args.n_para <= n_para else n_para
 
@@ -228,6 +228,12 @@ def find_outliers():
         p.close()
     else:
         lpt_filter(filterdates)
+
+    print(len(cum_lpt))
+    print(type(cum_lpt))
+    print(cum_lpt.shape)
+    print(cum_lpt[0].shape)
+    print('Ending nans = {}'.format(np.sum(np.isnan(cum_lpt.flatten()))))
 
     # Find STD
     diff = cum - cum_lpt  # Difference between data and filtered data
