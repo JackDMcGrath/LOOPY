@@ -111,11 +111,8 @@ def load_data():
     if args.apply_mask:
         print('Applying Mask')
         mask = io_lib.read_img(maskfile, length, width)
-        print('Mask Good: {}\nMask Bad:  {}\nMask Null: {}'.format(np.sum(mask.flatten()==1),np.sum(mask.flatten()==0), np.sum(np.isnan(mask.flatten()))))
-        print('Nans before masking: {}'.format(np.sum(np.isnan(cum.flatten()))))
         maskx, masky = np.where(mask == 0)
         cum[:, maskx, masky] = np.nan
-        print('Nans after masking: {}'.format(np.sum(np.isnan(cum.flatten()))))
 
     # multi-processing
     try:
@@ -176,8 +173,6 @@ def temporal_filter(cum):
 
     dt_cum = date_ord / 365.25  # Set dates in terms of years
     filtwidth_yr = dt_cum[-1] / (n_im - 1) * 3  # Set the filter width based on n * average epoch seperation
-    cum_lpt = np.zeros((n_im, length, width), dtype=np.float32) * np.nan 
-    print('Starting nans = {}'.format(np.sum(np.isnan(cum_lpt.flatten()))))
     filterdates = np.linspace(0, n_im - 1, n_im, dtype='int').tolist()
     n_its = 1
     ixs_dict = get_filter_dates(dt_cum, filtwidth_yr, filterdates)
@@ -225,7 +220,7 @@ def find_outliers():
 
     # cum_lpt = np.zeros(cum.shape) * np.nan
     if n_para > 1 and len(filterdates) > 20:
-        pool = multi.Pool(processes=n_para)
+        # pool = multi.Pool(processes=n_para)
         # cum_lpt = np.array(pool.map(lpt_filter, even_split(filterdates, n_para)))
         # pool.map(lpt_filter, even_split(filterdates, n_para))
         p = q.Pool(n_para)
@@ -234,10 +229,8 @@ def find_outliers():
     else:
         lpt_filter(filterdates)
 
-    print(len(cum_lpt))
     print(type(cum_lpt))
     print(cum_lpt.shape)
-    print(cum_lpt[0].shape)
     print('Ending nans = {}'.format(np.sum(np.isnan(cum_lpt.flatten()))))
 
     # Find STD
@@ -251,6 +244,8 @@ def find_outliers():
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
 
     print('\t{} outliers identified'.format(len(outlier[0])))
+    print(outlier)
+    print(diff[outlier])
 
     return cum_lpt, outlier
 
