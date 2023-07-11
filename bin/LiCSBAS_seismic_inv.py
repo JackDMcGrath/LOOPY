@@ -49,6 +49,7 @@ def init_args():
     parser.add_argument('--n_para', dest='n_para', default=False, type=int, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
+    parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
 
     args = parser.parse_args()
 
@@ -426,8 +427,9 @@ def main():
     set_input_output()
     load_data()
 
-    # Remove outliers from image displacements to improve velocity fitting
-    temporal_filter(cum)
+    if args.deoutlier:
+        # Remove outliers from image displacements to improve velocity fitting
+        temporal_filter(cum)
 
     # Fit velocities
     fit_velocities()
