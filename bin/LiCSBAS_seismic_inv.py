@@ -182,11 +182,14 @@ def temporal_filter():
     ## Here would be the place to add in iterations (as a while loop of while len(outlier) > 0)
     while len(outlier) > 0:
         n_its += 1
-        print('Running Iteration {}/{}'.format(n_its, args.max_its))
-        cum_lpt, outlier = find_outliers()
-        # Replace all outliers with filtered values
-        cum[outlier] = cum_lpt[outlier]
-        all_outliers = np.unique(np.concatenate((all_outliers, outlier), axis=1), axis=1)
+        if n_its <= args.max_its:
+            print('Running Iteration {}/{}'.format(n_its, args.max_its))
+            cum_lpt, outlier = find_outliers()
+            # Replace all outliers with filtered values
+            cum[outlier] = cum_lpt[outlier]
+            all_outliers = np.unique(np.concatenate((all_outliers, outlier), axis=1), axis=1)
+        else:
+            break
 
     # Reload original data, replace identified outliers with final filtered values
     cum = np.array(data['cum'])
@@ -205,20 +208,17 @@ def temporal_filter():
         filt_std[i, valid[0], valid[1]] = np.nanstd(diff[ixs_dict[i], :], axis=0)
 
 def find_outliers():
-    print('Outlier removal iteration {}'.format(n_its))
+    filt_std = np.zeros((n_im, length, width)) * np.nan
 
     # cum_lpt = np.zeros(cum.shape) * np.nan
     if n_para > 1 and len(filterdates) > 20:
         pool = multi.Pool(processes=n_para)
         # cum_lpt = np.array(pool.map(lpt_filter, even_split(filterdates, n_para)))
-        cum_lpt = pool.map(lpt_filter, even_split(filterdates, n_para))
+        pool.map(lpt_filter, even_split(filterdates, n_para))
     else:
-        cum_lpt = lpt_filter(filterdates)
+        lpt_filter(filterdates)
 
     # Find STD
-    # print(cum_lpt)
-    print(len(cum_lpt))
-    print(cum_lpt.shape)
     diff = cum - cum_lpt  # Difference between data and filtered data
     for i in filterdates:
         with warnings.catch_warnings():  # To silence warning by zero division
@@ -260,7 +260,6 @@ def lpt_filter(datelist):
 
         cum_lpt[i, :, :] = lpt
 
-    return cum_lpt
 
 def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     """
