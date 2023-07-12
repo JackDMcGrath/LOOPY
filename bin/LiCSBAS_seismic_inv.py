@@ -69,15 +69,16 @@ def finish():
     sec = int(np.mod(elapsed_time,60))
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour,minite,sec))
     print("\n{} {} finished!".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
-    print('Output directory: {}\n'.format(os.path.relpath(tsadir)))
+    print('Output directory: {}\n'.format(os.path.relpath(outdir)))
 
 def set_input_output():
-    global tsadir, infodir, resultdir, h5file, reffile, maskfile, eqfile, outlier_thresh, q
+    global tsadir, infodir, resultdir, outdir, h5file, reffile, maskfile, eqfile, outlier_thresh, q
 
     # define input directories
     tsadir = os.path.abspath(os.path.join(args.frame_dir, args.ts_dir))
     infodir = os.path.join(tsadir, 'info')
     resultdir = os.path.join(tsadir, 'results')
+    outdir = os.path.join(resultdir, 'seismic_vels')
 
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
@@ -360,7 +361,7 @@ def fit_pixel_velocities(i):
     for i in daily_rates:
         x[i] *= 365.25
 
-    if np.mod(i, 10000) == 0:
+    if np.mod(i, 5000) == 0:
         print('{}/{} Velocity STD: {}'.format(i, n_valid, x[5]))
         print('    InSAR Offset and Initial Velocity: {:.2f} mm/yr, {:.2f} mm'.format(x[0], x[1]))
         for n in range(0, n_eq):
@@ -371,7 +372,6 @@ def fit_pixel_velocities(i):
 
 def write_outputs():
 
-    outdir = os.path.join(resultdir, 'seismic_vels')
     if not os.path.exists(outdir):
         os.mkdir(outdir)
     names = ['intercept', 'pre_vel']
