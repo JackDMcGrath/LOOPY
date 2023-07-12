@@ -145,13 +145,25 @@ def load_data():
     # Find which index each earthquake correlates to
     eq_dt = [dt.datetime.strptime(str(eq_date), '%Y%m%d').date() for eq_date in eq_dates]
     eq_ix = []
+    print(dates)
     for eq_date in eq_dates:
-        eq_ix.append(np.sum([1 for d in dates if str(d) < eq_date], dtype='int'))
+        print(eq_date)
+        print(dates[0])
+        print(str(dates[0]))
+        # Convert all dates to ordinal, and see which acquisitions are before the earthquakes
+        eq_ix.append(np.sum([1 for d in dates if d.toordinal() < dt.datetime.strptime(str(eq_date), '%Y%m%d').toordinal()], dtype='int'))
+        print([d for d in dates if str(d) < eq_date])
     eq_ix.append(n_im)
 
     # Make all dates ordinal
     ord_eq = np.array([eq.toordinal() for eq in eq_dt]) - dates[0].toordinal()
     date_ord = np.array([x.toordinal() for x in dates]) - dates[0].toordinal()
+    print(eq_dt)
+    print(ord_eq)
+    print(eq_ix)
+    print(dates[eq_ix[0]])
+    print(dates[eq_ix[0]-1])
+    print(dates[eq_ix[0]+1])
 
 def reference_disp(data, refx1, refx2, refy1, refy2):
 
@@ -367,12 +379,13 @@ def fit_pixel_velocities(ii):
     if np.mod(ii, 10000) == 0:
         print('{}/{} Velocity STD: {}'.format(ii, n_valid, x[5]))
         print('    InSAR Offset and Initial Velocity: {:.2f} mm/yr, {:.2f} mm'.format(x[0], x[1]))
+        print(ord_eq[ee])
         for n in range(0, n_eq):
             print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[n], x[2 + n * 3]))
             print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + n * 3], x[4 + n * 3]))
 
         plot_timeseries(dates, disp, invvel, ii, valid[0][ii], valid[1][ii])
-        
+
     return x
 
 def plot_timeseries(dates, disp, invvel, ii, x, y):
