@@ -47,6 +47,7 @@ def init_args():
     parser.add_argument('-m', dest='apply_mask', default=None, help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
+    parser.add_argument('-c', dest='detect_thre', default=1, type=float, help="Coseismic detection threshold (n * vstd)")
     parser.add_argument('--n_para', dest='n_para', default=False, type=int, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
@@ -330,11 +331,11 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     return ixs_dict
 
 def fit_velocities():
-    global pcst, results
+    global pcst, results, n_para
 
     # Define post-seismic constant
     pcst = 1 / args.tau
-
+    n_para = 1
     if n_para > 1 and n_valid > 100:
         # pool = multi.Pool(processes=n_para)
         # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
@@ -342,16 +343,18 @@ def fit_velocities():
         results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype=np.float32)
         p.close()
     else:
-        results = fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
+        results = np.zeros((n_valid, 6))
+        for ii in range(n_valid):
+            results[ii, :] = fit_pixel_velocities(ii)
 
 def fit_pixel_velocities(ii):
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
-
     disp = cum[:, valid[0][ii], valid[1][ii]]
     # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
     G = np.zeros([n_im, 2 + n_eq * 3])
     G[:, 0] = 1
     G[:eq_ix[0], 1] = date_ord[:eq_ix[0]]
+    # G[:, 1] = date_ord # Makes the pre-seismic rate the long-term rate. Postseimic linear is summed with this
 
     daily_rates = [1]
 
@@ -367,24 +370,82 @@ def fit_pixel_velocities(ii):
     invvel = np.matmul(G, x)
 
     # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
-    std = np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2)))
+    std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
     # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
+    recalculate = False
+
     for ee in range(n_eq):
-        if abs(x[2 + ee * 3]) < std:
+        # Sod it - only doing 1 earthquake at the moment
+        pre_disp = ord_eq[ee] * x[1] + x[0]
+        post_disp = x[0] + x[2] + ord_eq[ee] * x[4]
+        post_disp = invvel[-1] + (ord_eq[ee] - date_ord[-1]) * x[4] # Propogate postseismic velocity to eq dates
+        coseismic = post_disp - pre_disp
+        # coseismic = x[2 + ee * 3]
+        if abs(coseismic) < args.detect_thre * std:
+            recalculate = True
+            if np.mod(ii, 1000) == 0 and n_para == 1:
+                print('Plotting recalculation')
+                print(invvel[-1])
+                print(ord_eq[ee] - date_ord[-1])
+                print((ord_eq[ee] - date_ord[-1]) * x[4])
+                if not os.path.exists(outdir):
+                    os.mkdir(outdir)
+                plt.scatter(dates, disp, s=2, c='k')
+                plt.plot(dates, invvel, c='g',label='Before')
+                plt.plot(dates, invvel + std, c='r',label='Before STD')
+                plt.plot(dates, invvel - std, c='r')
+                title = '({},{}) {} \nSTD: {:.2f} Pre: {:.2f} Post: {:.2f} Coseis: {:.2f}\n {:.2f} {:.2f} {:.2f} {:.2f} {:.2f}'.format(valid[0][ii], valid[1][ii], date_ord[eq_ix[ee]], std, pre_disp, post_disp, coseismic, x[0], x[1]*365.25, x[2], x[3],(x[4])*365.25)
+
             # No coseismic deformation -> Check the effect of referencing now, we set the reference to 0, so there will never be a displacement there.....
-            G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 0 # Allow no coseismic displacement
-            G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 0 # Allow no postseismic relaxation
+            # Allow no coseismic displacement or post-seismic relaxation, but allow a change in the linear velocity afterwards
+            G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 1 # Allow coseismic displacement
+            G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = 0 # Allow no postseismic relaxation
             G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] # Allow a change in linear velocity -> should we allow this?
 
-            # Recalculate values
-            x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
-            invvel = np.matmul(G, x)
-            std = np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2)))
+        # else:
+        #     # Change value in result to be true coseismic displacement
+        #     x[2 + ee * 3] = coseismic
+
+    if recalculate:
+        # Check for Singular matrix
+        if (G == 0).all(axis=0).any():
+            # Find singular values and remove from the inversion
+            singular = np.where((G == 0).all(axis=0))[0]
+            good = np.where((G != 0).any(axis=0))[0]
+            G = G[:, good]
+        else:
+            good = np.arange(G.shape[1])
+
+        # Recalculate values
+        new = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
+        invvel = np.matmul(G, new)
+        std = np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2)))
+
+        if singular.any():
+            x[singular] = 0
+            x[good] = new
+        else:
+            x = new
+
+        if np.mod(ii, 1000) == 0 and n_para == 1:
+            plt.plot(dates, invvel, c='b',label='After')
+            plt.plot(dates, invvel + std, c='m',label='After STD')
+            plt.plot(dates, invvel - std, c='m')
+            plt.legend()
+            plt.title(title + '\n{:.2f} {:.2f} {:.2f} {:.2f} {:.2f}'.format(x[0], x[1]*365.25, x[2], x[3] ,(x[4])*365.25))
+            for ee in range(0, n_eq):
+                plt.axvline(x=eq_dt[ee], color="grey", linestyle="--")
+            plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
+            plt.close()
+            print(os.path.join(outdir, '{}.png'.format(ii)))
 
     # Convert mm/day to mm/yr
     for dd in daily_rates:
         x[dd] *= 365.25
+
+    # # If using long term rate, calculate the 'true' postseismic linear
+    # x[4] = x[1] + x[4]
     x = np.append(x, std)
 
     return x
@@ -409,7 +470,7 @@ def write_outputs():
     titles = ['Intercept of Velocity (mm/yr)', 'Preseismic Velocity (mm/yr)']
     for n in range(n_eq):
         eq_names = ['coseismic{}'.format(eq_dates[n]), 'a_value{}'.format(eq_dates[n]), 'post_vel{}'.format(eq_dates[n])]
-        eq_titles = ['Coseismic Displacement {} (mm)'.format(eq_dates[n]), 'Postseismc A-value {}'.format(eq_dates[n]), 'Postseismic velocity {} (mm/yr)'.format(eq_dates[n])]
+        eq_titles = ['Coseismic Displacement {} (mm)'.format(eq_dates[n]), 'Postseismic A-value {} (mm)'.format(eq_dates[n]), 'Postseismic velocity {} (mm/yr)'.format(eq_dates[n])]
         names = names + eq_names
         titles = titles + eq_titles
 
@@ -422,7 +483,6 @@ def write_outputs():
     gridResults = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
     for n in range(len(names) - 1):
-        print(titles[n])
         filename = os.path.join(outdir, names[n])
         pngname = '{}.png'.format(filename)
         gridResults[n, valid[0], valid[1]] = results[:, n]
@@ -431,7 +491,6 @@ def write_outputs():
         vmin = np.nanpercentile(gridResults[n, :, :], 5)
         vmax = np.nanpercentile(gridResults[n, :, :], 95)
         vlim = np.nanmax([abs(vmin), abs(vmax)])
-        print(vmin, vmax, vlim)
 
         plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap_vel, titles[n], -vlim, vlim)
 
@@ -444,14 +503,14 @@ def write_outputs():
     vmax = np.nanpercentile(gridResults[-1, :, :], 95)
     print(vmax)
 
-    plot_lib.make_im_png(gridResults[-1, :, :], pngname, 'viridis', titles[-1], 0, vmax)
+    plot_lib.make_im_png(gridResults[-1, :, :], pngname, 'viridis_r', titles[-1], 0, vmax)
 
     if n_eq > 1:
         print("Not writing to .h5 - I haven't oded how to deal with more than 1 earthquake yet....")
     else:
-        write_h5(gridResults)
+        write_h5(gridResults, data)
 
-def write_h5(gridResults):
+def write_h5(gridResults, data):
     # Currently can only handle writing 1 earthquake to h5
 
     print('\nWriting to HDF5 file...')
@@ -488,8 +547,8 @@ def write_h5(gridResults):
     for LOSvec in LOSvecs:
         file = os.path.join(ifgdir, LOSvec)
         if os.path.exists(file):
-            data = io_lib.read_img(file, length, width)
-            cumh5.create_dataset(LOSvec, data=data, compression=compress)
+            datafile = io_lib.read_img(file, length, width)
+            cumh5.create_dataset(LOSvec, data=datafile, compression=compress)
         else:
             print('  {} not exist in GEOCml dir. Skip'.format(LOSvec))
 
