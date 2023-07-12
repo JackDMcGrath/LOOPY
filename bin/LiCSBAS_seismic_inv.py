@@ -479,8 +479,8 @@ def write_h5(gridResults):
     for index in indices:
         file = os.path.join(resultdir, index)
         if os.path.exists(file):
-            data = io_lib.read_img(file, length, width)
-            cumh5.create_dataset(index, data=data, compression=compress)
+            datafile = io_lib.read_img(file, length, width)
+            cumh5.create_dataset(index, data=datafile, compression=compress)
         else:
             print('  {} not exist in results dir. Skip'.format(index))
 
