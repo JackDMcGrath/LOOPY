@@ -379,7 +379,7 @@ def plot_timeseries(dates, disp, invvel, ii):
     if not os.path.exists(outdir):
         os.mkdir(outdir)
     plt.scatter(dates, disp, s=2, c='blue', label='Displacement')
-    plt.plot(dates, invvel, label='Variable Linear w/ co- + post-seismic')
+    plt.plot(dates, invvel, label='Variable Linear w/ co- + post-seismic {}'.format(ii))
     plt.legend()
     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
