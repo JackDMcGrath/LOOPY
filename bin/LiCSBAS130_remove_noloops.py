@@ -1,109 +1,50 @@
 #!/usr/bin/env python3
 """
+v2.0.0 20220706 Jack McGrath, Leeds Uni
 v1.5.4 20221020 Qi Ou, Leeds Uni
 v1.5.3 20211122 Milan Lazecky, Leeds Uni
 v1.5.2 20210311 Yu Morishita, GSI
 
-This script inverts the SB network of unw to obtain the time series and
-velocity using NSBAS (López-Quiroz et al., 2009; Doin et al., 2011) approach.
-A stable reference point is determined after the inversion. RMS of the time
-series wrt median among all points is calculated for each point.
-Then the point with minimum RMS and minimum n_gap is selected as new stable
-reference point.
+This script will take the statistics options from LiCSBAS130_sb_inv.py, and identifies
+and removes pixels that are not associated with a loop closure.
 
 ===============
 Input & output files
 ===============
-Inputs in GEOCml*/ (--comp_cc_dir):
+Inputs in GEOCml*/ ():
  - yyyymmdd_yyyymmdd/
    - yyyymmdd_yyyymmdd.cc
  - EQA.dem_par
  - slc.mli.par
- - baselines (may be dummy)
-[- [ENU].geo]
 
-Inputs in GEOCml*/ (--cc_dir+suffix):
+Inputs in GEOCml*/ (r):
  - yyyymmdd_yyyymmdd/
    - yyyymmdd_yyyymmdd.unw
 
-Inputs in TS_GEOCml*/ :
- - info/
-   - 120ref.txt
-[-results/]
-[  - coh_avg]
-[  - hgt]
-[  - n_loop_err]
-[  - n_unw]
-[  - slc.mli]
+Outputs in GEOCml*/:
+ - yyyymmdd_yyyymmdd/ :
+    - *.unw :   unw with noloop pixels nulled
+    - *_orig.unw : original, unnulled unw
+
+ - no_loop_ifg/ :
+    - yyyymmdd_yyyymmdd/ : Isolated interferograms fully not in any loop   
 
 Outputs in TS_GEOCml*/ :
- - 130cum*.h5             : Cumulative displacement (time-seires) in mm
  - 130results*/
-   - vel*[.png]        : Velocity in mm/yr (positive means LOS decrease; uplift)
-   - vintercept*[.png] : Constant part of linear velocity (c for vt+c) in mm
-   - resid_rms*[.png]  : RMS of residual in mm
    - n_gap*[.png]      : Number of gaps in SB network
    - n_ifg_noloop*[.png] :  Number of ifgs with no loop
    - maxTlen*[.png]    : Max length of continous SB network in year
- - info/
-   - 13parameters*.txt : List of used parameters
-   - 130used_image*.txt : List of used images
-   - 130resid*.txt      : List of RMS of residual for each ifg
-   - 130ref*.txt[kml]   : Auto-determined stable ref point
-   - 130rms_cum_wrt_med*[.png] : RMS of cum wrt median used for ref selection
- - 130increment*/yyyymmdd_yyyymmdd.increment.png
-     : Comparison between unw and inverted incremental displacement
- - 130resid*/yyyymmdd_yyyymmdd.res.png : Residual for each ifg
 
 =====
 Usage
 =====
-LiCSBAS130_sb_inv.py -d ifgdir [-t tsadir] [--inv_alg LS|WLS] [--mem_size float] [--gamma float] [--n_para int] [--n_unw_r_thre float] [--keep_incfile] [--gpu] [--fast] [--only_sb] [--nopngs]
+LiCSBAS130_sb_inv.py -d ifgdir [--n_para int] [--n_unw_r_thre float]
 
 """
 #%% Change log
 '''
-v1.5.3 20211122 Milan Lazecky, Leeds Uni
- - use fast_nsbas and only_sb to help make processing faster
-v1.5.2 20210311 Yu Morishita, GSI
- - Include noise indices and LOS unit vector in cum.h5 file
-v1.5.1 20210309 Yu Morishita, GSI
- - Change default --mem_size to 8000
- - Speed up by reading cum data on memory
-v1.5 20210305 Yu Morishita, GSI
- - Add GPU option
- - Speed up by activating n_para_inv and OMP_NUM_THREADS=1
-v1.4.8 20210127 Yu Morishita, GSI
- - Automatically reduce mem_size if available RAM is small
-v1.4.7 20201124 Yu Morishita, GSI
- - Comporess hdf5 file
-v1.4.6 20201119 Yu Morishita, GSI
- - Change default cmap for wrapped phase from insar to SCM.romaO
-v1.4.5 20201118 Yu Morishita, GSI
- - Again Bug fix of multiprocessing
-v1.4.4 20201116 Yu Morishita, GSI
- - Bug fix of multiprocessing in Mac python>=3.8
-v1.4.3 20201104 Yu Morishita, GSI
- - Bug fix when n_pt_unnan=0 in a patch
-v1.4.2 20201028 Yu Morishita, GSI
- - Update how to get n_para
-v1.4.1 20200925 Yu Morishita, GSI
- - Small bug fix in n_para
-v1.4 20200909 Yu Morishita, GSI
- - n_core -> n_para
- - Parallelize making png
-v1.3 20200902 Yu Morishita, GSI
- - Parallelize calculation of n_gap and n_ifg_noloop
- - Change n_core default to # of usable CPU
- - Fix n_core_inv=1 for inversion because it already uses multicore
-v1.2 20200225 Yu Morishita, Uni of Leeds and GSI
- - Not output network pdf
- - Change color of png
- - Change name of parameters.txt to 13parameters.txt
- - Deal with cc file in uint8 format
- - Automatically find stable reference point
-v1.1 20190829 Yu Morishita, Uni of Leeds and GSI
- - Remove cum.h5 if exists before creation
+v2.0.0 20230706 Jack McGrath, Uni of Leeds
+ - Re-edit for only nulling no-loop pixels
 v1.0 20190730 Yu Morishita, Uni of Leeds and GSI
  - Original implementation
 '''
@@ -149,11 +90,10 @@ def init_args():
     # read inputs
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=CustomFormatter)
     parser.add_argument('-f', dest='frame_dir', default="./", help="directory of LiCSBAS output of a particular frame")
-    parser.add_argument('-c', dest='cc_dir', default="GEOCml10GACOS", help="folder containing connected cc files")
+    parser.add_argument('-d', dest='ifg_dir', default="GEOCml10GACOS", help="folder containing unw files")
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing time series")
     parser.add_argument('-m', dest='memory_size', default=2048, type=float, help="Max memory size for each patch in MB")
     parser.add_argument('-l', dest='ifg_list', default=None, type=str, help="text file containing a list of ifgs")
-    parser.add_argument('--suffix', default="", type=str, help="suffix of the output")
     parser.add_argument('--n_unw_r_thre', metavar="THRE", type=float, help="Threshold of n_unw (number of used unwrap data) \n (Note this value is ratio to the number of images; i.e., 1.5*n_im) \n Larger number (e.g. 2.5) makes processing faster but result sparser. \n (Default: 1 and 0.5 for C- and L-band, respectively)")
     parser.add_argument('--n_para', type=int, help="Number of parallel processing (Default: # of usable CPU)")
     args = parser.parse_args()
@@ -169,7 +109,7 @@ def main():
     print("{} {}".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
 
     ## For parallel processing
-    global n_para_gap, G, Aloop, unwpatch, imdates, incdir, ccdir, ifgdir, length, width,\
+    global n_para_gap, G, Aloop, unwpatch, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, args
 
@@ -196,11 +136,7 @@ def main():
             n_para = args.n_para
 
     # define input directories
-    ccdir = os.path.abspath(os.path.join(args.frame_dir, args.cc_dir))  # to read .cc
-    if args.suffix == "1":
-        ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.cc_dir))  # to read .unw
-    else:
-        ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.cc_dir+args.suffix))  # to read .unw
+    ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.ifg_dir))  # to read .cc
     tsadir = os.path.abspath(os.path.join(args.frame_dir, args.ts_dir))   # to read 120.ref, to write cum.h5
 
     # define output directories and files
@@ -213,7 +149,7 @@ def main():
 
     #%% Read data information
     ### Get size
-    mlipar = os.path.join(ccdir, 'slc.mli.par')
+    mlipar = os.path.join(ifgdir, 'slc.mli.par')
     width = int(io_lib.get_param_par(mlipar, 'range_samples'))
     length = int(io_lib.get_param_par(mlipar, 'azimuth_lines'))
     speed_of_light = 299792458 #m/s
@@ -247,13 +183,13 @@ def main():
     ixs_ifg_no_loop = np.where(ns_loop4ifg==0)[0]
     no_loop_ifg = [ifgdates[ix] for ix in ixs_ifg_no_loop]
 
-    no_loop_dir = os.path.join(ccdir, 'no_loop_ifg')
+    no_loop_dir = os.path.join(ifgdir, 'no_loop_ifg')
     if not os.path.exists(no_loop_dir):
         os.mkdir(no_loop_dir)
 
     print('Moving {} no loop ifgs to no_loop_ifg'.format(len(no_loop_ifg)))
     for ifg in no_loop_ifg:
-        shutil.move(os.path.join(ccdir, ifg), os.path.join(no_loop_dir, ifg))
+        shutil.move(os.path.join(ifgdir, ifg), os.path.join(no_loop_dir, ifg))
 
     # Reset IFG dates list
     ifgdates_all = ifgdates
@@ -322,12 +258,33 @@ def main():
         countf = width*rows[0]
         countl = width*lengththis
         for i, ifgd in enumerate(ifgdates):
-            unwfile = os.path.join(ifgdir, ifgd, ifgd+'.unw')
-            origfile = os.path.join(ifgdir, ifgd, ifgd+'_orig.unw')
-            # Read from backed up original data. if no backup, then backup
-            if not os.path.exists(origfile) and os.path.exists(unwfile):
-                shutil.move(unwfile, origfile)
-            f = open(origfile, 'rb')
+            if i_patch == 0:
+                unwfile = os.path.join(ifgdir, ifgd, ifgd + '.unw')
+                ## Check for backed up data. THIS ASSUMES ALL DATA HAS BEEN NULLED THE SAME WAY
+                trueorigfile = os.path.join(ifgdir, ifgd, ifgd + '_orig.unw')
+                # If no trueorigfile exists, data is truely untouched
+                if not os.path.exists(trueorigfile):
+                    shutil.move(unwfile, trueorigfile)
+                    suffix = '_orig13.unw'
+                    origfile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+                    # Softlink (used for checking if null has already occurred for LiCSBAS12, softlink to save space)
+                    os.symlink(trueorigfile, origfile)
+                else:
+                    # True orig exists - check if it is because loop err nullification has occurred
+                    suffix = '_orig12.unw'
+                    origfile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+                    if os.path.exists(origfile):
+                        # orig12 exists - backup unw as orig1213
+                        suffix = '_orig1213.unw'
+                        origfile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+                    else:
+                        # orig12 doesn't exist. There should therefore be orig13 so no need to backup
+                        suffix = '_orig13.unw'
+                        origfile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+                    shutil.move(unwfile, origfile)
+            
+            datafile = os.path.join(ifgdir, ifgd, ifgd + suffix)
+            f = open(datafile, 'rb')
             f.seek(countf*4, os.SEEK_SET) #Seek for >=2nd patch, 4 means byte
 
             ### Read unw data (mm) at patch area
@@ -351,7 +308,7 @@ def main():
             ns_ifg_noloop_patch = np.zeros((n_pt_all), dtype=np.float32)*np.nan
             maxTlen_patch = np.zeros((n_pt_all), dtype=np.float32)*np.nan
 
-            print('\n  Identifing gaps, and counting n_gap and n_ifg_noloop,')
+            print('\n  Identifing gaps, and counting n_gap and n_ifg_noloop')
 
             ### Determine n_para
             n_pt_patch_min = 1000
@@ -364,6 +321,7 @@ def main():
                     n_para_gap = n_para
             else:
                 n_para_gap = n_para
+
 
             print('  with {} parallel processing...'.format(n_para_gap),
                   flush=True)
@@ -393,7 +351,6 @@ def main():
                 _maxTlen[_maxTlen<_Tlen] = _Tlen[_maxTlen<_Tlen] ## Set Tlen to maxTlen
             maxTlen_patch[ix_unnan_pt] = _maxTlen
 
-
         #%% Fill by np.nan if n_pt_unnan == 0
         else:
             gap_patch = np.zeros((n_im-1, n_pt_all), dtype=np.int8)
@@ -410,9 +367,7 @@ def main():
 
         ## For each ifg
         for i, ifgd in enumerate(ifgdates):
-            ifgfile = os.path.join(ccdir, ifgd, '{0}.unw'.format(ifgd))
-            origfile = os.path.join(ccdir, ifgd, '{0}_orig.unw'.format(ifgd))
-            # Backup unnulled data
+            ifgfile = os.path.join(ifgdir, ifgd, '{0}.unw'.format(ifgd))
             # Write patch to file
             with open(ifgfile, openmode) as f:
                 null_patch[i, :].tofile(f)
@@ -432,6 +387,14 @@ def main():
         sec2 = int(np.mod(elapsed_time2,60))
         print("  Elapsed time for {0}th patch: {1:02}h {2:02}m {3:02}s".format(i_patch+1, hour2, minite2, sec2), flush=True)
 
+    ## Write zeros file for n_no_loop for later masking
+    zero_no_loop = np.zeros((length, width))
+    file = os.path.join(resultsdir, 'n_ifg_noloop_preNullNoLoop')
+    data = io_lib.read_img(file, length, width)
+    zero_no_loop[np.where(np.isnan(data))] = np.nan
+    file = os.path.join(resultsdir, 'n_ifg_no_loop')
+    with open(file, 'w') as f:
+        zero_no_loop.tofile(f)
 
     #%% Output png images
     ### Velocity and noise indices
@@ -444,7 +407,7 @@ def main():
     for i in range(len(names)):
         file = os.path.join(resultsdir, '{}_preNullNoLoop'.format(names[i]))
         data = io_lib.read_img(file, length, width)
-        pngfile = file+'_preNullNoLoop.png'
+        pngfile = file + '.png'
         ## Get color range if None
         if cmins[i] is None:
             cmins[i] = np.nanpercentile(data, 1)
@@ -504,7 +467,7 @@ def null_noloop_wrapper(i):
     del ns_ifg4loop
 
     # n_loop*(n_loop,n_pt)*n_pt->(n_ifg,n_pt)
-    # Number of loops for each ifg at eath point.
+    # Number of loops for each ifg at each point.
     ns_loop4ifg = np.array([(
             (np.abs(Aloop[:, j])*bool_loop.T).T*
             (~np.isnan(unwpatch[i*n_pt_patch:(i+1)*n_pt_patch, j]))
@@ -522,7 +485,7 @@ def null_noloop_wrapper(i):
 
 def null_png_wrapper(ifglist):
     for ifgd in ifglist:
-        infile = os.path.join(ccdir, ifgd, '{}.unw'.format(ifgd))
+        infile = os.path.join(ifgdir, ifgd, '{}.unw'.format(ifgd))
         unw = io_lib.read_img(infile, length, width)
 
         pngfile = infile+'_noLoop_null.png'

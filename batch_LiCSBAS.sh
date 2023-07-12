@@ -269,11 +269,11 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
 	if [ ! -z $p12_GEOCmldir ];then
     p12_op="$p12_op -d $p12_GEOCmldir";
     p120_op="$p120_op -d $p12_GEOCmldir";
-    p13_op="$p13_op -c $p12_GEOCmldir"
+    p13_op="$p13_op -d $p12_GEOCmldir"
 	else
     p12_op="$p12_op -d $GEOCmldir";
     p120_op="$p120_op -d $GEOCmldir -c $GEOCmldir";
-    p13_op="$p13_op -c $GEOCmldir"
+    p13_op="$p13_op -d $GEOCmldir"
   fi
 
   if [ ! -z $p12_GEOCmldir ];then p12_op="$p12_op -d $p12_GEOCmldir";
