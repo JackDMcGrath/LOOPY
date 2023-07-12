@@ -363,13 +363,29 @@ def fit_pixel_velocities(ii):
 
     x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
 
-    # Plot the inverted velocity time series
+    # Invert for modelled displacement
     invvel = np.matmul(G, x)
-    x = np.append(x, np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2))))
+
+    # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
+    std = np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2)))
+
+    # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
+    for ee in range(n_eq):
+        if abs(x[2 + ee * 3]) < std:
+            # No coseismic deformation -> Check the effect of referencing now, we set the reference to 0, so there will never be a displacement there.....
+            G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 0 # Allow no coseismic displacement
+            G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 0 # Allow no postseismic relaxation
+            G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] # Allow a change in linear velocity -> should we allow this?
+
+            # Recalculate values
+            x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
+            invvel = np.matmul(G, x)
+            std = np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2)))
 
     # Convert mm/day to mm/yr
     for dd in daily_rates:
         x[dd] *= 365.25
+    x = np.append(x, std)
 
     return x
 
