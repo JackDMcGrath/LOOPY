@@ -371,12 +371,17 @@ def fit_pixel_velocities(ii):
             print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[n], x[2 + n * 3]))
             print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + n * 3], x[4 + n * 3]))
 
-        plt.scatter(dates, disp, s=2, c='blue', label='Displacement')
-        plt.plot(dates, invvel, label='Const Linear w/ co- + post-seismic')
-        plt.legend()
-        plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
-
+        plot_timeseries(dates, disp, invvel, ii)
+        
     return x
+
+def plot_timeseries(dates, disp, invvel, ii):
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    plt.scatter(dates, disp, s=2, c='blue', label='Displacement')
+    plt.plot(dates, invvel, label='Variable Linear w/ co- + post-seismic')
+    plt.legend()
+    plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
 def write_outputs():
 
