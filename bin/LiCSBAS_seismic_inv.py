@@ -10,7 +10,7 @@ Based off Liu et al. (2021), Improving the Resolving Power of InSAR for Earthqua
 import os
 import re
 import sys
-import h5py
+import h5py as h5
 import time
 import warnings
 import argparse
@@ -102,7 +102,7 @@ def set_input_output():
 def load_data():
     global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid
 
-    data = h5py.File(h5file, 'r')
+    data = h5.File(h5file, 'r')
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in np.array(data['imdates'])]
 
     # read reference
@@ -440,7 +440,7 @@ def write_h5(gridResults):
 
     print('\nWriting to HDF5 file...')
     compress = 'gzip'
-    if os.path.exists(outfile):
+    if os.path.exists(outh5file):
         os.remove(outh5file)
     cumh5 = h5.File(outh5file, 'w')
     cumh5.create_dataset('imdates', data=data['imdates'])
