@@ -364,22 +364,23 @@ def fit_pixel_velocities(ii):
     for dd in daily_rates:
         x[dd] *= 365.25
 
-    if np.mod(ii, 5000) == 0:
+    if np.mod(ii, 10000) == 0:
         print('{}/{} Velocity STD: {}'.format(ii, n_valid, x[5]))
         print('    InSAR Offset and Initial Velocity: {:.2f} mm/yr, {:.2f} mm'.format(x[0], x[1]))
         for n in range(0, n_eq):
             print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[n], x[2 + n * 3]))
             print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + n * 3], x[4 + n * 3]))
 
-        plot_timeseries(dates, disp, invvel, ii)
+        plot_timeseries(dates, disp, invvel, ii, valid[0][ii], valid[1][ii])
         
     return x
 
-def plot_timeseries(dates, disp, invvel, ii):
+def plot_timeseries(dates, disp, invvel, ii, x, y):
     if not os.path.exists(outdir):
         os.mkdir(outdir)
-    plt.scatter(dates, disp, s=2, label='Displacement {}'.format(ii))
-    plt.plot(dates, invvel, label='Variable Linear w/ co- + post-seismic {}'.format(ii))
+    plt.scatter(dates, disp, s=2, label='{}'.format(ii))
+    plt.plot(dates, invvel, label='{}'.format(ii))
+    plt.title('({},{})'.format(x,y))
     plt.legend()
     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
