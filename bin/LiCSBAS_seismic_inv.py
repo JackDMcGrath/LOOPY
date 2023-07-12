@@ -420,7 +420,7 @@ def write_outputs():
         plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap_vel, titles[n], -vlim, vlim)
 
     print(titles[-1])
-    filename = os.path.join(resultdir, names[-1])
+    filename = os.path.join(outdir, names[-1])
     pngname = '{}.png'.format(filename)
     gridResults[-1, valid[0], valid[1]] = results[:, -1]
     gridResults[-1, :, :].tofile(filename)
