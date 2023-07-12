@@ -41,6 +41,7 @@ def init_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=CustomFormatter)
     parser.add_argument('-f', dest='frame_dir', default="./", help="directory of LiCSBAS output of a particular frame")
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
+    parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
     parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
     parser.add_argument('-m', dest='apply_mask', default=None, help='mask file to apply to velocities')
@@ -72,9 +73,12 @@ def finish():
     print('Output directory: {}\n'.format(os.path.relpath(outdir)))
 
 def set_input_output():
-    global tsadir, infodir, resultdir, outdir, h5file, reffile, maskfile, eqfile, outlier_thresh, q
+    global tsadir, infodir, resultdir, outdir, ifgdir
+    global h5file, reffile, maskfile, eqfile, outh5file
+    global q, outlier_thresh
 
     # define input directories
+    ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.unw_dir))
     tsadir = os.path.abspath(os.path.join(args.frame_dir, args.ts_dir))
     infodir = os.path.join(tsadir, 'info')
     resultdir = os.path.join(tsadir, 'results')
@@ -82,6 +86,7 @@ def set_input_output():
 
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
+    outh5file = os.path.join(tsadir, outdir, 'cum.h5')
     reffile = os.path.join(tsadir, args.ref_file)
     if not os.path.exists(reffile):
         reffile = os.path.join(infodir, args.ref_file)
@@ -145,7 +150,7 @@ def load_data():
     # Find which index each earthquake correlates to
     eq_dt = [dt.datetime.strptime(str(eq_date), '%Y%m%d').date() for eq_date in eq_dates]
     eq_ix = []
-    print(dates)
+
     for eq_date in eq_dates:
         # Convert all dates to ordinal, and see which acquisitions are before the earthquakes
         eq_ix.append(np.sum([1 for d in dates if d.toordinal() < dt.datetime.strptime(str(eq_date), '%Y%m%d').toordinal()], dtype='int'))
@@ -398,32 +403,81 @@ def write_outputs():
     print('Writing Outputs to file and png')
 
     cmap_vel = SCM.roma.reversed()
-    data = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
+    gridResults = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
     for n in range(len(names) - 1):
         print(titles[n])
         filename = os.path.join(outdir, names[n])
         pngname = '{}.png'.format(filename)
-        data[n, valid[0], valid[1]] = results[:, n]
-        data[n, :, :].tofile(filename)
+        gridResults[n, valid[0], valid[1]] = results[:, n]
+        gridResults[n, :, :].tofile(filename)
 
-        vmin = np.nanpercentile(data[n, :, :], 5)
-        vmax = np.nanpercentile(data[n, :, :], 95)
+        vmin = np.nanpercentile(gridResults[n, :, :], 5)
+        vmax = np.nanpercentile(gridResults[n, :, :], 95)
         vlim = np.nanmax([abs(vmin), abs(vmax)])
         print(vmin, vmax, vlim)
 
-        plot_lib.make_im_png(data[n, :, :], pngname, cmap_vel, titles[n], -vlim, vlim)
+        plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap_vel, titles[n], -vlim, vlim)
 
     print(titles[-1])
     filename = os.path.join(resultdir, names[-1])
     pngname = '{}.png'.format(filename)
-    data[-1, valid[0], valid[1]] = results[:, -1]
-    data[-1, :, :].tofile(filename)
+    gridResults[-1, valid[0], valid[1]] = results[:, -1]
+    gridResults[-1, :, :].tofile(filename)
 
-    vmax = np.nanpercentile(data[-1, :, :], 95)
+    vmax = np.nanpercentile(gridResults[-1, :, :], 95)
     print(vmax)
 
-    plot_lib.make_im_png(data[-1, :, :], pngname, 'viridis', titles[-1], 0, vmax)
+    plot_lib.make_im_png(gridResults[-1, :, :], pngname, 'viridis', titles[-1], 0, vmax)
+
+    if n_eq > 1:
+        print("Not writing to .h5 - I haven't oded how to deal with more than 1 earthquake yet....")
+    else:
+        write_h5(gridResults)
+
+def write_h5(gridResults):
+    # Currently can only handle writing 1 earthquake to h5
+
+    print('\nWriting to HDF5 file...')
+    compress = 'gzip'
+    if os.path.exists(outfile):
+        os.remove(outh5file)
+    cumh5 = h5.File(outh5file, 'w')
+    cumh5.create_dataset('imdates', data=data['imdates'])
+
+    ### Save ref
+    cumh5.create_dataset('refarea', data='{}:{}/{}:{}'.format(refx1, refx2, refy1, refy2))
+
+    #%% Close h5 file
+    cumh5.create_dataset('cum', data=cum, compression=compress)
+    cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
+    cumh5.create_dataset('prevel', data=gridResults[1], compression=compress)
+    cumh5.create_dataset('coseismic', data=gridResults[2], compression=compress)
+    cumh5.create_dataset('avalue', data=gridResults[3], compression=compress)
+    cumh5.create_dataset('postvel', data=gridResults[4], compression=compress)
+
+    # Add previously calculated indicies to the cum.h5
+    indices = ['coh_avg', 'hgt', 'n_loop_err', 'n_unw', 'slc.mli',
+               'maxTlen', 'n_gap', 'n_ifg_noloop', 'resid_rms']
+
+    for index in indices:
+        file = os.path.join(resultdir, index)
+        if os.path.exists(file):
+            data = io_lib.read_img(file, length, width)
+            cumh5.create_dataset(index, data=data, compression=compress)
+        else:
+            print('  {} not exist in results dir. Skip'.format(index))
+
+    LOSvecs = ['E.geo', 'N.geo', 'U.geo']
+    for LOSvec in LOSvecs:
+        file = os.path.join(ifgdir, LOSvec)
+        if os.path.exists(file):
+            data = io_lib.read_img(file, length, width)
+            cumh5.create_dataset(LOSvec, data=data, compression=compress)
+        else:
+            print('  {} not exist in GEOCml dir. Skip'.format(LOSvec))
+
+    cumh5.close()
 
 def even_split(a, n):
     """ Divide a list, a, in to n even parts"""
