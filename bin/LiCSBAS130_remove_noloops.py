@@ -370,7 +370,7 @@ def main():
             ifgfile = os.path.join(ifgdir, ifgd, '{0}.unw'.format(ifgd))
             # Write patch to file
             with open(ifgfile, openmode) as f:
-                null_patch[i, :].tofile(f)
+                null_patch[i, :].astype(np.float32).tofile(f)
 
         ## velocity and noise indicies in results dir
         names = ['n_gap', 'n_ifg_noloop', 'maxTlen']
@@ -378,7 +378,7 @@ def main():
         for i in range(len(names)):
             file = os.path.join(resultsdir, '{}_preNullNoLoop'.format(names[i]))
             with open(file, openmode) as f:
-                data[i].tofile(f)
+                data[i].astype(np.float32).tofile(f)
 
         #%% Finish patch
         elapsed_time2 = int(time.time()-start2)
