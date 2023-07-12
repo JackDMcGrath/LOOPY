@@ -83,6 +83,9 @@ def set_input_output():
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
     reffile = os.path.join(tsadir, args.ref_file)
+    if not os.path.exists(reffile):
+        reffile = os.path.join(infodir, args.ref_file)
+
     if args.apply_mask:
         maskfile = os.path.join(resultdir, 'mask')
     eqfile = os.path.abspath(args.eq_list)
