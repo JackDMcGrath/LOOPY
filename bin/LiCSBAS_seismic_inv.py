@@ -382,6 +382,8 @@ def plot_timeseries(dates, disp, invvel, ii, x, y):
     plt.plot(dates, invvel, label='{}'.format(ii))
     plt.title('({},{})'.format(x,y))
     plt.legend()
+    for ii in range(0, n_eq):
+        plt.axvline(x=eq_dt[ii], color="grey", linestyle="--")
     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
 def write_outputs():
