@@ -334,10 +334,10 @@ def fit_velocities():
     else:
         results = fit_pixel_velocities(np.arange(0, n_valid, 1).tolist())
 
-def fit_pixel_velocities(i):
+def fit_pixel_velocities(ii):
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
 
-    disp = cum[:, valid[0][i], valid[1][i]]
+    disp = cum[:, valid[0][ii], valid[1][ii]]
     # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
     G = np.zeros([n_im, 2 + n_eq * 3])
     G[:, 0] = 1
@@ -345,11 +345,11 @@ def fit_pixel_velocities(i):
 
     daily_rates = [1]
 
-    for e in range(0, n_eq):
-        G[eq_ix[e]:eq_ix[e + 1], 2 + e * 3] = 1
-        G[eq_ix[e]:eq_ix[e + 1], 3 + e * 3] = np.log(1 + pcst * (date_ord[eq_ix[e]:eq_ix[e + 1]] - ord_eq[e]))
-        G[eq_ix[e]:eq_ix[e + 1], 4 + e * 3] = date_ord[eq_ix[e]:eq_ix[e + 1]]
-        daily_rates.append(4 + e * 3)
+    for ee in range(0, n_eq):
+        G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 1
+        G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = np.log(1 + pcst * (date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]))
+        G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]]
+        daily_rates.append(4 + ee * 3)
 
     x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
 
@@ -358,10 +358,10 @@ def fit_pixel_velocities(i):
     x = np.append(x, np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2))))
 
     # Convert mm/day to mm/yr
-    for i in daily_rates:
-        x[i] *= 365.25
+    for dd in daily_rates:
+        x[dd] *= 365.25
 
-    if np.mod(i, 5000) == 0:
+    if np.mod(ii, 5000) == 0:
         print('{}/{} Velocity STD: {}'.format(i, n_valid, x[5]))
         print('    InSAR Offset and Initial Velocity: {:.2f} mm/yr, {:.2f} mm'.format(x[0], x[1]))
         for n in range(0, n_eq):
@@ -371,7 +371,7 @@ def fit_pixel_velocities(i):
         plt.scatter(dates, disp, s=2, c='blue', label='Displacement')
         plt.plot(dates, invvel, label='Const Linear w/ co- + post-seismic')
         plt.legend()
-        plt.savefig(os.path.join(outdir, i + '.png'))
+        plt.savefig(os.path.join(outdir, ii + '.png'))
 
     return x
 
