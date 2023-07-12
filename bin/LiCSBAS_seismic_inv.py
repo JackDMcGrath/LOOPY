@@ -374,7 +374,7 @@ def fit_pixel_velocities(ii):
         plt.scatter(dates, disp, s=2, c='blue', label='Displacement')
         plt.plot(dates, invvel, label='Const Linear w/ co- + post-seismic')
         plt.legend()
-        plt.savefig(os.path.join(outdir, ii + '.png'))
+        plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
     return x
 
