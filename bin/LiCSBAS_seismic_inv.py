@@ -368,6 +368,11 @@ def fit_pixel_velocities(i):
             print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[n], x[2 + n * 3]))
             print('    Post-seismic A-value and velocity: {:.2f}, {:.2f} mm/yr\n'.format(x[3 + n * 3], x[4 + n * 3]))
 
+        plt.scatter(dates, disp, s=2, c='blue', label='Displacement')
+        plt.plot(dates, invvel, label='Const Linear w/ co- + post-seismic')
+        plt.legend()
+        plt.savefig(os.path.join(outdir, i + '.png'))
+
     return x
 
 def write_outputs():
