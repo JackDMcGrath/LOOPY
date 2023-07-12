@@ -365,7 +365,7 @@ def fit_pixel_velocities(ii):
         x[dd] *= 365.25
 
     if np.mod(ii, 5000) == 0:
-        print('{}/{} Velocity STD: {}'.format(i, n_valid, x[5]))
+        print('{}/{} Velocity STD: {}'.format(ii, n_valid, x[5]))
         print('    InSAR Offset and Initial Velocity: {:.2f} mm/yr, {:.2f} mm'.format(x[0], x[1]))
         for n in range(0, n_eq):
             print('    Co-seismic offset for {}: {:.0f} mm'.format(eq_dates[n], x[2 + n * 3]))
