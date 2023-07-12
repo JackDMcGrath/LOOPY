@@ -378,7 +378,7 @@ def fit_pixel_velocities(ii):
 def plot_timeseries(dates, disp, invvel, ii):
     if not os.path.exists(outdir):
         os.mkdir(outdir)
-    plt.scatter(dates, disp, s=2, c='blue', label='Displacement')
+    plt.scatter(dates, disp, s=2, label='Displacement {}'.format(ii))
     plt.plot(dates, invvel, label='Variable Linear w/ co- + post-seismic {}'.format(ii))
     plt.legend()
     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
