@@ -176,19 +176,19 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
 
 #%% Find colorbar limits
 def find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange, vmin, vmax):
-        refvalue_vel = np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
-        vmin_auto = np.nanpercentile(vel*mask, 100-auto_crange)
-        vmax_auto = np.nanpercentile(vel*mask, auto_crange)
-        if vmin is None and vmax is None: ## auto
-            vlimauto = True
-            vmin = vmin_auto - refvalue_vel
-            vmax = vmax_auto - refvalue_vel
-        else:
-            vlimauto = False
-            if vmin is None: vmin_auto - refvalue_vel
-            if vmax is None: vmax_auto - refvalue_vel
+    refvalue_vel = np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
+    vmin_auto = np.nanpercentile(vel*mask, 100-auto_crange)
+    vmax_auto = np.nanpercentile(vel*mask, auto_crange)
+    if vmin is None and vmax is None: ## auto
+        vlimauto = True
+        vmin = vmin_auto - refvalue_vel
+        vmax = vmax_auto - refvalue_vel
+    else:
+        vlimauto = False
+        if vmin is None: vmin_auto - refvalue_vel
+        if vmax is None: vmax_auto - refvalue_vel
 
-        return vmin, vmax, vlimauto
+    return vmin, vmax, vlimauto
 
 
 #%% Main
@@ -542,7 +542,9 @@ if __name__ == "__main__":
         if dmin is None: dmin = dmin_auto - refvalue_lastcum
         if dmax is None: dmax = dmax_auto - refvalue_lastcum
 
-    vmin = vmax = vlimauto = []
+    vmin = []
+    vmax = []
+    vlimauto = []
     if linear_vel:
         files = [vel]
     else:
