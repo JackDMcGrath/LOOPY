@@ -379,7 +379,7 @@ def fit_pixel_velocities(ii):
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
     resid = disp - invvel
-    reg = RANSACRegressor().fit(date_ord,resid)
+    reg = RANSACRegressor().fit(date_ord.reshape((n_im,1)),resid.reshape((n_im,1)))
     outliers = np.logical_not(reg.inlier_mask_)
 
     if np.mod(ii, 1000) == 0:
