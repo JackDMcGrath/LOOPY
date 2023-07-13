@@ -169,12 +169,8 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         yvalues = result.predict(An)
 
     else:
-        print('Param')
-        print(param.round(3))
+        # TODO: Un-hardcode the earthquake date, work with multiple eqs, get referencing to work
         eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
-        print(eq_date)
-
-        print(xvalues)
         G = np.zeros((len(xvalues), 5))
         G[:, 0] = 1
         eq_ix = np.sum([1 for d in xvalues if d < eq_date])
@@ -187,12 +183,7 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         else:
             G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date))
         G[eq_ix:, 4] = xvalues[eq_ix:]
-        print('G{} {}'.format(G.shape,eq_ix))
-        print(G[74:80,:].round(2))
-        print(xvalues[74:80])
         yvalues = np.matmul(G, param)
-        print('Y-values')
-        print(yvalues)
 
     return yvalues
 
