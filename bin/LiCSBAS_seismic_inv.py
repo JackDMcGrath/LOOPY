@@ -321,7 +321,7 @@ def run_RANSAC(ii):
     outliers = np.logical_not(reg.inlier_mask_)
 
     # Interpolate filtered values over outliers
-    interp = CubicSpline(date_ord[keep[inliers]].reshape((-1,1)),filtered[keep[inliers]].reshape((-1,1)))
+    interp = CubicSpline(date_ord[keep[inliers]],filtered[keep[inliers]])
     filtered_outliers = interp(date_ord[keep[outliers]])
 
     disp[keep[outliers]] = filtered_outliers
