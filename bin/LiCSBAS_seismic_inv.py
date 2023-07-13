@@ -21,6 +21,7 @@ import numpy as np
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_plot_lib as plot_lib
 import SCM
+from sklearn.linear_model import RANSACRegressor
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -376,6 +377,18 @@ def fit_pixel_velocities(ii):
 
     # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
+
+    resid = disp - invvel
+    reg = RANSACRegressor().fit(date_ord,resid)
+    outliers = np.logical_not(reg.inlier_mask_)
+
+    if np.mod(ii, 1000) == 0:
+        plt.scatter(dates[reg.inlier_mask_], disp[reg.inlier_mask_], s=2, label='Inlier {}'.format(ii))
+        plt.scatter(dates[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
+        plt.legend()
+        plt.savefig(os.path.join(outdir, 'out{}.png'.format(ii)))
+        plt.close()
+        print(os.path.join(outdir, 'out{}.png'.format(ii)))
 
     # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
     recalculate = False
