@@ -172,7 +172,7 @@ def calc_model(dph, imdates_ordinal, xvalues, model):
     return yvalues
 
 #%% Find colorbar limits
-def find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange):
+def find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange, vmin, vmax):
         refvalue_vel = np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
         vmin_auto = np.nanpercentile(vel*mask, 100-auto_crange)
         vmax_auto = np.nanpercentile(vel*mask, auto_crange)
@@ -212,8 +212,8 @@ if __name__ == "__main__":
     dmax = None
     ylen = []
     ts_pngfile = []
-    vmin = None
-    vmax = None
+    vminIn = None
+    vmaxIn = None
     cmap_name = "SCM.roma_r"
     auto_crange = 99.0
     linear_vel = True
@@ -253,9 +253,9 @@ if __name__ == "__main__":
             elif o == '--nomask':
                 maskflag = False
             elif o == '--vmin':
-                vmin = float(a)
+                vminIn = float(a)
             elif o == '--vmax':
-                vmax = float(a)
+                vmaxIn = float(a)
             elif o == '--dmin':
                 dmin = float(a)
             elif o == '--dmax':
@@ -538,17 +538,16 @@ if __name__ == "__main__":
         if dmin is None: dmin = dmin_auto - refvalue_lastcum
         if dmax is None: dmax = dmax_auto - refvalue_lastcum
 
+    vmin = vmax = vlimauto = []
     if linear_vel:
         files = [vel]
-        vmin, vmax, vlimauto = find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange)
     else:
         files = [vel, prevel, postvel, coseismic, avalue]
-        vmin = vmax = vlimauto = []
-        for ff  in files:
-            vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange)
-            vmin.append(vmintmp)
-            vmax.append(vmaxtmp)
-            vlimauto.append(vlimautotmp)
+    for ff  in files:
+        vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange, vminIn, vmaxIn)
+        vmin.append(vmintmp)
+        vmax.append(vmaxtmp)
+        vlimauto.append(vlimautotmp)
 
     #%% Plot figure of cumulative displacement and velocity
     figsize_x = 6 if length > width else 9
@@ -564,7 +563,7 @@ if __name__ == "__main__":
     rax, = axv.plot([refx1h, refx2h, refx2h, refx1h, refx1h],
                     [refy1h, refy1h, refy2h, refy2h, refy1h], '--k', alpha=0.8)
     data = vel*mask-np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
-    cax = axv.imshow(data, clim=[vmin, vmax], cmap=cmap, aspect=aspect, interpolation='nearest')
+    cax = axv.imshow(data, clim=[vmin[0], vmax[0]], cmap=cmap, aspect=aspect, interpolation='nearest')
 
     axv.set_title('vel')
 
@@ -877,7 +876,7 @@ if __name__ == "__main__":
         dph = cum[:, ii, jj]-np.nanmean(cum[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum_ref
 
         ## fit function
-        lines1 = [0, 0, 0, 0]
+        lines1 = [0, 0, 0, 0, 0]
         xvalues = np.arange(imdates_ordinal[0], imdates_ordinal[-1], 10)
         td10day = dt.timedelta(days=10)
         xvalues_dt = np.arange(imdates_dt[0], imdates_dt[-1], td10day)
@@ -895,7 +894,7 @@ if __name__ == "__main__":
             dphf = cum2[:, ii, jj]-np.nanmean(cum2[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum2_ref
 
             ## fit function
-            lines2 = [0, 0, 0, 0]
+            lines2 = [0, 0, 0, 0, 0]
             for model, vis in enumerate(visibilities):
                 yvalues = calc_model(dphf, imdates_ordinal, xvalues, model)
                 lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
