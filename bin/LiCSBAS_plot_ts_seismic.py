@@ -134,7 +134,7 @@ class Usage(Exception):
         self.msg = msg
 
 #%% Calc model
-def calc_model(dph, imdates_ordinal, xvalues, model):
+def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
 
     imdates_years = imdates_ordinal/365.25 ## dont care abs
     xvalues_years = xvalues/365.25
@@ -142,32 +142,35 @@ def calc_model(dph, imdates_ordinal, xvalues, model):
     #models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q']
     A = sm.add_constant(imdates_years) #[1, t]
     An = sm.add_constant(xvalues_years) #[1, t]
-    if model == 0: # Linear
-        pass
-    if model == 1: # Annual+L
-        sin = np.sin(2*np.pi*imdates_years)
-        cos = np.cos(2*np.pi*imdates_years)
-        A = np.concatenate((A, sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
-        sin = np.sin(2*np.pi*xvalues_years)
-        cos = np.cos(2*np.pi*xvalues_years)
-        An = np.concatenate((An, sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
-    if model == 2: # Quad
-        A = np.concatenate((A, (imdates_years**2)[:, np.newaxis]), axis=1)
-        An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis]), axis=1)
-    if model == 3: # Annual+Q
-        sin = np.sin(2*np.pi*imdates_years)
-        cos = np.cos(2*np.pi*imdates_years)
-        A = np.concatenate((A, (imdates_years**2)[:, np.newaxis],
-                            sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
-        sin = np.sin(2*np.pi*xvalues_years)
-        cos = np.cos(2*np.pi*xvalues_years)
-        An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis],
-                             sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
-    if model == 4: # Seismic
-        pass # Come back to this
+    if model < 4:
+        if model == 0: # Linear
+            pass
+        if model == 1: # Annual+L
+            sin = np.sin(2*np.pi*imdates_years)
+            cos = np.cos(2*np.pi*imdates_years)
+            A = np.concatenate((A, sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
+            sin = np.sin(2*np.pi*xvalues_years)
+            cos = np.cos(2*np.pi*xvalues_years)
+            An = np.concatenate((An, sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
+        if model == 2: # Quad
+            A = np.concatenate((A, (imdates_years**2)[:, np.newaxis]), axis=1)
+            An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis]), axis=1)
+        if model == 3: # Annual+Q
+            sin = np.sin(2*np.pi*imdates_years)
+            cos = np.cos(2*np.pi*imdates_years)
+            A = np.concatenate((A, (imdates_years**2)[:, np.newaxis],
+                                sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
+            sin = np.sin(2*np.pi*xvalues_years)
+            cos = np.cos(2*np.pi*xvalues_years)
+            An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis],
+                                sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
 
-    result = sm.OLS(dph, A, missing='drop').fit()
-    yvalues = result.predict(An)
+        result = sm.OLS(dph, A, missing='drop').fit()
+        yvalues = result.predict(An)
+
+    else:
+        G = np.zeros(n_im, 5)
+
 
     return yvalues
 
@@ -358,6 +361,7 @@ if __name__ == "__main__":
         vel = cumh5['vel']
     else:
         vel = io_lib.read_img(os.path.join(resultsdir, 'vel'), length, width)
+        vint = cumh5['vintercept']
         prevel = cumh5['prevel']
         postvel = cumh5['postvel']
         coseismic = cumh5['coseismic']
@@ -542,7 +546,7 @@ if __name__ == "__main__":
     if linear_vel:
         files = [vel]
     else:
-        files = [vel, prevel, postvel, coseismic, avalue]
+        files = [vel, prevel, coseismic, avalue, postvel]
     for ff  in files:
         vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange, vminIn, vmaxIn)
         vmin.append(vmintmp)
@@ -875,13 +879,22 @@ if __name__ == "__main__":
 #        dcum_ref = 0
         dph = cum[:, ii, jj]-np.nanmean(cum[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum_ref
 
+        if linear_vel:
+            param = None
+        else:
+            param = np.zeros((1,5))
+            for ix, ff in enumerate(files[1:]):
+                param[ix] = np.nanmean(ff[ii, jj])
+                if np.isnan(param[ix]):
+                    param[ix] = 0
+
         ## fit function
         lines1 = [0, 0, 0, 0, 0]
         xvalues = np.arange(imdates_ordinal[0], imdates_ordinal[-1], 10)
         td10day = dt.timedelta(days=10)
         xvalues_dt = np.arange(imdates_dt[0], imdates_dt[-1], td10day)
         for model, vis in enumerate(visibilities):
-            yvalues = calc_model(dph, imdates_ordinal, xvalues, model)
+            yvalues = calc_model(dph, imdates_ordinal, xvalues, model, param=param)
             lines1[model], = axts.plot(xvalues_dt, yvalues, 'b-', visible=vis, alpha=0.6, zorder=3)
 
         axts.scatter(imdates_dt, dph, label=label1, c='b', alpha=0.6, zorder=5)
