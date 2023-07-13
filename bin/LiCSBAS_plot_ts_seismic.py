@@ -170,16 +170,17 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
 
     else:
         eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal()
-        G = np.zeros((n_im, 5))
+        G = np.zeros((len(xvalues), 5))
         G[:, 0] = 1
-        eq_ix = np.sum([1 for d in imdates_ordinal if d < eq_date])
-        G[:eq_ix, 1] = imdates_ordinal[:eq_ix]
+        eq_ix = np.sum([1 for d in xvalues if d < eq_date])
+        xvalues -= xvalues[0]
+        G[:eq_ix, 1] = xvalues[:eq_ix]
         G[eq_ix:, 2] = 1
         if param[3] == 0:
             G[eq_ix:, 3] = 0
         else:
-            G[eq_ix:, 3] = np.log(1 + (1/6) * (imdates_ordinal[eq_ix:] - eq_date))
-        G[eq_ix:, 4] = imdates_ordinal[eq_ix:]
+            G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date))
+        G[eq_ix:, 4] = xvalues[eq_ix:]
 
         yvalues = np.matmul(G, param)
 
