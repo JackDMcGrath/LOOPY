@@ -382,10 +382,10 @@ def fit_pixel_velocities(ii):
 
     for ee in range(n_eq):
         # Sod it - only doing 1 earthquake at the moment. Can't work out 2 yet
-        Gpre = G[eq[ix] - 1, :]
+        Gpre = G[eq_ix[ee] - 1, :]
         Gpre[1] = ord_eq[ee]
         pre_disp = np.matmul(Gpre, x)
-        Gpost = G[eq[ix] + 1, :]
+        Gpost = G[eq_ix[ee] + 1, :]
         Gpost[3] = np.log(1 + pcst * 0)
         Gpost[4] = 0
         post_disp = np.matmul(Gpost, x)
@@ -409,7 +409,7 @@ def fit_pixel_velocities(ii):
             # Allow no coseismic displacement or post-seismic relaxation, but allow a change in the linear velocity afterwards
             G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 1 # Allow coseismic displacement
             G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = 0 # Allow no postseismic relaxation
-            G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] # Allow a change in linear velocity -> should we allow this?
+            G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee] # Allow a change in linear velocity -> should we allow this?
 
         # else:
         #     # Change value in result to be true coseismic displacement
