@@ -168,8 +168,9 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         result = sm.OLS(dph, A, missing='drop').fit()
         yvalues = result.predict(An)
 
-    #else:
-    #    G = np.zeros(n_im, 5)
+    else:
+        result = sm.OLS(dph, A, missing='drop').fit()
+        yvalues = result.predict(An)
 
 
     return yvalues
@@ -547,11 +548,11 @@ if __name__ == "__main__":
     vlimauto = []
     if linear_vel:
         velnames = ['vel']
-        files = [vel]
+        velfiles = [vel]
     else:
         velnames = ['vel', 'prevel', 'coseismic', 'avalue', 'postvel']
-        files = [vel, prevel, coseismic, avalue, postvel]
-    for ff  in files:
+        velfiles = [vel, prevel, coseismic, avalue, postvel]
+    for ff  in velfiles:
         vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange, vminIn, vmaxIn)
         vmin.append(vmintmp)
         vmax.append(vmaxtmp)
@@ -904,10 +905,10 @@ if __name__ == "__main__":
         if linear_vel:
             param = None
         else:
-            param = np.zeros((1,5))
-            for ix, ff in enumerate(files[1:]):
-                param[ix] = np.nanmean(ff[ii, jj])
-                if np.isnan(param[ix]):
+            param = np.zeros((5))
+            for ix, ff in enumerate(velfiles[1:]):
+                param[ix] = np.nanmean(np.array(ff)[ii, jj])
+                if np.isnan(param[ix]).all():
                     param[ix] = 0
 
         ## fit function
