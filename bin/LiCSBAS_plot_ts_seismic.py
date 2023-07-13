@@ -818,7 +818,7 @@ if __name__ == "__main__":
     visibilities = [True, True, False, False]
     if not linear_vel:
         models = models + ['Seismic']
-        visibilities = visibilities + [False]
+        visibilities = [False, False, False, False, True]
     fitcheck = CheckButtons(fitbox, models, visibilities)
 
     def fitfunc(label):
