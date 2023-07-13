@@ -315,10 +315,35 @@ def run_RANSAC(ii):
     resid = diff[:, valid[0][ii], valid[1][ii]]
     filtered = cum_lpt[:, valid[0][ii], valid[1][ii]]
     # Set RANSAC threshold based off median std
+    std = np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
     limits = outlier_thresh*np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
     reg = RANSACRegressor(min_samples=round(0.8*n_im), residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
     inliers = reg.inlier_mask_
     outliers = np.logical_not(reg.inlier_mask_)
+
+    yvals = reg.predict(date_ord.reshape((-1,1)))
+    if np.mod(ii, 5000) == 0:
+        fig=plt.figure()
+        ax=fig.add_subplot(2,1,1)
+        ax.scatter(np.array(dates)[inliers], disp[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, disp, c='g',label='Fitted Vel')
+        ax.plot(dates, disp + std, c='r',label='Fitted STD')
+        ax.plot(dates, disp - std, c='r')
+        ax.plot(dates, disp + limits, c='b',label='Outlier Thresh')
+        ax.plot(dates, disp - limits, c='b')
+        ax.legend()
+        ax=fig.add_subplot(2,1,2)
+        ax.scatter(np.array(dates)[inliers], resid[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], resid[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, yvals, label='RANSAC')
+        ax.plot(dates, yvals + std, label='1x std')
+        ax.plot(dates, yvals + limits, label='3*std')
+        ax.plot(dates, yvals - std)
+        ax.plot(dates, yvals - limits)
+        plt.savefig(os.path.join(outdir, 'filtRANSAC{}.png'.format(ii)))
+        plt.close()
+        print(os.path.join(outdir, 'filtRANSAC{}.png'.format(ii)))
 
     # Interpolate filtered values over outliers
     interp = CubicSpline(date_ord[keep[inliers]],filtered[keep[inliers]])
@@ -327,7 +352,6 @@ def run_RANSAC(ii):
     disp[keep[outliers]] = filtered_outliers
 
     cum[:, valid[0][ii], valid[1][ii]] = disp
-
 
 def lpt_filter(i):
 
