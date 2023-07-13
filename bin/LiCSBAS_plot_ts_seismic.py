@@ -24,7 +24,7 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
     [-u U.geo] [-r x1:x2/y1:y2] [--ref_geo lon1/lon2/lat1/lat2] [-p x/y]
     [--p_geo lon/lat] [-c cmap] [--nomask] [--vmin float] [--vmax float]
     [--auto_crange float] [--dmin float] [--dmax float] [--ylen float]
-    [--ts_png pngfile]
+    [--ts_png pngfile] [--eqlist textfile]
 
  -i    Input cum hdf5 file (Default: ./cum_filt.h5 or ./cum.h5)
  --i2  Input 2nd cum hdf5 file
@@ -49,6 +49,7 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
               (Default: 99 %)
  --ylen       Y Length of time series plot in mm (Default: auto)
  --ts_png     Output png file of time series plot (not display interactive viewers)
+ --eqlist     Textfile containing the required earthquake dates - needed for seismic velocities
 
 """
 #%% Change log
@@ -162,11 +163,29 @@ def calc_model(dph, imdates_ordinal, xvalues, model):
         cos = np.cos(2*np.pi*xvalues_years)
         An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis],
                              sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
+    if model == 4: # Seismic
+        pass # Come back to this
 
     result = sm.OLS(dph, A, missing='drop').fit()
     yvalues = result.predict(An)
 
     return yvalues
+
+#%% Find colorbar limits
+def find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange):
+        refvalue_vel = np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
+        vmin_auto = np.nanpercentile(vel*mask, 100-auto_crange)
+        vmax_auto = np.nanpercentile(vel*mask, auto_crange)
+        if vmin is None and vmax is None: ## auto
+            vlimauto = True
+            vmin = vmin_auto - refvalue_vel
+            vmax = vmax_auto - refvalue_vel
+        else:
+            vlimauto = False
+            if vmin is None: vmin_auto - refvalue_vel
+            if vmax is None: vmax_auto - refvalue_vel
+
+        return vmin, vmax, vlimauto
 
 
 #%% Main
@@ -197,14 +216,14 @@ if __name__ == "__main__":
     vmax = None
     cmap_name = "SCM.roma_r"
     auto_crange = 99.0
-    seismic_flag = False
+    linear_vel = True
 
     #%% Read options
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hi:d:u:m:r:p:c:",
                ["help", "i2=", "ref_geo=", "p_geo=", "nomask", "dmin=", "dmax=",
-                "vmin=", "vmax=", "auto_crange=", "ylen=", "ts_png=", "seismic"])
+                "vmin=", "vmax=", "auto_crange=", "ylen=", "ts_png=", "eqlist="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -247,8 +266,9 @@ if __name__ == "__main__":
                 ylen = float(a)
             elif o == '--ts_png':
                 ts_pngfile = a
-            elif o == "--seismic":
-                seismic_flag = True
+            elif o == "--eqlist":
+                linear_vel = False
+                eq_list = str(a)
 
     except Usage as err:
         print("\nERROR:", file=sys.stderr, end='')
@@ -289,7 +309,10 @@ if __name__ == "__main__":
 
     ### results dir
     if not resultsdir: # if not given
-        resultsdir = os.path.join(cumdir, 'results')
+        if not seismic_flag:
+            resultsdir = os.path.join(cumdir, 'results')
+        else: # Currently, seismic cum.h5 stored in TS*/results/seismic_vels
+            resultsdir = os.path.abspath(os.path.join(cumdir, '..'))
 
     ### mask
     maskfile = os.path.join(resultsdir, 'mask')
@@ -298,10 +321,23 @@ if __name__ == "__main__":
         maskflag = False
         maskfile = []
 
-    ### Noise indecis
+    # Check eqlist exists
+    if not linear_vel and not os.path.exists(eq_list):
+        print('\nNo {} file exists - cannot define earthquakes. Exiting....')
+        print('Future plan is to add eq dates to cum.h5')
+        sys.exit(2)
+    else:
+        eq_dates = io_lib.read_ifg_list(eq_list)
+        eq_dates.sort()
+        n_eq = len(eq_dates)
+
+    ### Noise indices
     coh_avgfile = os.path.join(resultsdir, 'coh_avg')
     n_unwfile = os.path.join(resultsdir, 'n_unw')
-    vstdfile = os.path.join(resultsdir, 'vstd')
+    if linear_vel:
+        vstdfile = os.path.join(resultsdir, 'vstd')
+    else:
+        vstdfile = os.path.join(cumdir, 'vstd')
     n_gapfile = os.path.join(resultsdir, 'n_gap')
     n_ifg_noloopfile = os.path.join(resultsdir, 'n_ifg_noloop')
     n_loop_errfile = os.path.join(resultsdir, 'n_loop_err')
@@ -327,9 +363,16 @@ if __name__ == "__main__":
     ### cumfile
     print('\nReading {}'.format(os.path.relpath(cumfile)))
     cumh5 = h5.File(cumfile,'r')
-    vel = cumh5['vel']
     cum = cumh5['cum']
     n_im, length, width = cum.shape
+    if linear_vel:
+        vel = cumh5['vel']
+    else:
+        vel = io_lib.read_img(os.path.join(resultsdir, 'vel'), length, width)
+        prevel = cumh5['prevel']
+        postvel = cumh5['postvel']
+        coseismic = cumh5['coseismic']
+        avalue = cumh5['avalue']
 
     try:
         gap = cumh5['gap']
@@ -506,18 +549,17 @@ if __name__ == "__main__":
         if dmin is None: dmin = dmin_auto - refvalue_lastcum
         if dmax is None: dmax = dmax_auto - refvalue_lastcum
 
-    refvalue_vel = np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
-    vmin_auto = np.nanpercentile(vel*mask, 100-auto_crange)
-    vmax_auto = np.nanpercentile(vel*mask, auto_crange)
-    if vmin is None and vmax is None: ## auto
-        vlimauto = True
-        vmin = vmin_auto - refvalue_vel
-        vmax = vmax_auto - refvalue_vel
+    if linear_vel:
+        files = [vel]
+        vmin, vmax, vlimauto = find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange)
     else:
-        vlimauto = False
-        if vmin is None: vmin_auto - refvalue_vel
-        if vmax is None: vmax_auto - refvalue_vel
-
+        files = [vel, prevel, postvel, coseismic, avalue]
+        vmin = vmax = vlimauto = []
+        for ff  in files:
+            vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange)
+            vmin.append(vmintmp)
+            vmax.append(vmaxtmp)
+            vlimauto.append(vlimautotmp)
 
     #%% Plot figure of cumulative displacement and velocity
     figsize_x = 6 if length > width else 9
@@ -529,7 +571,7 @@ if __name__ == "__main__":
     axt2 = pv.text(0.01, 0.99, 'Left-doubleclick:\n Plot time series\nRight-drag:\n Change ref area', fontsize=8, va='top')
     axt = pv.text(0.01, 0.78, 'Ref area:\n X {}:{}\n Y {}:{}\n (start from 0)'.format(refx1, refx2, refy1, refy2), fontsize=8, va='bottom')
 
-    ### Fisrt show
+    ### First show
     rax, = axv.plot([refx1h, refx2h, refx2h, refx1h, refx1h],
                     [refy1h, refy1h, refy2h, refy2h, refy1h], '--k', alpha=0.8)
     data = vel*mask-np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
@@ -623,8 +665,12 @@ if __name__ == "__main__":
         mapdict_vel = {'vel(1)': vel, 'vel(2)': vel2}
         mapdict_unit.update([('vel(1)', 'mm/yr'), ('vel(2)', 'mm/yr')])
     else:
-        mapdict_vel = {'vel': vel}
-        mapdict_unit.update([('vel', 'mm/yr')])
+        if linear_vel:
+            mapdict_vel = {'vel': vel}
+            mapdict_unit.update([('vel', 'mm/yr')])
+        else:
+            mapdict_vel = {'vel': vel, 'prevel': prevel, 'coseismic': coseismic, 'avalue': avalue, 'postvel': postvel}
+            mapdict_unit.update([('vel', 'mm/yr'), ('prevel', 'mm/yr'), ('coseismic', 'mm'), ('avalue', 'mm'), ('postvel', 'mm/yr')])
 
     mapdict_vel.update(mapdict_data)
     mapdict_data = mapdict_vel  ## To move vel to top
@@ -744,6 +790,9 @@ if __name__ == "__main__":
     fitbox = pts.add_axes([0.83, 0.10, 0.16, 0.25])
     models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q']
     visibilities = [True, True, False, False]
+    if not linear_vel:
+        models = models + ['Seismic']
+        visibilities = visibilities + [False]
     fitcheck = CheckButtons(fitbox, models, visibilities)
 
     def fitfunc(label):
