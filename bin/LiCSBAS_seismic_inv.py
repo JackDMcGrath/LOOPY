@@ -52,6 +52,7 @@ def init_args():
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
     parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
+    parser.add_argument('--noreference', dest='noreference', default=False, action='store_true', help="Don't reference displacements")
 
     args = parser.parse_args()
 
@@ -163,19 +164,22 @@ def load_data():
 
 def reference_disp(data, refx1, refx2, refy1, refy2):
 
-    # Reference all data to reference area through static offset
-    ref = np.nanmean(data[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(data.shape[0], 1, 1)
-    # Check that one of the refs is not all nan. If so, increase ref area
-    if np.isnan(ref).any():
-        print('NaN Value for reference for {} dates. Increasing ref area kernel'.format(np.sum(np.isnan(ref))))
-        while np.isnan(ref).any():
-            refx1 -= 1
-            refx2 += 1
-            refy1 -= 1
-            refy2 += 1
-            ref = np.nanmean(data[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(data.shape[0], 1, 1)
+    if args.noreference:
+        ref = 0
+    else:
+        # Reference all data to reference area through static offset [This makes the reference pixel only ever have a displacement of 0]
+        ref = np.nanmean(data[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(data.shape[0], 1, 1)
+        # Check that one of the refs is not all nan. If so, increase ref area
+        if np.isnan(ref).any():
+            print('NaN Value for reference for {} dates. Increasing ref area kernel'.format(np.sum(np.isnan(ref))))
+            while np.isnan(ref).any():
+                refx1 -= 1
+                refx2 += 1
+                refy1 -= 1
+                refy2 += 1
+                ref = np.nanmean(data[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(data.shape[0], 1, 1)
 
-    print('Reference area ({}:{}, {}:{})'.format(refx1, refx2, refy1, refy2))
+        print('Reference area ({}:{}, {}:{})'.format(refx1, refx2, refy1, refy2))
 
     data = data - ref
 
@@ -353,8 +357,8 @@ def fit_pixel_velocities(ii):
     # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
     G = np.zeros([n_im, 2 + n_eq * 3])
     G[:, 0] = 1
-    G[:eq_ix[0], 1] = date_ord[:eq_ix[0]]
-    # G[:, 1] = date_ord # Makes the pre-seismic rate the long-term rate. Postseimic linear is summed with this
+    # G[:eq_ix[0], 1] = date_ord[:eq_ix[0]]
+    G[:, 1] = date_ord # Makes the pre-seismic rate the long-term rate. Postseimic linear is summed with this
 
     daily_rates = [1]
 
