@@ -365,7 +365,8 @@ def fit_pixel_velocities(ii):
     for ee in range(0, n_eq):
         G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 1
         G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = np.log(1 + pcst * (date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]))
-        G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]]
+        # G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]]
+        G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee] # This means that intercept of the postseismic is the coseismic + avalue?
         daily_rates.append(4 + ee * 3)
 
     x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
@@ -380,12 +381,15 @@ def fit_pixel_velocities(ii):
     recalculate = False
 
     for ee in range(n_eq):
-        # Sod it - only doing 1 earthquake at the moment
-        pre_disp = ord_eq[ee] * x[1] + x[0]
-        post_disp = x[0] + x[2] + ord_eq[ee] * x[4]
-        post_disp = invvel[-1] + (ord_eq[ee] - date_ord[-1]) * x[4] # Propogate postseismic velocity to eq dates
+        # Sod it - only doing 1 earthquake at the moment. Can't work out 2 yet
+        Gpre = G[eq[ix] - 1, :]
+        Gpre[1] = ord_eq[ee]
+        pre_disp = np.matmul(Gpre, x)
+        Gpost = G[eq[ix] + 1, :]
+        Gpost[3] = np.log(1 + pcst * 0)
+        Gpost[4] = 0
+        post_disp = np.matmul(Gpost, x)
         coseismic = post_disp - pre_disp
-        # coseismic = x[2 + ee * 3]
         if abs(coseismic) < args.detect_thre * std:
             recalculate = True
             if np.mod(ii, 1000) == 0 and n_para == 1:
