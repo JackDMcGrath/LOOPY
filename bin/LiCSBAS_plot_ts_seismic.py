@@ -169,10 +169,16 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         yvalues = result.predict(An)
 
     else:
-        eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal()
+        print('Param')
+        print(param.round(3))
+        eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
+        print(eq_date)
+
+        print(xvalues)
         G = np.zeros((len(xvalues), 5))
         G[:, 0] = 1
         eq_ix = np.sum([1 for d in xvalues if d < eq_date])
+        eq_date -= xvalues[0]
         xvalues -= xvalues[0]
         G[:eq_ix, 1] = xvalues[:eq_ix]
         G[eq_ix:, 2] = 1
@@ -181,8 +187,12 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         else:
             G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date))
         G[eq_ix:, 4] = xvalues[eq_ix:]
-
+        print('G{} {}'.format(G.shape,eq_ix))
+        print(G[74:80,:].round(2))
+        print(xvalues[74:80])
         yvalues = np.matmul(G, param)
+        print('Y-values')
+        print(yvalues)
 
     return yvalues
 
@@ -917,10 +927,13 @@ if __name__ == "__main__":
             param = None
         else:
             param = np.zeros((5))
-            for ix, ff in enumerate(velfiles[1:]):
+            velfiles[0] = vint
+            for ix, ff in enumerate(velfiles):
                 param[ix] = np.nanmean(np.array(ff)[ii, jj])
                 if np.isnan(param[ix]).all():
                     param[ix] = 0
+                if 'prevel' in velnames[ix] or 'postvel' in velnames[ix]:
+                    param[ix] /= 365.25
 
         ## fit function
         lines1 = [0, 0, 0, 0, 0]
