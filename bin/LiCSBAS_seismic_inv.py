@@ -22,6 +22,7 @@ import LiCSBAS_io_lib as io_lib
 import LiCSBAS_plot_lib as plot_lib
 import SCM
 from sklearn.linear_model import RANSACRegressor
+from scipy.interpolate import CubicSpline
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -54,6 +55,7 @@ def init_args():
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
     parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
     parser.add_argument('--noreference', dest='noreference', default=False, action='store_true', help="Don't reference displacements")
+    parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
 
     args = parser.parse_args()
 
@@ -247,7 +249,19 @@ def temporal_filter(cum):
 
         filt_std[i, valid[0], valid[1]] = np.nanstd(diff[ixs_dict[i], :], axis=0)
 
+def std_filters(i):
+    date = filterdates[i]
+    filt_std = np.zeros((length, width)) * np.nan
+    with warnings.catch_warnings():  # To silence warning by zero division
+            warnings.simplefilter('ignore', RuntimeWarning)
+            # Just search valid pixels to speed up
+            std_window = diff[ixs_dict[date],:,:]
+            filt_std[valid[0], valid[1]] = np.nanstd(std_window[:, valid[0], valid[1]], axis=0)
+    
+    return filt_std
+
 def find_outliers():
+    global diff, cum_lpt, filt_std
     filt_std = np.zeros((n_im, length, width)) * np.nan
 
     if n_para > 1 and len(filterdates) > 20:
@@ -255,59 +269,65 @@ def find_outliers():
         cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
         p.close()
     else:
-        lpt_filter(filterdates)
+        cum_lpt = lpt_filter(filterdates)
 
     # Find STD
     diff = cum - cum_lpt  # Difference between data and filtered data
-    filt_std = np.zeros((n_im, length, width)) * np.nan
-    for i in filterdates:
-        with warnings.catch_warnings():  # To silence warning by zero division
-            warnings.simplefilter('ignore', RuntimeWarning)
-            # Just search valid pixels to speed up
-            std_window = diff[ixs_dict[i],:,:]
-            filt_std[i, valid[0], valid[1]] = np.nanstd(std_window[:, valid[0], valid[1]], axis=0)
 
-    for ii in np.arange(0,n_valid,1000):
-        resid = diff[:, valid[0][ii], valid[1][ii]]
-        invvel = cum_lpt[:, valid[0][ii], valid[1][ii]]
-        disp = cum[:, valid[0][ii], valid[1][ii]]
-        keep = np.where(~np.isnan(disp))[0]
-        limits = outlier_thresh*np.nanmedian(filt_std[:,valid[0][ii], valid[1][ii]])
-        reg = RANSACRegressor(min_samples=round(0.8*n_im), residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
-        inliers = reg.inlier_mask_
-        outliers = np.logical_not(reg.inlier_mask_)
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        filt_std = np.array(p.map(std_filters, range(n_im)), dtype=np.float32)
+        p.close()
+    else:
+        filt_std = np.zeros((n_im, length, width)) * np.nan
+        for i in range(n_im):
+            filt_std[i, :, :] = std_filters(i)
 
-        yvals = reg.predict(date_ord.reshape((-1,1)))
+    if args.ransac:
+        print('Deoutliering using RANSAC')
+        cum_orig = cum.copy()
+        if n_para > 1 and len(filterdates) > 20:
+            p = q.Pool(n_para)
+            p.map(run_RANSAC, range(n_valid))
+            p.close()
+        else:
+            for ii in range(n_valid):
+                run_RANSAC(ii)
 
-        fig=plt.figure(figsize=(12,24))
-        ax=fig.add_subplot(2,1,1)
-        ax.scatter(np.array(dates)[keep[inliers]], disp[keep[inliers]], s=2, label='Inlier {}'.format(ii))
-        ax.scatter(np.array(dates)[keep[outliers]], disp[keep[outliers]], s=2, label='Outlier {}'.format(ii))
-        ax.plot(dates, invvel, c='g',label='Fitted Vel')
-        ax.plot(dates, invvel + filt_std[:,valid[0][ii], valid[1][ii]], c='r',label='Fitted STD')
-        ax.plot(dates, invvel - filt_std[:,valid[0][ii], valid[1][ii]], c='r')
-        ax.plot(dates, invvel + limits, c='b',label='Outlier Thresh')
-        ax.plot(dates, invvel - limits, c='b')
-        ax.legend()
-        ax=fig.add_subplot(2,1,2)
-        ax.scatter(np.array(dates)[keep[inliers]], resid[keep[inliers]], s=2, label='Inlier {}'.format(ii))
-        ax.scatter(np.array(dates)[keep[outliers]], resid[keep[outliers]], s=2, label='Outlier {}'.format(ii))
-        ax.plot(dates, yvals, label='RANSAC')
-        ax.plot(dates, yvals.flatten() + filt_std[:,valid[0][ii], valid[1][ii]], c='r', label='1x std')
-        ax.plot(dates, yvals.flatten() + limits, c='b', label='Limit')
-        ax.plot(dates, yvals.flatten() - filt_std[:,valid[0][ii], valid[1][ii]], c='r')
-        ax.plot(dates, yvals.flatten() - limits, c='b')
-        plt.savefig(os.path.join(outdir, 'filt{}.png'.format(ii)))
-        plt.close()
-        print(os.path.join(outdir, 'filt{}.png'.format(ii)))
+        outlier = []
+        n_changed = len(np.where(cum_orig.flatten() != cum.flatten())[0])
+        print('Print {} pixels deoutliered'.format(n_changed))
+    else:
+        # Find location of outliers
+        outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
 
-
-    # Find location of outliers
-    outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
-
-    print('\n{} outliers identified\n'.format(len(outlier[0])))
+        print('\n{} outliers identified\n'.format(len(outlier[0])))
 
     return cum_lpt, outlier
+
+def run_RANSAC(ii):
+    if np.mod(ii, 1000) == 0:
+        print('{}/{} RANSACed....'.format(ii, n_valid))
+    # Find non-nan data
+    disp = cum[:, valid[0][ii], valid[1][ii]]
+    keep = np.where(~np.isnan(disp))[0]
+    # Select difference between filtered and original data
+    resid = diff[:, valid[0][ii], valid[1][ii]]
+    filtered = cum_lpt[:, valid[0][ii], valid[1][ii]]
+    # Set RANSAC threshold based off median std
+    limits = outlier_thresh*np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
+    reg = RANSACRegressor(min_samples=round(0.8*n_im), residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
+    inliers = reg.inlier_mask_
+    outliers = np.logical_not(reg.inlier_mask_)
+
+    # Interpolate filtered values over outliers
+    interp = CubicSpline(date_ord[keep[inliers]].reshape((-1,1)),filtered[keep[inliers]].reshape((-1,1)))
+    filtered_outliers = interp(date_ord[keep[outliers]])
+
+    disp[keep[outliers]] = filtered_outliers
+
+    cum[:, valid[0][ii], valid[1][ii]] = disp
+
 
 def lpt_filter(i):
 
