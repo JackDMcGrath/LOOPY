@@ -378,14 +378,33 @@ def fit_pixel_velocities(ii):
     # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
-    resid = disp - invvel
-    reg = RANSACRegressor().fit(date_ord.reshape((n_im,1)),resid.reshape((n_im,1)))
-    outliers = np.logical_not(reg.inlier_mask_)
-
     if np.mod(ii, 1000) == 0:
-        plt.scatter(dates[reg.inlier_mask_], disp[reg.inlier_mask_], s=2, label='Inlier {}'.format(ii))
-        plt.scatter(dates[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
-        plt.legend()
+        resid = disp - invvel
+        reg = RANSACRegressor(residual_threshold=outlier_thresh*std).fit(date_ord.reshape((-1,1)),resid.reshape((-1,1)))
+        inliers = reg.inlier_mask_
+        outliers = np.logical_not(reg.inlier_mask_)
+
+        yvals = reg.predict(date_ord.reshape((-1,1)))
+
+        fig=plt.figure()
+        ax=fig.add_subplot(2,1,1)
+        ax.scatter(np.array(dates)[inliers], disp[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, invvel, c='g',label='Fitted Vel')
+        ax.plot(dates, invvel + std, c='r',label='Fitted STD')
+        ax.plot(dates, invvel - std, c='r')
+        ax.plot(dates, invvel + std * outlier_thresh, c='b',label='Outlier Thresh')
+        ax.plot(dates, invvel - std * outlier_thresh, c='b')
+        ax.legend()
+        ax=fig.add_subplot(2,1,2)
+        ax.scatter(np.array(dates)[inliers], resid[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], resid[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, yvals, label='RANSAC')
+        ax.plot(dates, yvals + std, label='1x std')
+        ax.plot(dates, yvals + outlier_thresh * std, label='3*std')
+        ax.plot(dates, yvals - std)
+        ax.plot(dates, yvals - outlier_thresh * std)
+        ax.title(reg.esimator_.coef_)
         plt.savefig(os.path.join(outdir, 'out{}.png'.format(ii)))
         plt.close()
         print(os.path.join(outdir, 'out{}.png'.format(ii)))
