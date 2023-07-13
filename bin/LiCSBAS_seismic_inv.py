@@ -284,7 +284,7 @@ def find_outliers():
         ax.plot(dates, invvel, c='g',label='Fitted Vel')
         ax.plot(dates, invvel + filt_std[valid[0][ii], valid[1][ii]], c='r',label='Fitted STD')
         ax.plot(dates, invvel - filt_std[valid[0][ii], valid[1][ii]], c='r')
-        ax.plot(dates, invvel + filt_std[valid[0][ii], valid[1][ii]]d * outlier_thresh, c='b',label='Outlier Thresh')
+        ax.plot(dates, invvel + filt_std[valid[0][ii], valid[1][ii]] * outlier_thresh, c='b',label='Outlier Thresh')
         ax.plot(dates, invvel - filt_std[valid[0][ii], valid[1][ii]] * outlier_thresh, c='b')
         ax.legend()
         ax=fig.add_subplot(2,1,2)
