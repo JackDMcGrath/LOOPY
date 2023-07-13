@@ -928,8 +928,9 @@ if __name__ == "__main__":
 
         ## fit function
         lines1 = [0, 0, 0, 0, 0]
-        xvalues = np.arange(imdates_ordinal[0], imdates_ordinal[-1], 10)
-        td10day = dt.timedelta(days=10)
+        timestep = 1
+        xvalues = np.arange(imdates_ordinal[0], imdates_ordinal[-1], timestep)
+        td10day = dt.timedelta(days=timestep)
         xvalues_dt = np.arange(imdates_dt[0], imdates_dt[-1], td10day)
         for model, vis in enumerate(visibilities):
             yvalues = calc_model(dph, imdates_ordinal, xvalues, model, param=param)
