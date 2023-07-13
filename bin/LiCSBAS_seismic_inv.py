@@ -518,7 +518,14 @@ def write_h5(gridResults, data):
     if os.path.exists(outh5file):
         os.remove(outh5file)
     cumh5 = h5.File(outh5file, 'w')
+
+    # Copy data from original cum.h5 that hasn't changed
     cumh5.create_dataset('imdates', data=data['imdates'])
+    cumh5.create_dataset('corner_lat', data=data['corner_lat'])
+    cumh5.create_dataset('corner_lon', data=data['corner_lon'])
+    cumh5.create_dataset('post_lat', data=data['post_lat'])
+    cumh5.create_dataset('post_lon', data=data['post_lon'])
+    cumh5.create_dataset('gap', data=data['gap'])
 
     ### Save ref
     cumh5.create_dataset('refarea', data='{}:{}/{}:{}'.format(refx1, refx2, refy1, refy2))
