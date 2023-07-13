@@ -267,6 +267,40 @@ def find_outliers():
             std_window = diff[ixs_dict[i],:,:]
             filt_std[i, valid[0], valid[1]] = np.nanstd(std_window[:, valid[0], valid[1]], axis=0)
 
+    for ii in np.linspace(0,n_valid,1000):
+        resid = diff[valid[0][ii], valid[1][ii]]
+        invvel = cum_lpt[valid[0][ii], valid[1][ii]]
+        disp = cum[valid[0][ii], valid[1][ii]]
+        reg = RANSACRegressor().fit(date_ord.reshape((-1,1)),resid.reshape((-1,1)))
+        inliers = reg.inlier_mask_
+        outliers = np.logical_not(reg.inlier_mask_)
+
+        yvals = reg.predict(date_ord.reshape((-1,1)))
+
+        fig=plt.figure()
+        ax=fig.add_subplot(2,1,1)
+        ax.scatter(np.array(dates)[inliers], disp[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, invvel, c='g',label='Fitted Vel')
+        ax.plot(dates, invvel + filt_std[valid[0][ii], valid[1][ii]], c='r',label='Fitted STD')
+        ax.plot(dates, invvel - filt_std[valid[0][ii], valid[1][ii]], c='r')
+        ax.plot(dates, invvel + filt_std[valid[0][ii], valid[1][ii]]d * outlier_thresh, c='b',label='Outlier Thresh')
+        ax.plot(dates, invvel - filt_std[valid[0][ii], valid[1][ii]] * outlier_thresh, c='b')
+        ax.legend()
+        ax=fig.add_subplot(2,1,2)
+        ax.scatter(np.array(dates)[inliers], resid[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], resid[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, yvals, label='RANSAC')
+        ax.plot(dates, yvals + filt_std[valid[0][ii], valid[1][ii]], label='1x std')
+        ax.plot(dates, yvals + outlier_thresh * filt_std[valid[0][ii], valid[1][ii]], label='3*std')
+        ax.plot(dates, yvals - filt_std[valid[0][ii], valid[1][ii]])
+        ax.plot(dates, yvals - outlier_thresh * filt_std[valid[0][ii], valid[1][ii]])
+        ax.title(reg.esimator_.coef_)
+        plt.savefig(os.path.join(outdir, 'out{}.png'.format(ii)))
+        plt.close()
+        print(os.path.join(outdir, 'out{}.png'.format(ii)))
+
+
     # Find location of outliers
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
 
@@ -618,7 +652,7 @@ def main():
         temporal_filter(cum)
 
     # Fit velocities
-    fit_velocities()
+    #fit_velocities()
 
     # Write Outputs
     write_outputs()
