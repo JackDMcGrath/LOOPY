@@ -168,8 +168,8 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         result = sm.OLS(dph, A, missing='drop').fit()
         yvalues = result.predict(An)
 
-    else:
-        G = np.zeros(n_im, 5)
+    #else:
+    #    G = np.zeros(n_im, 5)
 
 
     return yvalues
@@ -546,8 +546,10 @@ if __name__ == "__main__":
     vmax = []
     vlimauto = []
     if linear_vel:
+        velnames = ['vel']
         files = [vel]
     else:
+        velnames = ['vel', 'prevel', 'coseismic', 'avalue', 'postvel']
         files = [vel, prevel, coseismic, avalue, postvel]
     for ff  in files:
         vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange, vminIn, vmaxIn)
@@ -676,18 +678,36 @@ if __name__ == "__main__":
         label.set_fontsize(8)
 
     def show_vel(val_ind):
-        global vmin, vmax, cum_disp_flag
+        global velmin, velmax, cum_disp_flag
         cum_disp_flag = False
 
-        if 'vel' in val_ind:  ## Velocity
+        if 'vel' in val_ind or 'prevel' in val_ind or 'postvel' in val_ind:  ## Velocity
+            val_ix = velnames.index(val_ind)
             data = mapdict_data[val_ind]*mask
             data = data-np.nanmean(data[refy1:refy2, refx1:refx2])
-            if vlimauto: ## auto
-                vmin = np.nanpercentile(data*mask, 100-auto_crange)
-                vmax = np.nanpercentile(data*mask, auto_crange)
+            if vlimauto[val_ix]: ## auto
+                velmin = np.nanpercentile(data*mask, 100-auto_crange)
+                velmax = np.nanpercentile(data*mask, auto_crange)
+            else:
+                velmin = vmin[val_ix]
+                velmax = vmax[val_ix]
             cax.set_cmap(cmap)
-            cax.set_clim(vmin, vmax)
+            cax.set_clim(velmin, velmax)
             cbr.set_label('mm/yr')
+
+        elif 'coseismic' in val_ind or 'avalue' in val_ind:  ## Coseismic displacements and A-value
+            val_ix = velnames.index(val_ind)
+            data = mapdict_data[val_ind]*mask
+            data = data-np.nanmean(data[refy1:refy2, refx1:refx2])
+            if vlimauto[val_ix]: ## auto
+                velmin = np.nanpercentile(data*mask, 100-auto_crange)
+                velmax = np.nanpercentile(data*mask, auto_crange)
+            else:
+                velmin = vmin[val_ix]
+                velmax = vmax[val_ix]
+            cax.set_cmap(cmap)
+            cax.set_clim(velmin, velmax)
+            cbr.set_label('mm')
 
         elif val_ind == 'mask':
             data = mapdict_data[val_ind]
@@ -700,7 +720,7 @@ if __name__ == "__main__":
             if val_ind=='mli': data = np.log10(data)
             cmin_ind = np.nanpercentile(data*mask, 100-auto_crange)
             cmax_ind = np.nanpercentile(data*mask, auto_crange)
-            if val_ind=='hgt': cmin_ind = -cmax_ind/3 ## bnecause 1/4 of terrain is blue
+            if val_ind=='hgt': cmin_ind = -cmax_ind/3 ## because 1/4 of terrain is blue
             cmap2 = 'viridis_r'
             if val_ind in ['coh_avg', 'n_unw', 'mask', 'maxTlen']:
                 cmap2 = 'viridis'
