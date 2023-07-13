@@ -169,9 +169,19 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         yvalues = result.predict(An)
 
     else:
-        result = sm.OLS(dph, A, missing='drop').fit()
-        yvalues = result.predict(An)
+        eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal()
+        G = np.zeros((n_im, 5))
+        G[:, 0] = 1
+        eq_ix = np.sum([1 for d in imdates_ordinal if d < eq_date])
+        G[:eq_ix, 1] = imdates_ordinal[:eq_ix]
+        G[eq_ix:, 2] = 1
+        if param[3] == 0:
+            G[eq_ix:, 3] = 0
+        else:
+            G[eq_ix:, 3] = np.log(1 + (1/6) * (imdates_ordinal[eq_ix:] - eq_date))
+        G[eq_ix:, 4] = imdates_ordinal[eq_ix:]
 
+        yvalues = np.matmul(G, param)
 
     return yvalues
 
