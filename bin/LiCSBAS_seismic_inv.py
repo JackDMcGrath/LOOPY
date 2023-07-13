@@ -257,7 +257,7 @@ def std_filters(i):
             # Just search valid pixels to speed up
             std_window = diff[ixs_dict[date],:,:]
             filt_std[valid[0], valid[1]] = np.nanstd(std_window[:, valid[0], valid[1]], axis=0)
-    
+
     return filt_std
 
 def find_outliers():
@@ -672,7 +672,7 @@ def main():
         temporal_filter(cum)
 
     # Fit velocities
-    #fit_velocities()
+    fit_velocities()
 
     # Write Outputs
     write_outputs()
