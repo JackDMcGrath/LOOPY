@@ -49,7 +49,7 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
               (Default: 99 %)
  --ylen       Y Length of time series plot in mm (Default: auto)
  --ts_png     Output png file of time series plot (not display interactive viewers)
- --eqlist     Textfile containing the required earthquake dates - needed for seismic velocities
+ --seismic    flag to read in seismic velocities
 
 """
 #%% Change log
@@ -223,7 +223,7 @@ if __name__ == "__main__":
         try:
             opts, args = getopt.getopt(argv[1:], "hi:d:u:m:r:p:c:",
                ["help", "i2=", "ref_geo=", "p_geo=", "nomask", "dmin=", "dmax=",
-                "vmin=", "vmax=", "auto_crange=", "ylen=", "ts_png=", "eqlist="])
+                "vmin=", "vmax=", "auto_crange=", "ylen=", "ts_png=", "seismic"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -266,9 +266,8 @@ if __name__ == "__main__":
                 ylen = float(a)
             elif o == '--ts_png':
                 ts_pngfile = a
-            elif o == "--eqlist":
+            elif o == "--seismic":
                 linear_vel = False
-                eq_list = str(a)
 
     except Usage as err:
         print("\nERROR:", file=sys.stderr, end='')
@@ -309,7 +308,7 @@ if __name__ == "__main__":
 
     ### results dir
     if not resultsdir: # if not given
-        if not seismic_flag:
+        if linear_vel:
             resultsdir = os.path.join(cumdir, 'results')
         else: # Currently, seismic cum.h5 stored in TS*/results/seismic_vels
             resultsdir = os.path.abspath(os.path.join(cumdir, '..'))
@@ -320,16 +319,6 @@ if __name__ == "__main__":
         print('\nNo mask file found. Not use.')
         maskflag = False
         maskfile = []
-
-    # Check eqlist exists
-    if not linear_vel and not os.path.exists(eq_list):
-        print('\nNo {} file exists - cannot define earthquakes. Exiting....')
-        print('Future plan is to add eq dates to cum.h5')
-        sys.exit(2)
-    else:
-        eq_dates = io_lib.read_ifg_list(eq_list)
-        eq_dates.sort()
-        n_eq = len(eq_dates)
 
     ### Noise indices
     coh_avgfile = os.path.join(resultsdir, 'coh_avg')
