@@ -65,7 +65,6 @@ def init_args():
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
-    parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
     parser.add_argument('-m', dest='apply_mask', default=None, help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
@@ -124,18 +123,12 @@ def set_input_output():
     q = multi.get_context('fork')
 
 def load_data():
-    global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid
+    global width, length, data, n_im, cum, dates, length, width, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid
 
     data = h5.File(h5file, 'r')
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in np.array(data['imdates'])]
 
-    # read reference
-    with open(reffile, "r") as f:
-        refarea = f.read().split()[0]  # str, x1/x2/y1/y2
-    refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
-
     # Not referencing anymore - referencing already occurred in LiCSBAS13_sb_inv.py
-    # cum = reference_disp(np.array(data['cum']), refx1, refx2, refy1, refy2)
     cum = np.array(data['cum'])
 
     n_im, length, width = cum.shape
@@ -736,9 +729,7 @@ def write_h5(gridResults, data):
     cumh5.create_dataset('post_lat', data=data['post_lat'])
     cumh5.create_dataset('post_lon', data=data['post_lon'])
     cumh5.create_dataset('gap', data=data['gap'])
-
-    ### Save ref
-    cumh5.create_dataset('refarea', data='{}:{}/{}:{}'.format(refx1, refx2, refy1, refy2))
+    cumh5.create_dataseet('refarea', data=data['refarea'])
 
     #%% Close h5 file
     cumh5.create_dataset('cum', data=cum, compression=compress)
