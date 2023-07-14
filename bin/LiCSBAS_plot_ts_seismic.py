@@ -930,20 +930,20 @@ if __name__ == "__main__":
         vel1p = vel[ii, jj]-np.nanmean((vel*mask)[refy1:refy2, refx1:refx2])
 
         dcum_ref = cum_ref[ii, jj]-np.nanmean(cum_ref[refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2])
-#        dcum_ref = 0
         dph = cum[:, ii, jj]-np.nanmean(cum[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum_ref
 
-        if linear_vel:
-            param = None
-        else:
-            param = np.zeros((5))
-            velfiles[0] = vint
-            for ix, ff in enumerate(velfiles):
-                param[ix] = np.nanmean(np.array(ff)[ii, jj])
-                if np.isnan(param[ix]).all():
-                    param[ix] = 0
-                if 'prevel' in velnames[ix] or 'postvel' in velnames[ix]:
-                    param[ix] /= 365.25
+        # Unneed now we invert on the fly
+        # if linear_vel:
+        #     param = None
+        # else:
+        #     param = np.zeros((5))
+        #     velfiles[0] = vint
+        #     for ix, ff in enumerate(velfiles):
+        #         param[ix] = np.nanmean(np.array(ff)[ii, jj])
+        #         if np.isnan(param[ix]).all():
+        #             param[ix] = 0
+        #         if 'prevel' in velnames[ix] or 'postvel' in velnames[ix]:
+        #             param[ix] /= 365.25
 
         ## fit function
         lines1 = [0, 0, 0, 0, 0]
@@ -952,7 +952,7 @@ if __name__ == "__main__":
         td10day = dt.timedelta(days=timestep)
         xvalues_dt = np.arange(imdates_dt[0], imdates_dt[-1], td10day)
         for model, vis in enumerate(visibilities):
-            yvalues = calc_model(dph, imdates_ordinal, xvalues, model, param=param)
+            yvalues = calc_model(dph, imdates_ordinal, xvalues, model, eq_date=eq_dates)
             lines1[model], = axts.plot(xvalues_dt, yvalues, 'b-', visible=vis, alpha=0.6, zorder=3)
 
         axts.scatter(imdates_dt, dph, label=label1, c='b', alpha=0.6, zorder=5)
@@ -967,7 +967,7 @@ if __name__ == "__main__":
             ## fit function
             lines2 = [0, 0, 0, 0, 0]
             for model, vis in enumerate(visibilities):
-                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model)
+                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates)
                 lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
 
             axts.scatter(imdates_dt, dphf, c='r', label=label2, alpha=0.6, zorder=4)
