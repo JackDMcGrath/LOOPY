@@ -297,6 +297,7 @@ def find_outliers():
         outlier = []
         n_changed = len(np.where(cum_orig.flatten() != cum.flatten())[0])
         print('Print {} pixels deoutliered'.format(n_changed))
+
     else:
         # Find location of outliers
         outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
@@ -306,7 +307,7 @@ def find_outliers():
     return cum_lpt, outlier
 
 def run_RANSAC(ii):
-    if np.mod(ii, 1000) == 0:
+    if np.mod(ii, 5000) == 0:
         print('{}/{} RANSACed....'.format(ii, n_valid))
     # Find non-nan data
     disp = cum[:, valid[0][ii], valid[1][ii]]
@@ -317,37 +318,39 @@ def run_RANSAC(ii):
     # Set RANSAC threshold based off median std
     std = np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
     limits = outlier_thresh*np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
-    reg = RANSACRegressor(min_samples=round(0.8*n_im), residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
+    reg = RANSACRegressor(min_samples=round(0.75*n_im), residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
     inliers = reg.inlier_mask_
     outliers = np.logical_not(reg.inlier_mask_)
-
+    lasttime = time.time()
+    # Interpolate filtered values over outliers
+    interp = CubicSpline(date_ord[keep[inliers]],filtered[keep[inliers]])
+    filtered_outliers = interp(date_ord[keep[outliers]])
+    lasttime = time.time()
     yvals = reg.predict(date_ord.reshape((-1,1)))
     if np.mod(ii, 5000) == 0:
-        fig=plt.figure()
+        fig=plt.figure(figsize=(12,24))
         ax=fig.add_subplot(2,1,1)
         ax.scatter(np.array(dates)[inliers], disp[inliers], s=2, label='Inlier {}'.format(ii))
         ax.scatter(np.array(dates)[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
-        ax.plot(dates, disp, c='g',label='Fitted Vel')
-        ax.plot(dates, disp + std, c='r',label='Fitted STD')
-        ax.plot(dates, disp - std, c='r')
-        ax.plot(dates, disp + limits, c='b',label='Outlier Thresh')
-        ax.plot(dates, disp - limits, c='b')
+        ax.scatter(np.array(dates)[outliers], filtered_outliers, s=10, c='r', label='Replaced {}'.format(ii))
+        ax.plot(dates, filtered, c='g',label='Fitted Vel')
+        ax.plot(dates, filtered + std, c='r',label='Fitted STD')
+        ax.plot(dates, filtered - std, c='r')
+        ax.plot(dates, filtered + limits, c='b',label='Outlier Thresh')
+        ax.plot(dates, filtered - limits, c='b')
+        ax.scatter(np.array(dates)[outliers], filtered_outliers, s=10, c='r', label='Replaced {}'.format(ii))
         ax.legend()
         ax=fig.add_subplot(2,1,2)
         ax.scatter(np.array(dates)[inliers], resid[inliers], s=2, label='Inlier {}'.format(ii))
         ax.scatter(np.array(dates)[outliers], resid[outliers], s=2, label='Outlier {}'.format(ii))
         ax.plot(dates, yvals, label='RANSAC')
-        ax.plot(dates, yvals + std, label='1x std')
-        ax.plot(dates, yvals + limits, label='3*std')
-        ax.plot(dates, yvals - std)
-        ax.plot(dates, yvals - limits)
+        ax.plot(dates, yvals + std, c='r', label='1x std')
+        ax.plot(dates, yvals - std, c='r')
+        ax.plot(dates, yvals + limits, c='b', label='3*std')
+        ax.plot(dates, yvals - limits, c='b')
         plt.savefig(os.path.join(outdir, 'filtRANSAC{}.png'.format(ii)))
         plt.close()
         print(os.path.join(outdir, 'filtRANSAC{}.png'.format(ii)))
-
-    # Interpolate filtered values over outliers
-    interp = CubicSpline(date_ord[keep[inliers]],filtered[keep[inliers]])
-    filtered_outliers = interp(date_ord[keep[outliers]])
 
     disp[keep[outliers]] = filtered_outliers
 
@@ -459,7 +462,7 @@ def fit_pixel_velocities(ii):
 
     if np.mod(ii, 1000) == 0:
         resid = disp - invvel
-        reg = RANSACRegressor(residual_threshold=outlier_thresh*std).fit(date_ord.reshape((-1,1)),resid.reshape((-1,1)))
+        reg = RANSACRegressor(min_samples=round(0.8*n_im), residual_threshold=outlier_thresh*std).fit(date_ord.reshape((-1,1)),resid.reshape((-1,1)))
         inliers = reg.inlier_mask_
         outliers = np.logical_not(reg.inlier_mask_)
 
