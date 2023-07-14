@@ -180,15 +180,15 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
             eq_date = imdates[-1] + 1
 
         n_eq = len(eq_date)
+        print(eq_date)
         # Create G-matrix for inverting the parameters from displacement
         G = create_gmatrix(eq_date, n_eq, imdates)
-                
+
         # Invert displacements to come up with velocity parameters
         inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
 
         # Create G-matrix for modelling the velocities
         G = create_gmatrix(eq_date, n_eq, xvalues)
-                
         yvalues = np.matmul(G, inv)
 
     return yvalues
@@ -199,7 +199,7 @@ def create_gmatrix(eq_date, n_eq, dates):
     for nn in range(n_eq):
         eq_ix.append(np.sum([1 for d in dates if d < eq_date[nn]]))
 
-    G = np.zeros((len(dph), 2 + n_eq * 3))
+    G = np.zeros((len(dates), 2 + (n_eq - 1) * 3))
     G[:, 0] = 1 # All dates have an intercept
     G[:, 1] = dates # Long-term velocity (i.e. Pre-seismic)
     for nn in range(n_eq - 1):
@@ -847,7 +847,7 @@ if __name__ == "__main__":
         eq_dates = [dt.datetime.strptime(eq, '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31')) for eq in cumh5['eqdates'][()].astype(str).tolist()]
         eq_dates.append(imdates_ordinal[-1] + 1)
         eq_dates -= imdates_ordinal[0]
-        
+
     fitcheck = CheckButtons(fitbox, models, visibilities)
 
     def fitfunc(label):
