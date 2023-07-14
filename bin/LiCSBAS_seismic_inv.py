@@ -113,12 +113,23 @@ def set_input_output():
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
     outh5file = os.path.join(tsadir, outdir, 'cum.h5')
+    
+    # If no reffile defined, sarch for 130ref, then 13ref, in this folder and infodir
     reffile = os.path.join(tsadir, args.ref_file)
     if not os.path.exists(reffile):
         reffile = os.path.join(infodir, args.ref_file)
         if not os.path.exists(reffile):
-            print('\nNo reffile found! No referencing occuring')
-            reffile = []
+            if args.ref_file == '130ref.txt':
+                # Seach for 13ref.txt
+                reffile = os.path.join(tsadir, '13ref.txt')
+                if not os.path.exists(reffile):
+                    reffile = os.path.join(infodir, '13ref.txt')
+                    if not os.path.exists(reffile):
+                        print('\nNo reffile 130ref.txt or 13ref.txt found! No referencing occuring')
+                        reffile = []
+            else:
+                print('\nNo reffile {} found! No referencing occuring'.format(args.ref_file))
+                reffile = []
 
     maskfile = os.path.join(resultdir, 'mask')
     if not os.path.exists(maskfile):
