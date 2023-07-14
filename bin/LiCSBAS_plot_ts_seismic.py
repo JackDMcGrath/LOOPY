@@ -176,7 +176,7 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
             imdates -= imdates[0]
 
         # If no eq dates offered, set eq date to be after the timeseries
-        if not eq_date:
+        if len(eq_date) == 0:
             eq_date = imdates[-1] + 1
 
         n_eq = len(eq_date)
