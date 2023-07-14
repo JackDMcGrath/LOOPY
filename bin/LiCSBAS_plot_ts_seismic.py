@@ -171,38 +171,44 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
     else:
         # TODO: Un-hardcode the earthquake date, work with multiple eqs, get referencing to work
         imdates = imdates_ordinal.copy()
-        if not eq_date:
-            eq_date = imdates_ordinal[-1] + 1
-        #eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
-        #eq_date -= imdates_ordinal[0]
-
-        print(eq_date)
-
         if imdates[0] != 0:
             xvalues -= imdates[0]
             imdates -= imdates[0]
 
-        eq_ix = np.sum([1 for d in xvalues if d < eq_date])
-        eq_im = np.sum([1 for d in imdates if d < eq_date])
+        # If no eq dates offered, set eq date to be after the timeseries
+        if not eq_date:
+            eq_date = imdates[-1] + 1
 
-        Ginv = np.zeros((len(xvalues), 5))
-        Ginv[:, 0] = 1 # All dates have an intercept
-        Ginv[:, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
-        Ginv[eq_ix:, 2] = 1 # Heaviside function for coseismic
-        Ginv[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date)) # Avalue
-        Ginv[eq_ix:, 4] = xvalues[eq_ix:] - eq_date # Post-seismic
-
-        G = np.zeros((len(dph), 5))
-        G[:, 0] = 1 # All dates have an intercept
-        G[:, 1] = imdates # Long-term velocity (i.e. Pre-seismic)
-        G[eq_im:, 2] = 1 # Heaviside function for coseismic
-        G[eq_im:, 3] = np.log(1 + (1/6) * (imdates[eq_im:] - eq_date)) # Avalue
-        G[eq_im:, 4] = imdates[eq_im:] - eq_date # Post-seismic
-
+        n_eq = len(eq_date)
+        # Create G-matrix for inverting the parameters from displacement
+        G = create_gmatrix(eq_date, n_eq, imdates)
+                
+        # Invert displacements to come up with velocity parameters
         inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
-        yvalues = np.matmul(Ginv, inv)
+
+        # Create G-matrix for modelling the velocities
+        G = create_gmatrix(eq_date, n_eq, xvalues)
+                
+        yvalues = np.matmul(G, inv)
 
     return yvalues
+
+def create_gmatrix(eq_date, n_eq, dates):
+
+    eq_ix = []
+    for nn in range(n_eq):
+        eq_ix.append(np.sum([1 for d in dates if d < eq_date[nn]]))
+
+    G = np.zeros((len(dph), 2 + n_eq * 3))
+    G[:, 0] = 1 # All dates have an intercept
+    G[:, 1] = dates # Long-term velocity (i.e. Pre-seismic)
+    for nn in range(n_eq - 1):
+        G[eq_ix[nn]:eq_ix[nn + 1], 2 + nn * 3] = 1 # Heaviside function for coseismic
+        G[eq_ix[nn]:eq_ix[nn + 1], 3 + nn * 3] = np.log(1 + (1/6) * (dates[eq_ix:eq_ix[nn + 1]] - eq_date[nn])) # Avalue
+        G[eq_ix[nn]:eq_ix[nn + 1], 4 + nn * 3] = dates[eq_ix:eq_ix[nn + 1]] - eq_date[nn] # Post-seismic
+
+    return G
+
 
 #%% Find colorbar limits
 def find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange, vmin, vmax):
@@ -839,6 +845,7 @@ if __name__ == "__main__":
         models = models + ['Seismic']
         visibilities = [False, False, False, False, True]
         eq_dates = [dt.datetime.strptime(eq, '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31')) for eq in cumh5['eqdates'][()].astype(str).tolist()]
+        eq_dates.append(imdates_ordinal[-1] + 1)
         eq_dates -= imdates_ordinal[0]
         
     fitcheck = CheckButtons(fitbox, models, visibilities)
