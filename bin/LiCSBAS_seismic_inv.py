@@ -28,7 +28,7 @@ v1.0.0 20230714 Jack McGrath, University of Leeds
 """
 
 import os
-import re
+import shutil
 import sys
 import h5py as h5
 import time
@@ -65,7 +65,7 @@ def init_args():
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
-    parser.add_argument('-m', dest='apply_mask', default=None, help='mask file to apply to velocities')
+    parser.add_argument('-m', dest='mask_file', default='mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('-c', dest='detect_thre', default=1, type=float, help="Coseismic detection threshold (n * vstd)")
@@ -73,6 +73,7 @@ def init_args():
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
     parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
+    parser.add_argument('--applymask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
     parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
 
     args = parser.parse_args()
@@ -97,8 +98,8 @@ def finish():
 
 def set_input_output():
     global tsadir, infodir, resultdir, outdir, ifgdir
-    global h5file, reffile, maskfile, eqfile, outh5file
-    global q, outlier_thresh
+    global h5file, maskfile, eqfile, outh5file
+    global q, outlier_thresh, mask_final
 
     # define input directories
     ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.unw_dir))
@@ -110,12 +111,14 @@ def set_input_output():
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
     outh5file = os.path.join(tsadir, outdir, 'cum.h5')
-    reffile = os.path.join(tsadir, args.ref_file)
-    if not os.path.exists(reffile):
-        reffile = os.path.join(infodir, args.ref_file)
-
-    if args.apply_mask:
-        maskfile = os.path.join(resultdir, 'mask')
+    maskfile = os.path.join(resultdir, 'mask')
+    if not os.path.exists(maskfile):
+        print('\nNo maskfile found. Not masking....')
+        args.apply_mask = False
+        mask_final = False
+    else:
+        mask_final = True
+    
     eqfile = os.path.abspath(args.eq_list)
 
     outlier_thresh = args.outlier_thre
@@ -136,12 +139,14 @@ def load_data():
     # Identify all pixels where the is time series data
     vel = np.array(data['vel'])
 
-    if args.apply_mask:
-        print('Applying Mask')
+    if mask_final:
         mask = io_lib.read_img(maskfile, length, width)
-        maskx, masky = np.where(mask == 0)
-        cum[:, maskx, masky] = np.nan
-        vel[maskx, masky] = np.nan
+        shutil.copy(maskfile, os.path.join(outdir, 'mask'))
+        if args.apply_mask:
+            print('Applying Mask to cum data')
+            maskx, masky = np.where(mask == 0)
+            cum[:, maskx, masky] = np.nan
+            vel[maskx, masky] = np.nan
 
     valid = np.where(~np.isnan(vel))
     n_valid = valid[0].shape[0]
@@ -682,34 +687,51 @@ def write_outputs():
 
     print('Writing Outputs to file and png')
 
-    cmap_vel = SCM.roma.reversed()
     gridResults = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
-    for n in range(len(names) - 1):
+    for n in range(len(names)):
         filename = os.path.join(outdir, names[n])
         pngname = '{}.png'.format(filename)
         gridResults[n, valid[0], valid[1]] = results[:, n]
         gridResults[n, :, :].tofile(filename)
 
-        vmin = np.nanpercentile(gridResults[n, :, :], 5)
         vmax = np.nanpercentile(gridResults[n, :, :], 95)
-        vlim = np.nanmax([abs(vmin), abs(vmax)])
+        if 'vstd' in n:
+            vmin = 0
+            cmap = 'viridis_r'
+        else:
+            vmin = np.nanpercentile(gridResults[n, :, :], 5)
+            vmin = -np.nanmax([abs(vmin), abs(vmax)])
+            vmax = -np.nanmax([abs(vmin), abs(vmax)])
+            cmap = SCM.roma.reversed()
 
-        plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap_vel, titles[n], -vlim, vlim)
+        plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap, titles[n], vmin, vmax)
 
-    print(titles[-1])
-    filename = os.path.join(outdir, names[-1])
-    pngname = '{}.png'.format(filename)
-    gridResults[-1, valid[0], valid[1]] = results[:, -1]
-    gridResults[-1, :, :].tofile(filename)
+    if mask_final:
+        print('Creating masked png images')
+        gridMasked = gridResults.copy()
+        mask = io_lib.read_img(maskfile, length, width)
+        mask_pix = np.where(mask == 0)
+        gridMasked[:, mask_pix[0], mask_pix[1]] = np.nan
 
-    vmax = np.nanpercentile(gridResults[-1, :, :], 95)
-    print(vmax)
+        for n in range(len(names)):
+            filename = os.path.join(outdir, names[n])
+            pngname = '{}.mskd.png'.format(filename)
 
-    plot_lib.make_im_png(gridResults[-1, :, :], pngname, 'viridis_r', titles[-1], 0, vmax)
+            vmax = np.nanpercentile(gridMasked[n, :, :], 95)
+            if 'vstd' in n:
+                vmin = 0
+                cmap = 'viridis_r'
+            else:
+                vmin = np.nanpercentile(gridMasked[n, :, :], 5)
+                vmin = -np.nanmax([abs(vmin), abs(vmax)])
+                vmax = -np.nanmax([abs(vmin), abs(vmax)])
+                cmap = SCM.roma.reversed()
+
+            plot_lib.make_im_png(gridMasked[n, :, :], pngname, cmap, titles[n], vmin, vmax)
 
     if n_eq > 1:
-        print("Not writing to .h5 - I haven't oded how to deal with more than 1 earthquake yet....")
+        print("Not writing to .h5 - I haven't coded how to deal with more than 1 earthquake yet....")
     else:
         write_h5(gridResults, data)
 
