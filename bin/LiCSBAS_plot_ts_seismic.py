@@ -171,21 +171,32 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
     else:
         # TODO: Un-hardcode the earthquake date, work with multiple eqs, get referencing to work
         eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
-        G = np.zeros((len(xvalues), 5))
-        G[:, 0] = 1 # All dates have an intercept
+        Ginv = np.zeros((len(xvalues), 5))
+        Ginv[:, 0] = 1 # All dates have an intercept
         eq_ix = np.sum([1 for d in xvalues if d < eq_date])
         eq_date -= xvalues[0]
         xvalues -= xvalues[0]
-        G[:, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
+        Ginv[:, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
+        Ginv[eq_ix:, 2] = 1 # Heaviside function for coseismic
+        Ginv[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date)) # Avalue
+        Ginv[eq_ix:, 4] = xvalues[eq_ix:] - eq_date # Post-seismic
+
+        eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
+        G = np.zeros((len(dph), 5))
+        G[:, 0] = 1 # All dates have an intercept
+        eq_ix = np.sum([1 for d in imdates_ordinal if d < eq_date])
+        eq_date -= imdates_ordinal[0]
+        imdates_ordinal -= imdates_ordinal[0]
+        G[:, 1] = imdates_ordinal # Long-term velocity (i.e. Pre-seismic)
         G[eq_ix:, 2] = 1 # Heaviside function for coseismic
-        G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date)) # Avalue
-        G[eq_ix:, 4] = xvalues[eq_ix:] - eq_date # Post-seismic
+        G[eq_ix:, 3] = np.log(1 + (1/6) * (imdates_ordinal[eq_ix:] - eq_date)) # Avalue
+        G[eq_ix:, 4] = imdates_ordinal[eq_ix:] - eq_date # Post-seismic
 
         a = np.dot(G.T, G)
         b = np.linalg.inv(a)
         c = np.matmul(G.T, dph)
         inv = np.matmul(b, c)
-        yvalues = np.matmul(G, inv)
+        yvalues = np.matmul(Ginv, inv)
 
     return yvalues
 
