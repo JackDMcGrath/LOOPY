@@ -9,6 +9,7 @@ import numpy as np
 import h5py as h5
 import argparse
 import datetime as dt
+import os
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
