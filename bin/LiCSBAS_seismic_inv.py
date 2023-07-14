@@ -28,6 +28,7 @@ v1.0.0 20230714 Jack McGrath, University of Leeds
 """
 
 import os
+import re
 import shutil
 import sys
 import h5py as h5
@@ -65,6 +66,7 @@ def init_args():
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
+    parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
     parser.add_argument('-m', dest='mask_file', default='mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
@@ -98,7 +100,7 @@ def finish():
 
 def set_input_output():
     global tsadir, infodir, resultdir, outdir, ifgdir
-    global h5file, maskfile, eqfile, outh5file
+    global h5file, reffile, maskfile, eqfile, outh5file
     global q, outlier_thresh, mask_final
 
     # define input directories
@@ -111,6 +113,13 @@ def set_input_output():
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
     outh5file = os.path.join(tsadir, outdir, 'cum.h5')
+    reffile = os.path.join(tsadir, args.ref_file)
+    if not os.path.exists(reffile):
+        reffile = os.path.join(infodir, args.ref_file)
+        if not os.path.exists(reffile):
+            print('\nNo reffile found! No referencing occuring')
+            reffile = []
+
     maskfile = os.path.join(resultdir, 'mask')
     if not os.path.exists(maskfile):
         print('\nNo maskfile found. Not masking....')
@@ -126,13 +135,16 @@ def set_input_output():
     q = multi.get_context('fork')
 
 def load_data():
-    global width, length, data, n_im, cum, dates, length, width, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid
+    global width, length, data, n_im, cum, dates, length, width, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid, ref
 
     data = h5.File(h5file, 'r')
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in np.array(data['imdates'])]
 
-    # Not referencing anymore - referencing already occurred in LiCSBAS13_sb_inv.py
     cum = np.array(data['cum'])
+
+    # read reference
+    ref = reference_disp(cum, reffile)   
+    cum = cum - ref
 
     n_im, length, width = cum.shape
 
@@ -184,11 +196,13 @@ def load_data():
     ord_eq = np.array([eq.toordinal() for eq in eq_dt]) - dates[0].toordinal()
     date_ord = np.array([x.toordinal() for x in dates]) - dates[0].toordinal()
 
-def reference_disp(data, refx1, refx2, refy1, refy2):
+def reference_disp(data, reffile):
+    global refx1, refx2, refy1, refy2
+    if reffile:
+        with open(reffile, "r") as f:
+            refarea = f.read().split()[0]  # str, x1/x2/y1/y2
+        refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
 
-    if args.noreference:
-        ref = 0
-    else:
         # Reference all data to reference area through static offset [This makes the reference pixel only ever have a displacement of 0]
         ref = np.nanmean(data[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(data.shape[0], 1, 1)
         # Check that one of the refs is not all nan. If so, increase ref area
@@ -202,10 +216,11 @@ def reference_disp(data, refx1, refx2, refy1, refy2):
                 ref = np.nanmean(data[:, refy1:refy2, refx1:refx2], axis=(2, 1)).reshape(data.shape[0], 1, 1)
 
         print('Reference area ({}:{}, {}:{})'.format(refx1, refx2, refy1, refy2))
+    else:
+        ref = 0
+        refx1, refx2, refy1, refy2 = 0, 0, 0, 0
 
-    data = data - ref
-
-    return data
+    return ref
 
 def temporal_filter(cum):
     global ixs_dict, dt_cum, filterdates, filtwidth_yr, cum_lpt, n_its, filt_std
@@ -250,7 +265,7 @@ def temporal_filter(cum):
                 break
 
         # Reload original data, replace identified outliers with final filtered values
-        cum = np.array(data['cum'])
+        cum = np.array(data['cum']) - ref
         if args.apply_mask:
             print('Applying Mask to reloaded data')
             mask = io_lib.read_img(maskfile, length, width)
@@ -327,8 +342,8 @@ def find_outliers_RANSAC():
     else:
         cum_lpt = lpt_filter(filterdates)
 
-    # Reload the original data # IF ADDING BACK REFERENCING, DON'T FORGET TO REFERENCE HERE
-    cum = np.array(data['cum'])
+    # Reload the original data
+    cum = np.array(data['cum']) - ref
 
     # Find STD
     diff = cum - cum_lpt  # Difference between original and filtered, deoutliered data
@@ -730,7 +745,10 @@ def write_h5(gridResults, data):
     cumh5.create_dataset('post_lat', data=data['post_lat'])
     cumh5.create_dataset('post_lon', data=data['post_lon'])
     cumh5.create_dataset('gap', data=data['gap'])
-    cumh5.create_dataset('refarea', data=data['refarea'])
+    if reffile:
+        cumh5.create_dataset('refarea', data='{}:{}/{}:{}'.format(refx1, refx2, refy1, refy2))
+    else:
+        cumh5.create_dataset('refarea', data=data['refarea'])
 
     #%% Close h5 file
     cumh5.create_dataset('cum', data=cum, compression=compress)
