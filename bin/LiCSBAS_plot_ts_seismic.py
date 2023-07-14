@@ -181,7 +181,10 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date)) # Avalue
         G[eq_ix:, 4] = xvalues[eq_ix:] - eq_date # Post-seismic
 
-        inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
+        a = np.dot(G.T, G)
+        b = np.linalg.inv(a)
+        c = np.matmul(G.T, dph)
+        inv = np.matmul(b, c)
         yvalues = np.matmul(G, inv)
 
     return yvalues
