@@ -266,7 +266,7 @@ def std_filters(i):
     return filt_std
 
 def find_outliers_RANSAC():
-    global diff, cum_lpt, filt_std
+    global diff, cum_lpt, filt_std, cum
     filt_std = np.zeros((n_im, length, width)) * np.nan
 
     # Run Low-Pass filter on displacement data
