@@ -544,38 +544,17 @@ def fit_pixel_velocities(ii):
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
 
+    if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
+        plt.scatter(dates, disp, s=2, c='k')
+        plt.plot(dates, invvel, c='g',label='Before')
+        plt.title('({}/{})'.format(valid[1][ii], valid[0][ii]))
+        plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
+        plt.close()
+        print(os.path.join(outdir, '{}.png'.format(ii)))
+
+
     # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
-
-    if np.mod(ii, 1000) == 0:
-        resid = disp - invvel
-        reg = RANSACRegressor(min_samples=round(0.8*n_im), residual_threshold=outlier_thresh*std).fit(date_ord.reshape((-1,1)),resid.reshape((-1,1)))
-        inliers = reg.inlier_mask_
-        outliers = np.logical_not(reg.inlier_mask_)
-
-        yvals = reg.predict(date_ord.reshape((-1,1)))
-
-        fig=plt.figure()
-        ax=fig.add_subplot(2,1,1)
-        ax.scatter(np.array(dates)[inliers], disp[inliers], s=2, label='Inlier {}'.format(ii))
-        ax.scatter(np.array(dates)[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
-        ax.plot(dates, invvel, c='g',label='Fitted Vel')
-        ax.plot(dates, invvel + std, c='r',label='Fitted STD')
-        ax.plot(dates, invvel - std, c='r')
-        ax.plot(dates, invvel + std * outlier_thresh, c='b',label='Outlier Thresh')
-        ax.plot(dates, invvel - std * outlier_thresh, c='b')
-        ax.legend()
-        ax=fig.add_subplot(2,1,2)
-        ax.scatter(np.array(dates)[inliers], resid[inliers], s=2, label='Inlier {}'.format(ii))
-        ax.scatter(np.array(dates)[outliers], resid[outliers], s=2, label='Outlier {}'.format(ii))
-        ax.plot(dates, yvals, label='RANSAC')
-        ax.plot(dates, yvals + std, label='1x std')
-        ax.plot(dates, yvals + outlier_thresh * std, label='3*std')
-        ax.plot(dates, yvals - std)
-        ax.plot(dates, yvals - outlier_thresh * std)
-        plt.savefig(os.path.join(outdir, 'out{}.png'.format(ii)))
-        plt.close()
-        print(os.path.join(outdir, 'out{}.png'.format(ii)))
 
     # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
     recalculate = False
