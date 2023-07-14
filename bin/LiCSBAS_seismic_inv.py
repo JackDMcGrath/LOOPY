@@ -675,7 +675,7 @@ def write_outputs():
         gridResults[n, :, :].tofile(filename)
 
         vmax = np.nanpercentile(gridResults[n, :, :], 95)
-        if 'vstd' in n:
+        if 'vstd' in names[n]:
             vmin = 0
             cmap = 'viridis_r'
         else:
@@ -698,7 +698,7 @@ def write_outputs():
             pngname = '{}.mskd.png'.format(filename)
 
             vmax = np.nanpercentile(gridMasked[n, :, :], 95)
-            if 'vstd' in n:
+            if 'vstd' in names[n]:
                 vmin = 0
                 cmap = 'viridis_r'
             else:
@@ -730,7 +730,7 @@ def write_h5(gridResults, data):
     cumh5.create_dataset('post_lat', data=data['post_lat'])
     cumh5.create_dataset('post_lon', data=data['post_lon'])
     cumh5.create_dataset('gap', data=data['gap'])
-    cumh5.create_dataseet('refarea', data=data['refarea'])
+    cumh5.create_dataset('refarea', data=data['refarea'])
 
     #%% Close h5 file
     cumh5.create_dataset('cum', data=cum, compression=compress)
