@@ -134,7 +134,7 @@ class Usage(Exception):
         self.msg = msg
 
 #%% Calc model
-def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
+def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
 
     imdates_years = imdates_ordinal/365.25 ## dont care abs
     xvalues_years = xvalues/365.25
@@ -170,34 +170,34 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
 
     else:
         # TODO: Un-hardcode the earthquake date, work with multiple eqs, get referencing to work
+        imdates = imdates_ordinal.copy()
+        if not eq_date:
+            eq_date = imdates_ordinal[-1] + 1
         eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
+        eq_date -= imdates_ordinal[0]
+
+        if imdates[0] != 0:
+            xvalues -= imdates[0]
+            imdates -= imdates[0]
+
+        eq_ix = np.sum([1 for d in xvalues if d < eq_date])
+        eq_im = np.sum([1 for d in imdates if d < eq_date])
+
         Ginv = np.zeros((len(xvalues), 5))
         Ginv[:, 0] = 1 # All dates have an intercept
-        eq_ix = np.sum([1 for d in xvalues if d < eq_date])
-        eq_date -= xvalues[0]
-        xvalues -= xvalues[0]
         Ginv[:, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
         Ginv[eq_ix:, 2] = 1 # Heaviside function for coseismic
         Ginv[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date)) # Avalue
         Ginv[eq_ix:, 4] = xvalues[eq_ix:] - eq_date # Post-seismic
 
-        eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
         G = np.zeros((len(dph), 5))
         G[:, 0] = 1 # All dates have an intercept
-        eq_ix = np.sum([1 for d in imdates_ordinal if d < eq_date])
-        eq_date -= imdates_ordinal[0]
-        imdates_ordinal -= imdates_ordinal[0]
-        G[:, 1] = imdates_ordinal # Long-term velocity (i.e. Pre-seismic)
-        G[eq_ix:, 2] = 1 # Heaviside function for coseismic
-        G[eq_ix:, 3] = np.log(1 + (1/6) * (imdates_ordinal[eq_ix:] - eq_date)) # Avalue
-        G[eq_ix:, 4] = imdates_ordinal[eq_ix:] - eq_date # Post-seismic
+        G[:, 1] = imdates # Long-term velocity (i.e. Pre-seismic)
+        G[eq_im:, 2] = 1 # Heaviside function for coseismic
+        G[eq_im:, 3] = np.log(1 + (1/6) * (imdates[eq_im:] - eq_date)) # Avalue
+        G[eq_im:, 4] = imdates[eq_im:] - eq_date # Post-seismic
 
-        # a = np.dot(G.T, G)
-        # b = np.linalg.inv(a)
-        # c = np.matmul(G.T, dph)
-        # inv = np.matmul(b, c)
-        # x = np.matmul(np.linalg.inv(a), np.matmul(G.T, disp))
-        inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
+        inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
         yvalues = np.matmul(Ginv, inv)
 
     return yvalues
