@@ -2,9 +2,29 @@
 """
 v1.0.0 Jack McGrath, University of Leeds
 
-Load in inverted displacements from LiCSBAS and fit linear, co-seismic and postseismic fits to them.
+Load in inverted displacements from LiCSBAS and fit pre- and post- seismic linear velocities, co-seismic displacements and postseismic relaxations.
 
 Based off Liu et al. (2021), Improving the Resolving Power of InSAR for Earthquakes Using Time Series: A Case Study in Iran
+
+Work flow:
+    1) De-outliering of the data
+        a) Iteritive process, where a temporal filter is applied to the data (which breaks at definied earthquakes), and outliers are defined as any
+        displacement with a residual > outlier_thresh * filter_std. These are then replaced with the filtered value, and the process repeated until all
+        displacements are within the threshold value, as large outliers will peturb the filter. The original data is then checked against the deoutliered
+        filtered value, and any outliers replaced with the filtered value
+        b) Using the RANSAC algorithm, where a temporal filter is applied to the data (which breaks at definied earthquakes), and RANSAC is applied to
+        the residuals, and the outliers are replaced with filtered values. The original data is then checked against the deoutliered, filtered value, and 
+        any outliers replaced with the filtered value
+    
+    2) Fitting velocities
+        Velocities are currently fit, allowing a long-term trend (pre-seismic linear velocity), a coseismic displacement (as a heaviside function), post-seismic
+        relaxation (as a logarithmic decay) and a post-seismic velocity (linear)
+        A check can be added for the minimum coseismic displacement, where inverted displacement < threshold is considered beneath detectable limits
+
+#%% Change log
+
+v1.0.0 20230714 Jack McGrath, University of Leeds
+ - Initial Implementation
 """
 
 import os
@@ -54,7 +74,6 @@ def init_args():
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
     parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
-    parser.add_argument('--noreference', dest='noreference', default=False, action='store_true', help="Don't reference displacements")
     parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
 
     args = parser.parse_args()
@@ -220,7 +239,7 @@ def temporal_filter(cum):
         cum[outlier] = cum_lpt[outlier]
         all_outliers = outlier
 
-        # Iterate through the 
+        # Run iterations
         while len(outlier) > 0:
             n_its += 1
             if n_its <= args.max_its:
@@ -364,11 +383,11 @@ def run_RANSAC(ii):
     reg = RANSACRegressor(min_samples=round(0.75*n_im), residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
     inliers = reg.inlier_mask_
     outliers = np.logical_not(reg.inlier_mask_)
-    lasttime = time.time()
+
     # Interpolate filtered values over outliers
     interp = CubicSpline(date_ord[keep[inliers]],filtered[keep[inliers]])
     filtered_outliers = interp(date_ord[keep[outliers]])
-    lasttime = time.time()
+
     yvals = reg.predict(date_ord.reshape((-1,1)))
     if np.mod(ii, 5000) == 0:
         fig=plt.figure(figsize=(12,24))
@@ -397,7 +416,7 @@ def run_RANSAC(ii):
 
     disp[keep[outliers]] = filtered_outliers
 
-    cum[:, valid[0][ii], valid[1][ii]] = disp
+    return disp
 
 def find_outliers():
     filt_std = np.zeros((n_im, length, width)) * np.nan
