@@ -404,7 +404,7 @@ def run_RANSAC(ii):
     # Set RANSAC threshold based off median std
     std = np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
     limits = outlier_thresh*np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
-    reg = RANSACRegressor(min_samples=round(0.75*n_im), residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
+    reg = RANSACRegressor(residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
     inliers = reg.inlier_mask_
     outliers = np.logical_not(reg.inlier_mask_)
 
