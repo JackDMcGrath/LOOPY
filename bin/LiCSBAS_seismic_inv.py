@@ -2,13 +2,33 @@
 """
 v1.0.0 Jack McGrath, University of Leeds
 
-Load in inverted displacements from LiCSBAS and fit linear, co-seismic and postseismic fits to them.
+Load in inverted displacements from LiCSBAS and fit pre- and post- seismic linear velocities, co-seismic displacements and postseismic relaxations.
 
 Based off Liu et al. (2021), Improving the Resolving Power of InSAR for Earthquakes Using Time Series: A Case Study in Iran
+
+Work flow:
+    1) De-outliering of the data
+        a) Iteritive process, where a temporal filter is applied to the data (which breaks at definied earthquakes), and outliers are defined as any
+        displacement with a residual > outlier_thresh * filter_std. These are then replaced with the filtered value, and the process repeated until all
+        displacements are within the threshold value, as large outliers will peturb the filter. The original data is then checked against the deoutliered
+        filtered value, and any outliers replaced with the filtered value
+        b) Using the RANSAC algorithm, where a temporal filter is applied to the data (which breaks at definied earthquakes), and RANSAC is applied to
+        the residuals, and the outliers are replaced with filtered values. The original data is then checked against the deoutliered, filtered value, and 
+        any outliers replaced with the filtered value
+    
+    2) Fitting velocities
+        Velocities are currently fit, allowing a long-term trend (pre-seismic linear velocity), a coseismic displacement (as a heaviside function), post-seismic
+        relaxation (as a logarithmic decay) and a post-seismic velocity (linear)
+        A check can be added for the minimum coseismic displacement, where inverted displacement < threshold is considered beneath detectable limits
+
+#%% Change log
+
+v1.0.0 20230714 Jack McGrath, University of Leeds
+ - Initial Implementation
 """
 
 import os
-import re
+import shutil
 import sys
 import h5py as h5
 import time
@@ -21,6 +41,8 @@ import numpy as np
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_plot_lib as plot_lib
 import SCM
+from sklearn.linear_model import RANSACRegressor
+from scipy.interpolate import CubicSpline
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -43,8 +65,7 @@ def init_args():
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
-    parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
-    parser.add_argument('-m', dest='apply_mask', default=None, help='mask file to apply to velocities')
+    parser.add_argument('-m', dest='mask_file', default='mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('-c', dest='detect_thre', default=1, type=float, help="Coseismic detection threshold (n * vstd)")
@@ -52,7 +73,8 @@ def init_args():
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
     parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
-    parser.add_argument('--noreference', dest='noreference', default=False, action='store_true', help="Don't reference displacements")
+    parser.add_argument('--applymask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
+    parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
 
     args = parser.parse_args()
 
@@ -76,8 +98,8 @@ def finish():
 
 def set_input_output():
     global tsadir, infodir, resultdir, outdir, ifgdir
-    global h5file, reffile, maskfile, eqfile, outh5file
-    global q, outlier_thresh
+    global h5file, maskfile, eqfile, outh5file
+    global q, outlier_thresh, mask_final
 
     # define input directories
     ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.unw_dir))
@@ -89,12 +111,14 @@ def set_input_output():
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
     outh5file = os.path.join(tsadir, outdir, 'cum.h5')
-    reffile = os.path.join(tsadir, args.ref_file)
-    if not os.path.exists(reffile):
-        reffile = os.path.join(infodir, args.ref_file)
-
-    if args.apply_mask:
-        maskfile = os.path.join(resultdir, 'mask')
+    maskfile = os.path.join(resultdir, 'mask')
+    if not os.path.exists(maskfile):
+        print('\nNo maskfile found. Not masking....')
+        args.apply_mask = False
+        mask_final = False
+    else:
+        mask_final = True
+    
     eqfile = os.path.abspath(args.eq_list)
 
     outlier_thresh = args.outlier_thre
@@ -102,36 +126,34 @@ def set_input_output():
     q = multi.get_context('fork')
 
 def load_data():
-    global width, length, data, n_im, cum, dates, length, width, refx1, refx2, refy1, refy2, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid
+    global width, length, data, n_im, cum, dates, length, width, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid
 
     data = h5.File(h5file, 'r')
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in np.array(data['imdates'])]
 
-    # read reference
-    with open(reffile, "r") as f:
-        refarea = f.read().split()[0]  # str, x1/x2/y1/y2
-    refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
-
-    cum = reference_disp(np.array(data['cum']), refx1, refx2, refy1, refy2)
+    # Not referencing anymore - referencing already occurred in LiCSBAS13_sb_inv.py
+    cum = np.array(data['cum'])
 
     n_im, length, width = cum.shape
 
     # Identify all pixels where the is time series data
     vel = np.array(data['vel'])
 
-    if args.apply_mask:
-        print('Applying Mask')
+    if mask_final:
         mask = io_lib.read_img(maskfile, length, width)
-        maskx, masky = np.where(mask == 0)
-        cum[:, maskx, masky] = np.nan
-        vel[maskx, masky] = np.nan
+        shutil.copy(maskfile, os.path.join(outdir, 'mask'))
+        if args.apply_mask:
+            print('Applying Mask to cum data')
+            maskx, masky = np.where(mask == 0)
+            cum[:, maskx, masky] = np.nan
+            vel[maskx, masky] = np.nan
 
     valid = np.where(~np.isnan(vel))
     n_valid = valid[0].shape[0]
 
     # multi-processing
     try:
-        n_para = min(len(os.sched_getaffinity(0)), 8) # maximum use 8 cores
+        n_para = len(os.sched_getaffinity(0))
     except:
         n_para = multi.cpu_count()
 
@@ -203,48 +225,196 @@ def temporal_filter(cum):
     ixs_dict = get_filter_dates(dt_cum, filtwidth_yr, filterdates)
 
     # Find and remove any outliers above filtered std threshold
-    cum_lpt, outlier = find_outliers()
+    if args.ransac:
+        cum, filt_std = find_outliers_RANSAC()
+    else:
+        cum_lpt, outlier = find_outliers()
+            
+        # Iterate until all outliers are removed
+        n_its = 1
 
-    # Iterate until all outliers are removed
-    n_its = 1
+        # Replace all outliers with filtered values
+        cum[outlier] = cum_lpt[outlier]
+        all_outliers = outlier
 
-    # Replace all outliers with filtered values
-    cum[outlier] = cum_lpt[outlier]
-    all_outliers = outlier
+        # Run iterations
+        while len(outlier) > 0:
+            n_its += 1
+            if n_its <= args.max_its:
+                print('Running Iteration {}/{}'.format(n_its, args.max_its))
+                cum_lpt, outlier = find_outliers()
+                # Replace all outliers with filtered values
+                cum[outlier] = cum_lpt[outlier]
+                all_outliers = np.unique(np.concatenate((all_outliers, outlier), axis=1), axis=1)
+            else:
+                break
 
-    ## Here would be the place to add in iterations (as a while loop of while len(outlier) > 0)
-    while len(outlier) > 0:
-        n_its += 1
-        if n_its <= args.max_its:
-            print('Running Iteration {}/{}'.format(n_its, args.max_its))
-            cum_lpt, outlier = find_outliers()
-            # Replace all outliers with filtered values
-            cum[outlier] = cum_lpt[outlier]
-            all_outliers = np.unique(np.concatenate((all_outliers, outlier), axis=1), axis=1)
-        else:
-            break
+        # Reload original data, replace identified outliers with final filtered values
+        cum = np.array(data['cum'])
+        if args.apply_mask:
+            print('Applying Mask to reloaded data')
+            mask = io_lib.read_img(maskfile, length, width)
+            maskx, masky = np.where(mask == 0)
+            cum[:, maskx, masky] = np.nan
 
-    # Reload original data, replace identified outliers with final filtered values
+        cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+
+        print('Finding moving stddev')
+        filt_std = np.ones(cum.shape) * np.nan
+        filterdates = np.linspace(0, n_im - 1, n_im, dtype='int')
+        valid = np.where(~np.isnan(data['vel']))
+        diff = cum[:, valid[0], valid[1]] - cum_lpt[:, valid[0], valid[1]]
+
+        for i in filterdates:
+            if np.mod(i, 10) == 0:
+                print("  {0:3}/{1:3}th image...".format(i, n_im), flush=True)
+
+            filt_std[i, valid[0], valid[1]] = np.nanstd(diff[ixs_dict[i], :], axis=0)
+
+def std_filters(i):
+    date = filterdates[i]
+    filt_std = np.zeros((length, width)) * np.nan
+    with warnings.catch_warnings():  # To silence warning by zero division
+            warnings.simplefilter('ignore', RuntimeWarning)
+            # Just search valid pixels to speed up
+            std_window = diff[ixs_dict[date],:,:]
+            filt_std[valid[0], valid[1]] = np.nanstd(std_window[:, valid[0], valid[1]], axis=0)
+
+    return filt_std
+
+def find_outliers_RANSAC():
+    global diff, cum_lpt, filt_std, cum
+    filt_std = np.zeros((n_im, length, width)) * np.nan
+
+    # Run Low-Pass filter on displacement data
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
+        p.close()
+    else:
+        cum_lpt = lpt_filter(filterdates)
+
+    # Find STD
+    diff = cum - cum_lpt  # Difference between data and filtered data
+
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        filt_std = np.array(p.map(std_filters, range(n_im)), dtype=np.float32)
+        p.close()
+    else:
+        filt_std = np.zeros((n_im, length, width)) * np.nan
+        for i in range(n_im):
+            filt_std[i, :, :] = std_filters(i)
+
+    print('Deoutliering using RANSAC')
+
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        deoutliered = np.array(p.map(run_RANSAC, range(n_valid)), dtype=np.float32)
+        p.close()
+        for ii in range(n_valid):
+            cum[:, valid[0][ii], valid[1][ii]] = deoutliered[ii, :]
+    else:
+        for ii in range(n_valid):
+            cum[:, valid[0][ii], valid[1][ii]] = run_RANSAC(ii)
+    
+    # Rerun Lowpass filter on deoutliered data (as massive outliers will have distorted the original filter)
+
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
+        p.close()
+    else:
+        cum_lpt = lpt_filter(filterdates)
+
+    # Reload the original data # IF ADDING BACK REFERENCING, DON'T FORGET TO REFERENCE HERE
     cum = np.array(data['cum'])
-    if args.apply_mask:
-        print('Applying Mask to reloaded data')
-        mask = io_lib.read_img(maskfile, length, width)
-        maskx, masky = np.where(mask == 0)
-        cum[:, maskx, masky] = np.nan
 
-    cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+    # Find STD
+    diff = cum - cum_lpt  # Difference between original and filtered, deoutliered data
 
-    print('Finding moving stddev')
-    filt_std = np.ones(cum.shape) * np.nan
-    filterdates = np.linspace(0, n_im - 1, n_im, dtype='int')
-    valid = np.where(~np.isnan(data['vel']))
-    diff = cum[:, valid[0], valid[1]] - cum_lpt[:, valid[0], valid[1]]
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        filt_std = np.array(p.map(std_filters, range(n_im)), dtype=np.float32)
+        p.close()
+    else:
+        filt_std = np.zeros((n_im, length, width)) * np.nan
+        for i in range(n_im):
+            filt_std[i, :, :] = std_filters(i)
 
-    for i in filterdates:
-        if np.mod(i, 10) == 0:
-            print("  {0:3}/{1:3}th image...".format(i, n_im), flush=True)
+    # Find location of outliers
+    outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
+    print('\n{} outliers identified\n'.format(len(outlier[0])))
 
-        filt_std[i, valid[0], valid[1]] = np.nanstd(diff[ixs_dict[i], :], axis=0)
+    fig=plt.figure(figsize=(12,24))
+    ax=fig.add_subplot(2,1,1)
+    ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=2, c='b', label='Inliers')
+    ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=2, c='r', label='Outliers')    
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]], c='g', label='Filters')
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] + filt_std[:, valid[0][15001], valid[1][15001]], c='r', label='1 STD')
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] + outlier_thresh * filt_std[:, valid[0][15001], valid[1][15001]], c='b', label='Outlier Thresh')
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] - filt_std[:, valid[0][15001], valid[1][15001]], c='r')
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] - outlier_thresh * filt_std[:, valid[0][15001], valid[1][15001]], c='b')
+
+    # Replace outliers with filter data
+    cum[outlier] = cum_lpt[outlier]
+
+    ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=4, c='b', label='Inliers')
+    plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
+    plt.close()
+    print(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
+
+    return cum, filt_std
+   
+def run_RANSAC(ii):
+    if np.mod(ii, 5000) == 0:
+        print('{}/{} RANSACed....'.format(ii, n_valid))
+    # Find non-nan data
+    disp = cum[:, valid[0][ii], valid[1][ii]]
+    keep = np.where(~np.isnan(disp))[0]
+    # Select difference between filtered and original data
+    resid = diff[:, valid[0][ii], valid[1][ii]]
+    filtered = cum_lpt[:, valid[0][ii], valid[1][ii]]
+    # Set RANSAC threshold based off median std
+    std = np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
+    limits = outlier_thresh*np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
+    reg = RANSACRegressor(min_samples=round(0.75*n_im), residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
+    inliers = reg.inlier_mask_
+    outliers = np.logical_not(reg.inlier_mask_)
+
+    # Interpolate filtered values over outliers
+    interp = CubicSpline(date_ord[keep[inliers]],filtered[keep[inliers]])
+    filtered_outliers = interp(date_ord[keep[outliers]])
+
+    yvals = reg.predict(date_ord.reshape((-1,1)))
+    if np.mod(ii, 5000) == 0:
+        fig=plt.figure(figsize=(12,24))
+        ax=fig.add_subplot(2,1,1)
+        ax.scatter(np.array(dates)[inliers], disp[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], filtered_outliers, s=10, c='r', label='Replaced {}'.format(ii))
+        ax.plot(dates, filtered, c='g',label='Fitted Vel')
+        ax.plot(dates, filtered + std, c='r',label='Fitted STD')
+        ax.plot(dates, filtered - std, c='r')
+        ax.plot(dates, filtered + limits, c='b',label='Outlier Thresh')
+        ax.plot(dates, filtered - limits, c='b')
+        ax.scatter(np.array(dates)[outliers], filtered_outliers, s=10, c='r', label='Replaced {}'.format(ii))
+        ax.legend()
+        ax=fig.add_subplot(2,1,2)
+        ax.scatter(np.array(dates)[inliers], resid[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], resid[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, yvals, label='RANSAC')
+        ax.plot(dates, yvals + std, c='r', label='1x std')
+        ax.plot(dates, yvals - std, c='r')
+        ax.plot(dates, yvals + limits, c='b', label='3*std')
+        ax.plot(dates, yvals - limits, c='b')
+        plt.savefig(os.path.join(outdir, 'filtRANSAC{}.png'.format(ii)))
+        plt.close()
+        print(os.path.join(outdir, 'filtRANSAC{}.png'.format(ii)))
+
+    disp[keep[outliers]] = filtered_outliers
+
+    return disp
 
 def find_outliers():
     filt_std = np.zeros((n_im, length, width)) * np.nan
@@ -377,6 +547,36 @@ def fit_pixel_velocities(ii):
     # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
+    if np.mod(ii, 1000) == 0:
+        resid = disp - invvel
+        reg = RANSACRegressor(min_samples=round(0.8*n_im), residual_threshold=outlier_thresh*std).fit(date_ord.reshape((-1,1)),resid.reshape((-1,1)))
+        inliers = reg.inlier_mask_
+        outliers = np.logical_not(reg.inlier_mask_)
+
+        yvals = reg.predict(date_ord.reshape((-1,1)))
+
+        fig=plt.figure()
+        ax=fig.add_subplot(2,1,1)
+        ax.scatter(np.array(dates)[inliers], disp[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], disp[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, invvel, c='g',label='Fitted Vel')
+        ax.plot(dates, invvel + std, c='r',label='Fitted STD')
+        ax.plot(dates, invvel - std, c='r')
+        ax.plot(dates, invvel + std * outlier_thresh, c='b',label='Outlier Thresh')
+        ax.plot(dates, invvel - std * outlier_thresh, c='b')
+        ax.legend()
+        ax=fig.add_subplot(2,1,2)
+        ax.scatter(np.array(dates)[inliers], resid[inliers], s=2, label='Inlier {}'.format(ii))
+        ax.scatter(np.array(dates)[outliers], resid[outliers], s=2, label='Outlier {}'.format(ii))
+        ax.plot(dates, yvals, label='RANSAC')
+        ax.plot(dates, yvals + std, label='1x std')
+        ax.plot(dates, yvals + outlier_thresh * std, label='3*std')
+        ax.plot(dates, yvals - std)
+        ax.plot(dates, yvals - outlier_thresh * std)
+        plt.savefig(os.path.join(outdir, 'out{}.png'.format(ii)))
+        plt.close()
+        print(os.path.join(outdir, 'out{}.png'.format(ii)))
+
     # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
     recalculate = False
 
@@ -487,34 +687,51 @@ def write_outputs():
 
     print('Writing Outputs to file and png')
 
-    cmap_vel = SCM.roma.reversed()
     gridResults = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
-    for n in range(len(names) - 1):
+    for n in range(len(names)):
         filename = os.path.join(outdir, names[n])
         pngname = '{}.png'.format(filename)
         gridResults[n, valid[0], valid[1]] = results[:, n]
         gridResults[n, :, :].tofile(filename)
 
-        vmin = np.nanpercentile(gridResults[n, :, :], 5)
         vmax = np.nanpercentile(gridResults[n, :, :], 95)
-        vlim = np.nanmax([abs(vmin), abs(vmax)])
+        if 'vstd' in n:
+            vmin = 0
+            cmap = 'viridis_r'
+        else:
+            vmin = np.nanpercentile(gridResults[n, :, :], 5)
+            vmin = -np.nanmax([abs(vmin), abs(vmax)])
+            vmax = -np.nanmax([abs(vmin), abs(vmax)])
+            cmap = SCM.roma.reversed()
 
-        plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap_vel, titles[n], -vlim, vlim)
+        plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap, titles[n], vmin, vmax)
 
-    print(titles[-1])
-    filename = os.path.join(outdir, names[-1])
-    pngname = '{}.png'.format(filename)
-    gridResults[-1, valid[0], valid[1]] = results[:, -1]
-    gridResults[-1, :, :].tofile(filename)
+    if mask_final:
+        print('Creating masked png images')
+        gridMasked = gridResults.copy()
+        mask = io_lib.read_img(maskfile, length, width)
+        mask_pix = np.where(mask == 0)
+        gridMasked[:, mask_pix[0], mask_pix[1]] = np.nan
 
-    vmax = np.nanpercentile(gridResults[-1, :, :], 95)
-    print(vmax)
+        for n in range(len(names)):
+            filename = os.path.join(outdir, names[n])
+            pngname = '{}.mskd.png'.format(filename)
 
-    plot_lib.make_im_png(gridResults[-1, :, :], pngname, 'viridis_r', titles[-1], 0, vmax)
+            vmax = np.nanpercentile(gridMasked[n, :, :], 95)
+            if 'vstd' in n:
+                vmin = 0
+                cmap = 'viridis_r'
+            else:
+                vmin = np.nanpercentile(gridMasked[n, :, :], 5)
+                vmin = -np.nanmax([abs(vmin), abs(vmax)])
+                vmax = -np.nanmax([abs(vmin), abs(vmax)])
+                cmap = SCM.roma.reversed()
+
+            plot_lib.make_im_png(gridMasked[n, :, :], pngname, cmap, titles[n], vmin, vmax)
 
     if n_eq > 1:
-        print("Not writing to .h5 - I haven't oded how to deal with more than 1 earthquake yet....")
+        print("Not writing to .h5 - I haven't coded how to deal with more than 1 earthquake yet....")
     else:
         write_h5(gridResults, data)
 
@@ -534,9 +751,7 @@ def write_h5(gridResults, data):
     cumh5.create_dataset('post_lat', data=data['post_lat'])
     cumh5.create_dataset('post_lon', data=data['post_lon'])
     cumh5.create_dataset('gap', data=data['gap'])
-
-    ### Save ref
-    cumh5.create_dataset('refarea', data='{}:{}/{}:{}'.format(refx1, refx2, refy1, refy2))
+    cumh5.create_dataseet('refarea', data=data['refarea'])
 
     #%% Close h5 file
     cumh5.create_dataset('cum', data=cum, compression=compress)
