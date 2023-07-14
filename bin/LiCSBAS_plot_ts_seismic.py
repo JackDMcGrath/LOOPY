@@ -178,12 +178,11 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         xvalues -= xvalues[0]
         G[:, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
         G[eq_ix:, 2] = 1 # Heaviside function for coseismic
-        if param[3] == 0: # A value
-            G[eq_ix:, 3] = 0
-        else:
-            G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date))
+        G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date)) # Avalue
         G[eq_ix:, 4] = xvalues[eq_ix:] - eq_date # Post-seismic
-        yvalues = np.matmul(G, param)
+
+        inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
+        yvalues = np.matmul(G, inv)
 
     return yvalues
 
