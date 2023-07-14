@@ -204,8 +204,8 @@ def create_gmatrix(eq_date, n_eq, dates):
     G[:, 1] = dates # Long-term velocity (i.e. Pre-seismic)
     for nn in range(n_eq - 1):
         G[eq_ix[nn]:eq_ix[nn + 1], 2 + nn * 3] = 1 # Heaviside function for coseismic
-        G[eq_ix[nn]:eq_ix[nn + 1], 3 + nn * 3] = np.log(1 + (1/6) * (dates[eq_ix:eq_ix[nn + 1]] - eq_date[nn])) # Avalue
-        G[eq_ix[nn]:eq_ix[nn + 1], 4 + nn * 3] = dates[eq_ix:eq_ix[nn + 1]] - eq_date[nn] # Post-seismic
+        G[eq_ix[nn]:eq_ix[nn + 1], 3 + nn * 3] = np.log(1 + (1/6) * (dates[eq_ix[nn]:eq_ix[nn + 1]] - eq_date[nn])) # Avalue
+        G[eq_ix[nn]:eq_ix[nn + 1], 4 + nn * 3] = dates[eq_ix[nn]:eq_ix[nn + 1]] - eq_date[nn] # Post-seismic
 
     return G
 
