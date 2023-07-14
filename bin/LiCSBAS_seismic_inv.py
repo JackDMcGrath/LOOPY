@@ -322,7 +322,7 @@ def find_outliers_RANSAC():
 
     # Find STD
     diff = cum - cum_lpt  # Difference between data and filtered data
-
+    print('Finding std of residuals')
     if n_para > 1 and len(filterdates) > 20:
         p = q.Pool(n_para)
         filt_std = np.array(p.map(std_filters, range(n_im)), dtype=np.float32)
@@ -345,7 +345,7 @@ def find_outliers_RANSAC():
             cum[:, valid[0][ii], valid[1][ii]] = run_RANSAC(ii)
     
     # Rerun Lowpass filter on deoutliered data (as massive outliers will have distorted the original filter)
-
+    print('Rerun temporal filter on deoutliered data')
     if n_para > 1 and len(filterdates) > 20:
         p = q.Pool(n_para)
         cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
@@ -358,7 +358,7 @@ def find_outliers_RANSAC():
 
     # Find STD
     diff = cum - cum_lpt  # Difference between original and filtered, deoutliered data
-
+    print('Finding std of residuals')
     if n_para > 1 and len(filterdates) > 20:
         p = q.Pool(n_para)
         filt_std = np.array(p.map(std_filters, range(n_im)), dtype=np.float32)
