@@ -173,8 +173,10 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
         imdates = imdates_ordinal.copy()
         if not eq_date:
             eq_date = imdates_ordinal[-1] + 1
-        eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
-        eq_date -= imdates_ordinal[0]
+        #eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
+        #eq_date -= imdates_ordinal[0]
+
+        print(eq_date)
 
         if imdates[0] != 0:
             xvalues -= imdates[0]
@@ -832,9 +834,11 @@ if __name__ == "__main__":
     fitbox = pts.add_axes([0.83, 0.10, 0.16, 0.25])
     models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q']
     visibilities = [True, True, False, False]
+    eq_dates = []
     if not linear_vel:
         models = models + ['Seismic']
         visibilities = [False, False, False, False, True]
+        eq_dates = cumh5['eqdates'][()].astype(str).tolist()
     fitcheck = CheckButtons(fitbox, models, visibilities)
 
     def fitfunc(label):
