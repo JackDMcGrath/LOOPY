@@ -115,7 +115,9 @@ def load_data():
         refarea = f.read().split()[0]  # str, x1/x2/y1/y2
     refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
 
-    cum = reference_disp(np.array(data['cum']), refx1, refx2, refy1, refy2)
+    # Not referencing anymore - referencing already occurred in LiCSBAS13_sb_inv.py
+    # cum = reference_disp(np.array(data['cum']), refx1, refx2, refy1, refy2)
+    cum = np.array(data['cum'])
 
     n_im, length, width = cum.shape
 
@@ -206,48 +208,51 @@ def temporal_filter(cum):
     ixs_dict = get_filter_dates(dt_cum, filtwidth_yr, filterdates)
 
     # Find and remove any outliers above filtered std threshold
-    cum_lpt, outlier = find_outliers()
+    if args.ransac:
+        cum, filt_std = find_outliers_RANSAC()
+    else:
+        cum_lpt, outlier = find_outliers()
+            
+        # Iterate until all outliers are removed
+        n_its = 1
 
-    # Iterate until all outliers are removed
-    n_its = 1
+        # Replace all outliers with filtered values
+        cum[outlier] = cum_lpt[outlier]
+        all_outliers = outlier
 
-    # Replace all outliers with filtered values
-    cum[outlier] = cum_lpt[outlier]
-    all_outliers = outlier
+        # Iterate through the 
+        while len(outlier) > 0:
+            n_its += 1
+            if n_its <= args.max_its:
+                print('Running Iteration {}/{}'.format(n_its, args.max_its))
+                cum_lpt, outlier = find_outliers()
+                # Replace all outliers with filtered values
+                cum[outlier] = cum_lpt[outlier]
+                all_outliers = np.unique(np.concatenate((all_outliers, outlier), axis=1), axis=1)
+            else:
+                break
 
-    ## Here would be the place to add in iterations (as a while loop of while len(outlier) > 0)
-    while len(outlier) > 0:
-        n_its += 1
-        if n_its <= args.max_its:
-            print('Running Iteration {}/{}'.format(n_its, args.max_its))
-            cum_lpt, outlier = find_outliers()
-            # Replace all outliers with filtered values
-            cum[outlier] = cum_lpt[outlier]
-            all_outliers = np.unique(np.concatenate((all_outliers, outlier), axis=1), axis=1)
-        else:
-            break
+        # Reload original data, replace identified outliers with final filtered values
+        cum = np.array(data['cum'])
+        if args.apply_mask:
+            print('Applying Mask to reloaded data')
+            mask = io_lib.read_img(maskfile, length, width)
+            maskx, masky = np.where(mask == 0)
+            cum[:, maskx, masky] = np.nan
 
-    # Reload original data, replace identified outliers with final filtered values
-    cum = np.array(data['cum'])
-    if args.apply_mask:
-        print('Applying Mask to reloaded data')
-        mask = io_lib.read_img(maskfile, length, width)
-        maskx, masky = np.where(mask == 0)
-        cum[:, maskx, masky] = np.nan
+        cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
 
-    cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+        print('Finding moving stddev')
+        filt_std = np.ones(cum.shape) * np.nan
+        filterdates = np.linspace(0, n_im - 1, n_im, dtype='int')
+        valid = np.where(~np.isnan(data['vel']))
+        diff = cum[:, valid[0], valid[1]] - cum_lpt[:, valid[0], valid[1]]
 
-    print('Finding moving stddev')
-    filt_std = np.ones(cum.shape) * np.nan
-    filterdates = np.linspace(0, n_im - 1, n_im, dtype='int')
-    valid = np.where(~np.isnan(data['vel']))
-    diff = cum[:, valid[0], valid[1]] - cum_lpt[:, valid[0], valid[1]]
+        for i in filterdates:
+            if np.mod(i, 10) == 0:
+                print("  {0:3}/{1:3}th image...".format(i, n_im), flush=True)
 
-    for i in filterdates:
-        if np.mod(i, 10) == 0:
-            print("  {0:3}/{1:3}th image...".format(i, n_im), flush=True)
-
-        filt_std[i, valid[0], valid[1]] = np.nanstd(diff[ixs_dict[i], :], axis=0)
+            filt_std[i, valid[0], valid[1]] = np.nanstd(diff[ixs_dict[i], :], axis=0)
 
 def std_filters(i):
     date = filterdates[i]
@@ -260,10 +265,11 @@ def std_filters(i):
 
     return filt_std
 
-def find_outliers():
+def find_outliers_RANSAC():
     global diff, cum_lpt, filt_std
     filt_std = np.zeros((n_im, length, width)) * np.nan
 
+    # Run Low-Pass filter on displacement data
     if n_para > 1 and len(filterdates) > 20:
         p = q.Pool(n_para)
         cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
@@ -283,29 +289,66 @@ def find_outliers():
         for i in range(n_im):
             filt_std[i, :, :] = std_filters(i)
 
-    if args.ransac:
-        print('Deoutliering using RANSAC')
-        cum_orig = cum.copy()
-        if n_para > 1 and len(filterdates) > 20:
-            p = q.Pool(n_para)
-            p.map(run_RANSAC, range(n_valid))
-            p.close()
-        else:
-            for ii in range(n_valid):
-                run_RANSAC(ii)
+    print('Deoutliering using RANSAC')
 
-        outlier = []
-        n_changed = len(np.where(cum_orig.flatten() != cum.flatten())[0])
-        print('Print {} pixels deoutliered'.format(n_changed))
-
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        deoutliered = np.array(p.map(run_RANSAC, range(n_valid)), dtype=np.float32)
+        p.close()
+        for ii in range(n_valid):
+            cum[:, valid[0][ii], valid[1][ii]] = deoutliered[ii, :]
     else:
-        # Find location of outliers
-        outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
+        for ii in range(n_valid):
+            cum[:, valid[0][ii], valid[1][ii]] = run_RANSAC(ii)
+    
+    # Rerun Lowpass filter on deoutliered data (as massive outliers will have distorted the original filter)
 
-        print('\n{} outliers identified\n'.format(len(outlier[0])))
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
+        p.close()
+    else:
+        cum_lpt = lpt_filter(filterdates)
 
-    return cum_lpt, outlier
+    # Reload the original data # IF ADDING BACK REFERENCING, DON'T FORGET TO REFERENCE HERE
+    cum = np.array(data['cum'])
 
+    # Find STD
+    diff = cum - cum_lpt  # Difference between original and filtered, deoutliered data
+
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        filt_std = np.array(p.map(std_filters, range(n_im)), dtype=np.float32)
+        p.close()
+    else:
+        filt_std = np.zeros((n_im, length, width)) * np.nan
+        for i in range(n_im):
+            filt_std[i, :, :] = std_filters(i)
+
+    # Find location of outliers
+    outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
+    print('\n{} outliers identified\n'.format(len(outlier[0])))
+
+    fig=plt.figure(figsize=(12,24))
+    ax=fig.add_subplot(2,1,1)
+    ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=2, c='b', label='Inliers')
+    ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=2, c='r', label='Outliers')    
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]], c='g', label='Filters')
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] + filt_std[:, valid[0][15001], valid[1][15001]], c='r', label='1 STD')
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] + outlier_thresh * filt_std[:, valid[0][15001], valid[1][15001]], c='b', label='Outlier Thresh')
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] - filt_std[:, valid[0][15001], valid[1][15001]], c='r')
+    ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] - outlier_thresh * filt_std[:, valid[0][15001], valid[1][15001]], c='b')
+
+    # Replace outliers with filter data
+    cum[outlier] = cum_lpt[outlier]
+
+    ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=4, c='b', label='Inliers')
+    plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
+    plt.close()
+    print(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
+
+    return cum, filt_std
+   
 def run_RANSAC(ii):
     if np.mod(ii, 5000) == 0:
         print('{}/{} RANSACed....'.format(ii, n_valid))
@@ -355,6 +398,33 @@ def run_RANSAC(ii):
     disp[keep[outliers]] = filtered_outliers
 
     cum[:, valid[0][ii], valid[1][ii]] = disp
+
+def find_outliers():
+    filt_std = np.zeros((n_im, length, width)) * np.nan
+
+    if n_para > 1 and len(filterdates) > 20:
+        p = q.Pool(n_para)
+        cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
+        p.close()
+    else:
+        lpt_filter(filterdates)
+
+    # Find STD
+    diff = cum - cum_lpt  # Difference between data and filtered data
+    filt_std = np.zeros((n_im, length, width)) * np.nan
+    for i in filterdates:
+        with warnings.catch_warnings():  # To silence warning by zero division
+            warnings.simplefilter('ignore', RuntimeWarning)
+            # Just search valid pixels to speed up
+            std_window = diff[ixs_dict[i],:,:]
+            filt_std[i, valid[0], valid[1]] = np.nanstd(std_window[:, valid[0], valid[1]], axis=0)
+
+    # Find location of outliers
+    outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
+
+    print('\n{} outliers identified\n'.format(len(outlier[0])))
+
+    return cum_lpt, outlier
 
 def lpt_filter(i):
 
