@@ -838,7 +838,9 @@ if __name__ == "__main__":
     if not linear_vel:
         models = models + ['Seismic']
         visibilities = [False, False, False, False, True]
-        eq_dates = cumh5['eqdates'][()].astype(str).tolist()
+        eq_dates = [dt.datetime.strptime(eq, '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31')) for eq in cumh5['eqdates'][()].astype(str).tolist()]
+        eq_dates -= imdates_ordinal[0]
+        
     fitcheck = CheckButtons(fitbox, models, visibilities)
 
     def fitfunc(label):
