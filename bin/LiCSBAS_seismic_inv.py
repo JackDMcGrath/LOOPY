@@ -761,14 +761,6 @@ def write_h5(gridResults, data):
     else:
         cumh5.create_dataset('refarea', data=data['refarea'])
 
-    #%% Close h5 file
-    cumh5.create_dataset('cum', data=cum, compression=compress)
-    cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
-    cumh5.create_dataset('prevel', data=gridResults[1], compression=compress)
-    cumh5.create_dataset('coseismic', data=gridResults[2], compression=compress)
-    cumh5.create_dataset('avalue', data=gridResults[3], compression=compress)
-    cumh5.create_dataset('postvel', data=gridResults[4], compression=compress)
-
     # Add previously calculated indicies to the cum.h5
     indices = ['coh_avg', 'hgt', 'n_loop_err', 'n_unw', 'slc.mli',
                'maxTlen', 'n_gap', 'n_ifg_noloop', 'resid_rms']
@@ -789,6 +781,15 @@ def write_h5(gridResults, data):
             cumh5.create_dataset(LOSvec, data=datafile, compression=compress)
         else:
             print('  {} not exist in GEOCml dir. Skip'.format(LOSvec))
+
+    # Add new data to h5
+    cumh5.create_dataset('eqdates', data=[np.int32(eqd) for eqd in eq_dates])
+    cumh5.create_dataset('cum', data=cum, compression=compress)
+    cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
+    cumh5.create_dataset('prevel', data=gridResults[1], compression=compress)
+    cumh5.create_dataset('coseismic', data=gridResults[2], compression=compress)
+    cumh5.create_dataset('avalue', data=gridResults[3], compression=compress)
+    cumh5.create_dataset('postvel', data=gridResults[4], compression=compress)
 
     cumh5.close()
 
