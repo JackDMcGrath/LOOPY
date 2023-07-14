@@ -172,17 +172,17 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         # TODO: Un-hardcode the earthquake date, work with multiple eqs, get referencing to work
         eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
         G = np.zeros((len(xvalues), 5))
-        G[:, 0] = 1
+        G[:, 0] = 1 # All dates have an intercept
         eq_ix = np.sum([1 for d in xvalues if d < eq_date])
         eq_date -= xvalues[0]
         xvalues -= xvalues[0]
-        G[:eq_ix, 1] = xvalues[:eq_ix]
-        G[eq_ix:, 2] = 1
-        if param[3] == 0:
+        G[:eq_ix, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
+        G[eq_ix:, 2] = 1 # Heaviside function for coseismic
+        if param[3] == 0: # A value
             G[eq_ix:, 3] = 0
         else:
             G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date))
-        G[eq_ix:, 4] = xvalues[eq_ix:]
+        G[eq_ix:, 4] = xvalues[eq_ix:] - eq_date # Post-seismic
         yvalues = np.matmul(G, param)
 
     return yvalues
