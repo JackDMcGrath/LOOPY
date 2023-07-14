@@ -570,13 +570,13 @@ def fit_pixel_velocities(ii):
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
 
-    if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
-        plt.scatter(dates, disp, s=2, c='k')
-        plt.plot(dates, invvel, c='g',label='Before')
-        plt.title('({}/{})'.format(valid[1][ii], valid[0][ii]))
-        plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
-        plt.close()
-        print(os.path.join(outdir, '{}.png'.format(ii)))
+    # if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
+    #     plt.scatter(dates, disp, s=2, c='k')
+    #     plt.plot(dates, invvel, c='g',label='Before')
+    #     plt.title('({}/{})'.format(valid[1][ii], valid[0][ii]))
+    #     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
+    #     plt.close()
+    #     print(os.path.join(outdir, '{}.png'.format(ii)))
 
 
     # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
