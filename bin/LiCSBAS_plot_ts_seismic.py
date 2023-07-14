@@ -176,7 +176,7 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         eq_ix = np.sum([1 for d in xvalues if d < eq_date])
         eq_date -= xvalues[0]
         xvalues -= xvalues[0]
-        G[:eq_ix, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
+        G[:, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
         G[eq_ix:, 2] = 1 # Heaviside function for coseismic
         if param[3] == 0: # A value
             G[eq_ix:, 3] = 0
