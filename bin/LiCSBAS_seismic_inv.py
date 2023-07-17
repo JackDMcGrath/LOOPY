@@ -568,7 +568,19 @@ def fit_pixel_velocities(ii):
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee] # This means that intercept of the postseismic is the coseismic + avalue?
         daily_rates.append(4 + ee * 3)
 
-    x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
+    # Add variance matrix for the data
+    Q = np.eye(n_im)
+
+    # Weight matrix (inverse of VCM)
+    W = np.linalg.inv(Q)
+
+    # Calculate model variance
+    var = np.linalg.inv(np.dot(np.dot(G.T, W), G))
+    print(var)
+    print(var.shape)
+
+    x = np.matmul(var, np.matmul(G.T, disp))
+    print(x)
 
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
