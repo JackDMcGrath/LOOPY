@@ -576,11 +576,9 @@ def fit_pixel_velocities(ii):
 
     # Calculate model variance
     var = np.linalg.inv(np.dot(np.dot(G.T, W), G))
-    print(var)
-    print(var.shape)
+    inverr = np.diag(var).copy()
 
     x = np.matmul(var, np.matmul(G.T, disp))
-    print(x)
 
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
@@ -594,7 +592,7 @@ def fit_pixel_velocities(ii):
     #     print(os.path.join(outdir, '{}.png'.format(ii)))
 
 
-    # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
+    # Find velocity standard deviation # INFUTURE, USE BOOTSTRAPPING
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
     # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
@@ -671,6 +669,10 @@ def fit_pixel_velocities(ii):
     # Convert mm/day to mm/yr
     for dd in daily_rates:
         x[dd] *= 365.25
+        inverr[dd] *= 365.25
+    print(x.astype(np.float32).round(5))
+    print(inverr.astype(np.float32).round(5))
+    print()
 
     # # If using long term rate, calculate the 'true' postseismic linear
     # x[4] = x[1] + x[4]
