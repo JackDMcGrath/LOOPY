@@ -544,6 +544,7 @@ def fit_velocities():
         # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
         p = q.Pool(n_para)
         results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype=np.float32)
+        print(results.shape)
         p.close()
     else:
         results = np.zeros((n_valid, 3 + n_eq * 3))
@@ -670,15 +671,12 @@ def fit_pixel_velocities(ii):
     for dd in daily_rates:
         x[dd] *= 365.25
         inverr[dd] *= 365.25
-    print(x.astype(np.float32).round(5))
-    print(inverr.astype(np.float32).round(5))
-    print()
 
     # # If using long term rate, calculate the 'true' postseismic linear
     # x[4] = x[1] + x[4]
     x = np.append(x, std)
 
-    return x
+    return x, inverr
 
 def plot_timeseries(dates, disp, invvel, ii, x, y):
     if not os.path.exists(outdir):
