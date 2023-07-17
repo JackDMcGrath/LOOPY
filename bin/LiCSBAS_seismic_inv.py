@@ -710,9 +710,8 @@ def write_outputs():
         else:
             vmin = np.nanpercentile(gridResults[n, :, :], 5)
             vmin = -np.nanmax([abs(vmin), abs(vmax)])
-            vmax = -np.nanmax([abs(vmin), abs(vmax)])
+            vmax = np.nanmax([abs(vmin), abs(vmax)])
             cmap = SCM.roma.reversed()
-
         plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap, titles[n], vmin, vmax)
 
     if mask_final:
@@ -733,7 +732,7 @@ def write_outputs():
             else:
                 vmin = np.nanpercentile(gridMasked[n, :, :], 5)
                 vmin = -np.nanmax([abs(vmin), abs(vmax)])
-                vmax = -np.nanmax([abs(vmin), abs(vmax)])
+                vmax = np.nanmax([abs(vmin), abs(vmax)])
                 cmap = SCM.roma.reversed()
 
             plot_lib.make_im_png(gridMasked[n, :, :], pngname, cmap, titles[n], vmin, vmax)
