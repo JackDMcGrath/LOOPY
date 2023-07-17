@@ -44,6 +44,7 @@ import LiCSBAS_plot_lib as plot_lib
 import SCM
 from sklearn.linear_model import RANSACRegressor
 from scipy.interpolate import CubicSpline
+from pyinterpolate import build_experimental_variogram, TheoreticalVariogram, build_theoretical_variogram
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -535,7 +536,13 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     return ixs_dict
 
 def fit_velocities():
-    global pcst, results, n_para
+    global pcst, results, n_para, Q
+
+    use_weights = True
+    if use_weights:
+        Q = calc_semivariogram()
+    else:
+        Q = np.eye(n_im)
 
     # Define post-seismic constant
     pcst = 1 / args.tau
@@ -576,26 +583,7 @@ def fit_pixel_velocities(ii):
         # G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]]
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee] # This means that intercept of the postseismic is the coseismic + avalue?
         daily_rates.append(4 + ee * 3)
-
-    # Add variance matrix for the data
-    # Fei's method using semivariograms
-    # if strcmp(wgt_flag,'none')
-    #     P=eye(n_obs);  <- Currently what I'm doing, I just call it Q
-    # else
-    #     % using the semi-varigram fitting results as weight matrix
-    #     load('semi_fit','semi','semi_aps');
-    #     if strcmp(aps_flag,'none')
-    #         cvar=semi(:,2);
-    #     else
-    #         cvar=semi_aps(:,2);
-    #     end
-    #     cvar(drop_ifgidx)=[];
-    #     cvar(1)=mean(cvar(2:end)); % as first epoch is manually set to 0
-    #     cvar=cvar*1e6;             % convert sill unit from m^2 to mm^2
-    #     P=diag(1./cvar);
-    # end
-    Q = np.eye(n_im)
-
+   
     # Weight matrix (inverse of VCM)
     W = np.linalg.inv(Q)
 
@@ -837,6 +825,61 @@ def even_split(a, n):
     n = min(n, len(a)) # to avoid empty lists
     k, m = divmod(len(a), n)
     return [a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n)]
+
+def calc_semivariogram():
+    global XX, YY
+    # Get range and aximuth pixel spacing
+    param13 =  os.path.join(infodir, '13parameters.txt')
+    pixel_spacing_a = float(io_lib.get_param_par(param13, 'pixel_spacing_a'))
+    pixel_spacing_r = float(io_lib.get_param_par(param13, 'pixel_spacing_r'))
+
+    Lat = np.arange(0, length * pixel_spacing_r, pixel_spacing_r)
+    Lon = np.arange(0, length * pixel_spacing_a, pixel_spacing_a)
+
+    XX, YY = np.meshgrid(Lon, Lat)
+    XX = XX.flatten()
+    YY = YY.flatten()
+
+    print('Calculating semi-variograms of epoch displacements')
+    print('n_im\tsill\trange\nugget')
+
+    if n_para > 1 and n_valid > 100:
+        # pool = multi.Pool(processes=n_para)
+        # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
+        p = q.Pool(n_para)
+        sills = np.array(p.map(calc_epoch_semivariogram, range(n_im)), dtype="object")
+        p.close()
+    else:
+        sills = np.zeros((n_im, 1))
+        for ii in range(n_im):
+            sills[ii] = calc_epoch_semivariogram(ii)
+    
+
+def calc_epoch_semivariogram(ii):
+    epoch = cum[ii, :, :].flatten()
+    data = np.array([XX, YY, epoch]).T
+
+    # Create experimental semivariogram with predefined values
+    step_radius = 1000  # Split data into bins of this size (m)
+    max_range = 100000  # Maximum range of spatial dependency (m)
+    experimental_variogram = build_experimental_variogram(input_array=data, step_size=step_radius, max_range=max_range)
+    
+    # Automatically find the best semivariogram model from the experimental variogram
+    semivariogram_model = TheoreticalVariogram()
+    fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
+
+    sill = fitted['sill']
+    range = fitted['range']
+    nugget = fitted['nugget']
+
+    print('{}\t{:3f}\t{:3f}\t{:3f}'.format(ii, sill, range, nugget))
+
+    sill = sill * 1e6 # Convert from m to mm
+
+    return sill
+        
+
+
 
 def main():
     start()
