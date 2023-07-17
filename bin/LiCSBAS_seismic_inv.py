@@ -13,9 +13,9 @@ Work flow:
         displacements are within the threshold value, as large outliers will peturb the filter. The original data is then checked against the deoutliered
         filtered value, and any outliers replaced with the filtered value
         b) Using the RANSAC algorithm, where a temporal filter is applied to the data (which breaks at definied earthquakes), and RANSAC is applied to
-        the residuals, and the outliers are replaced with filtered values. The original data is then checked against the deoutliered, filtered value, and 
+        the residuals, and the outliers are replaced with filtered values. The original data is then checked against the deoutliered, filtered value, and
         any outliers replaced with the filtered value
-    
+
     2) Fitting velocities
         Velocities are currently fit, allowing a long-term trend (pre-seismic linear velocity), a coseismic displacement (as a heaviside function), post-seismic
         relaxation (as a logarithmic decay) and a post-seismic velocity (linear)
@@ -113,7 +113,7 @@ def set_input_output():
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
     outh5file = os.path.join(tsadir, outdir, 'cum.h5')
-    
+
     # If no reffile defined, sarch for 130ref, then 13ref, in this folder and infodir
     reffile = os.path.join(tsadir, args.ref_file)
     if not os.path.exists(reffile):
@@ -138,7 +138,7 @@ def set_input_output():
         mask_final = False
     else:
         mask_final = True
-    
+
     eqfile = os.path.abspath(args.eq_list)
 
     outlier_thresh = args.outlier_thre
@@ -154,7 +154,7 @@ def load_data():
     cum = np.array(data['cum'])
 
     # read reference
-    ref = reference_disp(cum, reffile)   
+    ref = reference_disp(cum, reffile)
     cum = cum - ref
 
     n_im, length, width = cum.shape
@@ -255,7 +255,7 @@ def temporal_filter(cum):
         cum, filt_std = find_outliers_RANSAC()
     else:
         cum_lpt, outlier = find_outliers()
-            
+
         # Iterate until all outliers are removed
         n_its = 1
 
@@ -343,7 +343,7 @@ def find_outliers_RANSAC():
     else:
         for ii in range(n_valid):
             cum[:, valid[0][ii], valid[1][ii]] = run_RANSAC(ii)
-    
+
     # Rerun Lowpass filter on deoutliered data (as massive outliers will have distorted the original filter)
     print('Rerun temporal filter on deoutliered data')
     if n_para > 1 and len(filterdates) > 20:
@@ -372,26 +372,30 @@ def find_outliers_RANSAC():
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
     print('\n{} outliers identified\n'.format(len(outlier[0])))
 
-    # fig=plt.figure(figsize=(12,24))
-    # ax=fig.add_subplot(2,1,1)
-    # ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=2, c='b', label='Inliers')
-    # ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=2, c='r', label='Outliers')    
-    # ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]], c='g', label='Filters')
-    # ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] + filt_std[:, valid[0][15001], valid[1][15001]], c='r', label='1 STD')
-    # ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] + outlier_thresh * filt_std[:, valid[0][15001], valid[1][15001]], c='b', label='Outlier Thresh')
-    # ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] - filt_std[:, valid[0][15001], valid[1][15001]], c='r')
-    # ax.plot(np.array(dates), cum_lpt[:, valid[0][15001], valid[1][15001]] - outlier_thresh * filt_std[:, valid[0][15001], valid[1][15001]], c='b')
+    x_pix = valid[1][15001]
+    y_pix = valid[0][15001]
+    x_pix = 347
+    y_pix = 492
+    fig=plt.figure(figsize=(12,24))
+    plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b', label='Inliers')
+    plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='r', label='Outliers')
+    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix], c='g', label='Filters')
+    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] + filt_std[:, y_pix, x_pix], c='r', label='1 STD')
+    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] + outlier_thresh * filt_std[:, y_pix, x_pix], c='b', label='Outlier Thresh')
+    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] - filt_std[:, y_pix, x_pix], c='r')
+    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] - outlier_thresh * filt_std[:, y_pix, x_pix], c='b')
+    plt.legend()
 
     # Replace outliers with filter data
     cum[outlier] = cum_lpt[outlier]
 
-    # ax.scatter(np.array(dates), cum[:, valid[0][15001], valid[1][15001]], s=4, c='b', label='Inliers')
-    # plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
-    # plt.close()
-    # print(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
+    plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b')
+    plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
+    plt.close()
+    print(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
 
     return cum, filt_std
-   
+
 def run_RANSAC(ii):
     if np.mod(ii, 5000) == 0:
         print('{}/{} RANSACed....'.format(ii, n_valid))
@@ -535,7 +539,6 @@ def fit_velocities():
 
     # Define post-seismic constant
     pcst = 1 / args.tau
-    n_para = 1
     if n_para > 1 and n_valid > 100:
         # pool = multi.Pool(processes=n_para)
         # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
@@ -543,7 +546,7 @@ def fit_velocities():
         results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype=np.float32)
         p.close()
     else:
-        results = np.zeros((n_valid, 6))
+        results = np.zeros((n_valid, 3 + n_eq * 3))
         for ii in range(n_valid):
             results[ii, :] = fit_pixel_velocities(ii)
 
@@ -570,13 +573,13 @@ def fit_pixel_velocities(ii):
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
 
-    if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
-        plt.scatter(dates, disp, s=2, c='k')
-        plt.plot(dates, invvel, c='g',label='Before')
-        plt.title('({}/{})'.format(valid[1][ii], valid[0][ii]))
-        plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
-        plt.close()
-        print(os.path.join(outdir, '{}.png'.format(ii)))
+    # if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
+    #     plt.scatter(dates, disp, s=2, c='k')
+    #     plt.plot(dates, invvel, c='g',label='Before')
+    #     plt.title('({}/{})'.format(valid[1][ii], valid[0][ii]))
+    #     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
+    #     plt.close()
+    #     print(os.path.join(outdir, '{}.png'.format(ii)))
 
 
     # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
@@ -707,9 +710,8 @@ def write_outputs():
         else:
             vmin = np.nanpercentile(gridResults[n, :, :], 5)
             vmin = -np.nanmax([abs(vmin), abs(vmax)])
-            vmax = -np.nanmax([abs(vmin), abs(vmax)])
+            vmax = np.nanmax([abs(vmin), abs(vmax)])
             cmap = SCM.roma.reversed()
-
         plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap, titles[n], vmin, vmax)
 
     if mask_final:
@@ -730,15 +732,12 @@ def write_outputs():
             else:
                 vmin = np.nanpercentile(gridMasked[n, :, :], 5)
                 vmin = -np.nanmax([abs(vmin), abs(vmax)])
-                vmax = -np.nanmax([abs(vmin), abs(vmax)])
+                vmax = np.nanmax([abs(vmin), abs(vmax)])
                 cmap = SCM.roma.reversed()
 
             plot_lib.make_im_png(gridMasked[n, :, :], pngname, cmap, titles[n], vmin, vmax)
 
-    if n_eq > 1:
-        print("Not writing to .h5 - I haven't coded how to deal with more than 1 earthquake yet....")
-    else:
-        write_h5(gridResults, data)
+    write_h5(gridResults, data)
 
 def write_h5(gridResults, data):
     # Currently can only handle writing 1 earthquake to h5
@@ -761,14 +760,6 @@ def write_h5(gridResults, data):
     else:
         cumh5.create_dataset('refarea', data=data['refarea'])
 
-    #%% Close h5 file
-    cumh5.create_dataset('cum', data=cum, compression=compress)
-    cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
-    cumh5.create_dataset('prevel', data=gridResults[1], compression=compress)
-    cumh5.create_dataset('coseismic', data=gridResults[2], compression=compress)
-    cumh5.create_dataset('avalue', data=gridResults[3], compression=compress)
-    cumh5.create_dataset('postvel', data=gridResults[4], compression=compress)
-
     # Add previously calculated indicies to the cum.h5
     indices = ['coh_avg', 'hgt', 'n_loop_err', 'n_unw', 'slc.mli',
                'maxTlen', 'n_gap', 'n_ifg_noloop', 'resid_rms']
@@ -789,6 +780,16 @@ def write_h5(gridResults, data):
             cumh5.create_dataset(LOSvec, data=datafile, compression=compress)
         else:
             print('  {} not exist in GEOCml dir. Skip'.format(LOSvec))
+
+    # Add new data to h5
+    cumh5.create_dataset('eqdates', data=[np.int32(eqd) for eqd in eq_dates])
+    cumh5.create_dataset('cum', data=cum, compression=compress)
+    cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
+    cumh5.create_dataset('prevel', data=gridResults[1], compression=compress)
+    for nn in range(n_eq):
+        cumh5.create_dataset('{} coseismic'.format(eq_dates[nn]), data=gridResults[2 + nn * 3], compression=compress)
+        cumh5.create_dataset('{} avalue'.format(eq_dates[nn]), data=gridResults[3 + nn * 3], compression=compress)
+        cumh5.create_dataset('{} postvel'.format(eq_dates[nn]), data=gridResults[4 + nn * 3], compression=compress)
 
     cumh5.close()
 

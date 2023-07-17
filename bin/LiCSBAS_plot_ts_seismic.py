@@ -134,12 +134,12 @@ class Usage(Exception):
         self.msg = msg
 
 #%% Calc model
-def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
+def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
 
     imdates_years = imdates_ordinal/365.25 ## dont care abs
     xvalues_years = xvalues/365.25
 
-    #models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q']
+    #models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q', 'seismic']
     A = sm.add_constant(imdates_years) #[1, t]
     An = sm.add_constant(xvalues_years) #[1, t]
     if model < 4:
@@ -169,23 +169,44 @@ def calc_model(dph, imdates_ordinal, xvalues, model, param=None):
         yvalues = result.predict(An)
 
     else:
-        # TODO: Un-hardcode the earthquake date, work with multiple eqs, get referencing to work
-        eq_date = dt.datetime.strptime('20161113', '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31'))
-        G = np.zeros((len(xvalues), 5))
-        G[:, 0] = 1 # All dates have an intercept
-        eq_ix = np.sum([1 for d in xvalues if d < eq_date])
-        eq_date -= xvalues[0]
-        xvalues -= xvalues[0]
-        G[:, 1] = xvalues # Long-term velocity (i.e. Pre-seismic)
-        G[eq_ix:, 2] = 1 # Heaviside function for coseismic
-        if param[3] == 0: # A value
-            G[eq_ix:, 3] = 0
-        else:
-            G[eq_ix:, 3] = np.log(1 + (1/6) * (xvalues[eq_ix:] - eq_date))
-        G[eq_ix:, 4] = xvalues[eq_ix:] - eq_date # Post-seismic
-        yvalues = np.matmul(G, param)
+        imdates = imdates_ordinal.copy()
+        if imdates[0] != 0:
+            xvalues -= imdates[0]
+            imdates -= imdates[0]
+
+        # If no eq dates offered, set eq date to be after the timeseries
+        if len(eq_date) == 0:
+            eq_date = imdates[-1] + 1
+
+        n_eq = len(eq_date)
+        # Create G-matrix for inverting the parameters from displacement
+        G = create_gmatrix(eq_date, n_eq, imdates)
+
+        # Invert displacements to come up with velocity parameters
+        inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
+
+        # Create G-matrix for modelling the velocities
+        G = create_gmatrix(eq_date, n_eq, xvalues)
+        yvalues = np.matmul(G, inv)
 
     return yvalues
+
+def create_gmatrix(eq_date, n_eq, dates):
+
+    eq_ix = []
+    for nn in range(n_eq):
+        eq_ix.append(np.sum([1 for d in dates if d < eq_date[nn]]))
+
+    G = np.zeros((len(dates), 2 + (n_eq - 1) * 3))
+    G[:, 0] = 1 # All dates have an intercept
+    G[:, 1] = dates # Long-term velocity (i.e. Pre-seismic)
+    for nn in range(n_eq - 1):
+        G[eq_ix[nn]:eq_ix[nn + 1], 2 + nn * 3] = 1 # Heaviside function for coseismic
+        G[eq_ix[nn]:eq_ix[nn + 1], 3 + nn * 3] = np.log(1 + (1/6) * (dates[eq_ix[nn]:eq_ix[nn + 1]] - eq_date[nn])) # Avalue
+        G[eq_ix[nn]:eq_ix[nn + 1], 4 + nn * 3] = dates[eq_ix[nn]:eq_ix[nn + 1]] - eq_date[nn] # Post-seismic
+
+    return G
+
 
 #%% Find colorbar limits
 def find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange, vmin, vmax):
@@ -374,11 +395,16 @@ if __name__ == "__main__":
         vel = cumh5['vel']
     else:
         vel = io_lib.read_img(os.path.join(resultsdir, 'vel'), length, width)
+        eqdates = cumh5['eqdates'][()].astype(str).tolist()
+        n_eq = len(eqdates)
         vint = cumh5['vintercept']
         prevel = cumh5['prevel']
-        postvel = cumh5['postvel']
-        coseismic = cumh5['coseismic']
-        avalue = cumh5['avalue']
+        # Create dictionary to store multiple eq datasets
+        eqdict = {}
+        for eq in eqdates:
+            eqdict.update({'{}_coseismic'.format(eq): cumh5['{} coseismic'.format(eq)]})
+            eqdict.update({'{}_avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
+            eqdict.update({'{}_postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
 
     try:
         gap = cumh5['gap']
@@ -562,8 +588,9 @@ if __name__ == "__main__":
         velnames = ['vel']
         velfiles = [vel]
     else:
-        velnames = ['vel', 'prevel', 'coseismic', 'avalue', 'postvel']
-        velfiles = [vel, prevel, coseismic, avalue, postvel]
+        velnames = ['vel', 'prevel'] + [*eqdict]
+        velfiles = [vel, prevel] + list(eqdict.values())
+
     for ff  in velfiles:
         vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange, vminIn, vmaxIn)
         vmin.append(vmintmp)
@@ -678,8 +705,12 @@ if __name__ == "__main__":
             mapdict_vel = {'vel': vel}
             mapdict_unit.update([('vel', 'mm/yr')])
         else:
-            mapdict_vel = {'vel': vel, 'prevel': prevel, 'coseismic': coseismic, 'avalue': avalue, 'postvel': postvel}
-            mapdict_unit.update([('vel', 'mm/yr'), ('prevel', 'mm/yr'), ('coseismic', 'mm'), ('avalue', 'mm'), ('postvel', 'mm/yr')])
+            mapdict_vel = {'vel': vel, 'prevel': prevel}
+            mapdict_unit.update([('vel', 'mm/yr'), ('prevel', 'mm/yr')])
+            # Merge eqdict into mapdict_vel
+            mapdict_vel = {**mapdict_vel, **eqdict}
+            for eq in eqdates:
+                mapdict_unit.update([('{}_coseismic'.format(eq), 'mm'), ('{}_avalue'.format(eq), 'mm'), ('{}_postvel'.format(eq), 'mm/yr')])
 
     mapdict_vel.update(mapdict_data)
     mapdict_data = mapdict_vel  ## To move vel to top
@@ -817,9 +848,14 @@ if __name__ == "__main__":
     fitbox = pts.add_axes([0.83, 0.10, 0.16, 0.25])
     models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q']
     visibilities = [True, True, False, False]
+    eq_dates = []
     if not linear_vel:
         models = models + ['Seismic']
         visibilities = [False, False, False, False, True]
+        eq_dates = [dt.datetime.strptime(eq, '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31')) for eq in eqdates]
+        eq_dates.append(imdates_ordinal[-1] + 1)
+        eq_dates -= imdates_ordinal[0]
+
     fitcheck = CheckButtons(fitbox, models, visibilities)
 
     def fitfunc(label):
@@ -911,20 +947,20 @@ if __name__ == "__main__":
         vel1p = vel[ii, jj]-np.nanmean((vel*mask)[refy1:refy2, refx1:refx2])
 
         dcum_ref = cum_ref[ii, jj]-np.nanmean(cum_ref[refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2])
-#        dcum_ref = 0
         dph = cum[:, ii, jj]-np.nanmean(cum[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum_ref
 
-        if linear_vel:
-            param = None
-        else:
-            param = np.zeros((5))
-            velfiles[0] = vint
-            for ix, ff in enumerate(velfiles):
-                param[ix] = np.nanmean(np.array(ff)[ii, jj])
-                if np.isnan(param[ix]).all():
-                    param[ix] = 0
-                if 'prevel' in velnames[ix] or 'postvel' in velnames[ix]:
-                    param[ix] /= 365.25
+        # Unneed now we invert on the fly
+        # if linear_vel:
+        #     param = None
+        # else:
+        #     param = np.zeros((5))
+        #     velfiles[0] = vint
+        #     for ix, ff in enumerate(velfiles):
+        #         param[ix] = np.nanmean(np.array(ff)[ii, jj])
+        #         if np.isnan(param[ix]).all():
+        #             param[ix] = 0
+        #         if 'prevel' in velnames[ix] or 'postvel' in velnames[ix]:
+        #             param[ix] /= 365.25
 
         ## fit function
         lines1 = [0, 0, 0, 0, 0]
@@ -933,7 +969,7 @@ if __name__ == "__main__":
         td10day = dt.timedelta(days=timestep)
         xvalues_dt = np.arange(imdates_dt[0], imdates_dt[-1], td10day)
         for model, vis in enumerate(visibilities):
-            yvalues = calc_model(dph, imdates_ordinal, xvalues, model, param=param)
+            yvalues = calc_model(dph, imdates_ordinal, xvalues, model, eq_date=eq_dates)
             lines1[model], = axts.plot(xvalues_dt, yvalues, 'b-', visible=vis, alpha=0.6, zorder=3)
 
         axts.scatter(imdates_dt, dph, label=label1, c='b', alpha=0.6, zorder=5)
@@ -948,7 +984,7 @@ if __name__ == "__main__":
             ## fit function
             lines2 = [0, 0, 0, 0, 0]
             for model, vis in enumerate(visibilities):
-                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model)
+                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates)
                 lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
 
             axts.scatter(imdates_dt, dphf, c='r', label=label2, alpha=0.6, zorder=4)
