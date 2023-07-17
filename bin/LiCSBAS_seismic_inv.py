@@ -284,7 +284,8 @@ def temporal_filter(cum):
             maskx, masky = np.where(mask == 0)
             cum[:, maskx, masky] = np.nan
 
-        cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+        #cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+        cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling
 
         print('Finding moving stddev')
         filt_std = np.ones(cum.shape) * np.nan
@@ -539,10 +540,10 @@ def fit_velocities():
     global pcst, results, n_para, Q
 
     use_weights = True
+    Q = np.eye(n_im)
     if use_weights:
-        Q = calc_semivariogram()
-    else:
-        Q = np.eye(n_im)
+        sills = calc_semivariogram()
+        np.fill_diagonal(Q, sills)
 
     # Define post-seismic constant
     pcst = 1 / args.tau
@@ -835,7 +836,7 @@ def even_split(a, n):
     return [a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n)]
 
 def calc_semivariogram():
-    global XX, YY
+    global XX, YY, mask_pix
     # Get range and aximuth pixel spacing
     param13 =  os.path.join(infodir, '13parameters.txt')
     pixel_spacing_a = float(io_lib.get_param_par(param13, 'pixel_spacing_a'))
@@ -848,6 +849,9 @@ def calc_semivariogram():
     XX = XX.flatten()
     YY = YY.flatten()
 
+    mask = io_lib.read_img(maskfile, length, width)
+    mask_pix = np.where(mask.flatten() == 0)
+
     print('Calculating semi-variograms of epoch displacements')
     print('n_im\tsill\trange\nugget')
 
@@ -859,35 +863,43 @@ def calc_semivariogram():
         p.close()
     else:
         sills = np.zeros((n_im, 1))
-        for ii in range(n_im):
+        for ii in range(1, n_im):
             sills[ii] = calc_epoch_semivariogram(ii)
     
+    sills[0] = np.nanmean(sills[1:]) # As first epoch is 0
+    
+    return sills
 
 def calc_epoch_semivariogram(ii):
-    epoch = cum[ii, :, :].flatten()
-    data = np.array([XX, YY, epoch]).T
+    if ii == 0:
+        sill = 0 # Reference image
+    else:
+        # Find semivariogram of incremental displacements
+        epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
+        inc = np.array([XX, YY, epoch]).T
+        # Nan mask pixels
+        inc[mask_pix] = np.nan
+        # Mask out any displacement of > lambda, as coseismic or noise
+        inc[abs(inc) > 55.6] = np.nan
 
-    # Create experimental semivariogram with predefined values
-    step_radius = 1000  # Split data into bins of this size (m)
-    max_range = 100000  # Maximum range of spatial dependency (m)
-    experimental_variogram = build_experimental_variogram(input_array=data, step_size=step_radius, max_range=max_range)
-    
-    # Automatically find the best semivariogram model from the experimental variogram
-    semivariogram_model = TheoreticalVariogram()
-    fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
+        # Create experimental semivariogram with predefined values
+        step_radius = 1000  # Split data into bins of this size (m)
+        max_range = 100000  # Maximum range of spatial dependency (m)
+        experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
+        
+        # Automatically find the best semivariogram model from the experimental variogram
+        semivariogram_model = TheoreticalVariogram()
+        fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
 
-    sill = fitted['sill']
-    range = fitted['range']
-    nugget = fitted['nugget']
+        sill = fitted['sill']
+        range = fitted['range']
+        nugget = fitted['nugget']
 
-    print('{}\t{:3f}\t{:3f}\t{:3f}'.format(ii, sill, range, nugget))
+        print('{}\t{:3f}\t{:3f}\t{:3f}'.format(ii, sill, range, nugget))
 
-    sill = sill * 1e6 # Convert from m to mm
+        sill = sill * 1e6 # Convert from m to mm
 
     return sill
-        
-
-
 
 def main():
     start()
