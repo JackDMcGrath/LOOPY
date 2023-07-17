@@ -738,10 +738,7 @@ def write_outputs():
 
             plot_lib.make_im_png(gridMasked[n, :, :], pngname, cmap, titles[n], vmin, vmax)
 
-    if n_eq > 1:
-        print("Not writing to .h5 - I haven't coded how to deal with more than 1 earthquake yet....")
-    else:
-        write_h5(gridResults, data)
+    write_h5(gridResults, data)
 
 def write_h5(gridResults, data):
     # Currently can only handle writing 1 earthquake to h5
