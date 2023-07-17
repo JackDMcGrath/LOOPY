@@ -578,6 +578,22 @@ def fit_pixel_velocities(ii):
         daily_rates.append(4 + ee * 3)
 
     # Add variance matrix for the data
+    # Fei's method using semivariograms
+    # if strcmp(wgt_flag,'none')
+    #     P=eye(n_obs);  <- Currently what I'm doing, I just call it Q
+    # else
+    #     % using the semi-varigram fitting results as weight matrix
+    #     load('semi_fit','semi','semi_aps');
+    #     if strcmp(aps_flag,'none')
+    #         cvar=semi(:,2);
+    #     else
+    #         cvar=semi_aps(:,2);
+    #     end
+    #     cvar(drop_ifgidx)=[];
+    #     cvar(1)=mean(cvar(2:end)); % as first epoch is manually set to 0
+    #     cvar=cvar*1e6;             % convert sill unit from m^2 to mm^2
+    #     P=diag(1./cvar);
+    # end
     Q = np.eye(n_im)
 
     # Weight matrix (inverse of VCM)
