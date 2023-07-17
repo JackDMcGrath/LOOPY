@@ -395,11 +395,16 @@ if __name__ == "__main__":
         vel = cumh5['vel']
     else:
         vel = io_lib.read_img(os.path.join(resultsdir, 'vel'), length, width)
+        eqdates = cumh5['eqdates'][()].astype(str).tolist()
+        n_eq = len(eqdates)
         vint = cumh5['vintercept']
         prevel = cumh5['prevel']
-        postvel = cumh5['postvel']
-        coseismic = cumh5['coseismic']
-        avalue = cumh5['avalue']
+        # Create dictionary to store multiple eq datasets
+        eqdict = {}
+        for eq in eqdates:
+            eqdict.update({'{} coseis'.format(eq): cumh5['{} coseismic'.format(eq)]})
+            eqdict.update({'{} avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
+            eqdict.update({'{} postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
 
     try:
         gap = cumh5['gap']
@@ -583,8 +588,9 @@ if __name__ == "__main__":
         velnames = ['vel']
         velfiles = [vel]
     else:
-        velnames = ['vel', 'prevel', 'coseismic', 'avalue', 'postvel']
-        velfiles = [vel, prevel, coseismic, avalue, postvel]
+        velnames = ['vel', 'prevel'] + [*eqdict]
+        velfiles = [vel, prevel] + list(eqdict.values)
+
     for ff  in velfiles:
         vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange, vminIn, vmaxIn)
         vmin.append(vmintmp)
@@ -699,8 +705,12 @@ if __name__ == "__main__":
             mapdict_vel = {'vel': vel}
             mapdict_unit.update([('vel', 'mm/yr')])
         else:
-            mapdict_vel = {'vel': vel, 'prevel': prevel, 'coseismic': coseismic, 'avalue': avalue, 'postvel': postvel}
-            mapdict_unit.update([('vel', 'mm/yr'), ('prevel', 'mm/yr'), ('coseismic', 'mm'), ('avalue', 'mm'), ('postvel', 'mm/yr')])
+            mapdict_vel = {'vel': vel, 'prevel': prevel}
+            mapdict_unit.update([('vel', 'mm/yr'), ('prevel', 'mm/yr')])
+            # Merge eqdict into mapdict_vel
+            mapdict_vel = {**mapdict_vel, **eqdict}
+            for eq in eqdates:
+                mapdict_unit.update([('{} coseismic'.format(eq), 'mm'), ('{} avalue'.format(eq), 'mm'), ('{} postvel'.format(eq), 'mm/yr')])
 
     mapdict_vel.update(mapdict_data)
     mapdict_data = mapdict_vel  ## To move vel to top
@@ -842,7 +852,7 @@ if __name__ == "__main__":
     if not linear_vel:
         models = models + ['Seismic']
         visibilities = [False, False, False, False, True]
-        eq_dates = [dt.datetime.strptime(eq, '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31')) for eq in cumh5['eqdates'][()].astype(str).tolist()]
+        eq_dates = [dt.datetime.strptime(eq, '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31')) for eq in eqdates]
         eq_dates.append(imdates_ordinal[-1] + 1)
         eq_dates -= imdates_ordinal[0]
 
