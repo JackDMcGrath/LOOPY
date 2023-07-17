@@ -543,9 +543,17 @@ def fit_velocities():
         # pool = multi.Pool(processes=n_para)
         # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
         p = q.Pool(n_para)
-        results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype=np.float32)
-        print(results.shape)
+        results = np.array(p.map(fit_pixel_velocities, range(10)), dtype="object")
         p.close()
+        print(results.shape)
+        print(results)
+        print("")
+        print(results[:,0])
+        print("")
+        print(results[:,1])
+        print("")
+        print(results[0,:].shape)
+        print(results[1,:].shape)
     else:
         results = np.zeros((n_valid, 3 + n_eq * 3))
         for ii in range(n_valid):
@@ -575,11 +583,12 @@ def fit_pixel_velocities(ii):
     # Weight matrix (inverse of VCM)
     W = np.linalg.inv(Q)
 
-    # Calculate model variance
-    var = np.linalg.inv(np.dot(np.dot(G.T, W), G))
-    inverr = np.diag(var).copy()
+    # Calculate VCM of inverted model parameters
+    invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
+    # Calculate STD as sqrt of variance
+    inverr = np.sqrt(np.diag(invVCM).copy())
 
-    x = np.matmul(var, np.matmul(G.T, disp))
+    x = np.matmul(invVCM, np.matmul(G.T, disp))
 
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
@@ -671,6 +680,8 @@ def fit_pixel_velocities(ii):
     for dd in daily_rates:
         x[dd] *= 365.25
         inverr[dd] *= 365.25
+
+    print('{}/{}'.format(ii,n_valid))
 
     # # If using long term rate, calculate the 'true' postseismic linear
     # x[4] = x[1] + x[4]
