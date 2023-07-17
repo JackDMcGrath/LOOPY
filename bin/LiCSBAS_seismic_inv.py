@@ -787,7 +787,7 @@ def write_h5(gridResults, data):
     cumh5.create_dataset('cum', data=cum, compression=compress)
     cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
     cumh5.create_dataset('prevel', data=gridResults[1], compression=compress)
-    for nn in n_eq:
+    for nn in range(n_eq):
         cumh5.create_dataset('{} coseisic'.format(eq_dates(nn)), data=gridResults[2 + n_eq * 3], compression=compress)
         cumh5.create_dataset('{} avalue'.format(eq_dates(nn)), data=gridResults[3 + n_eq * 3], compression=compress)
         cumh5.create_dataset('{} postvel'.format(eq_dates(nn)), data=gridResults[4 + n_eq * 3], compression=compress)
