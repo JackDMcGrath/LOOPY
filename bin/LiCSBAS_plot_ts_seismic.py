@@ -402,9 +402,9 @@ if __name__ == "__main__":
         # Create dictionary to store multiple eq datasets
         eqdict = {}
         for eq in eqdates:
-            eqdict.update({'{} coseis'.format(eq): cumh5['{} coseismic'.format(eq)]})
-            eqdict.update({'{} avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
-            eqdict.update({'{} postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
+            eqdict.update({'{}_coseismic'.format(eq): cumh5['{} coseismic'.format(eq)]})
+            eqdict.update({'{}_avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
+            eqdict.update({'{}_postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
 
     try:
         gap = cumh5['gap']
@@ -589,7 +589,7 @@ if __name__ == "__main__":
         velfiles = [vel]
     else:
         velnames = ['vel', 'prevel'] + [*eqdict]
-        velfiles = [vel, prevel] + list(eqdict.values)
+        velfiles = [vel, prevel] + list(eqdict.values())
 
     for ff  in velfiles:
         vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange, vminIn, vmaxIn)
@@ -710,7 +710,7 @@ if __name__ == "__main__":
             # Merge eqdict into mapdict_vel
             mapdict_vel = {**mapdict_vel, **eqdict}
             for eq in eqdates:
-                mapdict_unit.update([('{} coseismic'.format(eq), 'mm'), ('{} avalue'.format(eq), 'mm'), ('{} postvel'.format(eq), 'mm/yr')])
+                mapdict_unit.update([('{}_coseismic'.format(eq), 'mm'), ('{}_avalue'.format(eq), 'mm'), ('{}_postvel'.format(eq), 'mm/yr')])
 
     mapdict_vel.update(mapdict_data)
     mapdict_data = mapdict_vel  ## To move vel to top
