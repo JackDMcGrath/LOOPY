@@ -139,7 +139,7 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
     imdates_years = imdates_ordinal/365.25 ## dont care abs
     xvalues_years = xvalues/365.25
 
-    #models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q']
+    #models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q', 'seismic']
     A = sm.add_constant(imdates_years) #[1, t]
     An = sm.add_constant(xvalues_years) #[1, t]
     if model < 4:
@@ -169,7 +169,6 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
         yvalues = result.predict(An)
 
     else:
-        # TODO: Un-hardcode the earthquake date, work with multiple eqs, get referencing to work
         imdates = imdates_ordinal.copy()
         if imdates[0] != 0:
             xvalues -= imdates[0]
@@ -180,7 +179,6 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
             eq_date = imdates[-1] + 1
 
         n_eq = len(eq_date)
-        print(eq_date)
         # Create G-matrix for inverting the parameters from displacement
         G = create_gmatrix(eq_date, n_eq, imdates)
 
