@@ -597,6 +597,14 @@ def fit_pixel_velocities(ii):
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
 
+    # Calculate error
+    rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
+    print(rms.shape)
+    sigma=np.sqrt(np.diag(invVCM) * rms / n_im)
+    print(sigma, sigma.shape)
+    rms=np.sqrt(rms / np.nansum(Q.flatten()))
+    print(rms, rms.shape)
+
     # if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
     #     plt.scatter(dates, disp, s=2, c='k')
     #     plt.plot(dates, invvel, c='g',label='Before')
