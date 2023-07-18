@@ -930,6 +930,19 @@ def calc_epoch_semivariogram(ii):
 
     return sill
 
+def spherical(d, p, n, r):
+    """
+    Compute spherical variogram model
+    @param d: 1D distance array
+    @param p: partial sill
+    @param n: nugget
+    @param r: range
+    @return: spherical variogram model
+    """
+    if r>d.max():
+        r=d.max()-1
+    return np.where(d > r, p + n, p * (3/2 * d/r - 1/2 * d**3 / r**3) + n)
+
 def main():
     start()
     init_args()
