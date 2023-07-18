@@ -45,6 +45,7 @@ import SCM
 from sklearn.linear_model import RANSACRegressor
 from scipy.interpolate import CubicSpline
 from pyinterpolate import build_experimental_variogram, TheoreticalVariogram, build_theoretical_variogram
+from lmfit.model import *
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -891,6 +892,7 @@ def calc_epoch_semivariogram(ii):
         randperm = np.random.permutation(inc.shape[0])
         inc = inc[randperm[:10000], :]
 
+        #Calc from pyinterpolate
         # Create experimental semivariogram with predefined values
         step_radius = 5000  # Split data into bins of this size (m)
         max_range = 100000  # Maximum range of spatial dependency (m)
@@ -909,6 +911,20 @@ def calc_epoch_semivariogram(ii):
         model_type = fitted['model_type']
 
         print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
+
+        # calc from lmfit
+        mod = Model(spherical)
+
+        dist = np.sqrt((inc[:,0] ** 2) + (inc[:, 1] ** 2))
+        result = mod.fit(inc[:,2], d=dist)
+        print(result)
+
+
+
+
+
+
+
 
         sill = sill * 1e6 # Convert from m to mm
 
