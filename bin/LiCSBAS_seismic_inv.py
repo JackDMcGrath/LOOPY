@@ -842,8 +842,9 @@ def calc_semivariogram():
     pixel_spacing_a = float(io_lib.get_param_par(param13, 'pixel_spacing_a'))
     pixel_spacing_r = float(io_lib.get_param_par(param13, 'pixel_spacing_r'))
 
-    Lat = np.arange(0, length * pixel_spacing_r, pixel_spacing_r)
-    Lon = np.arange(0, length * pixel_spacing_a, pixel_spacing_a)
+    # Rounding as otherwise phantom decimals appearing that makes some Lats too long
+    Lat = np.arange(0, np.round(length * pixel_spacing_r, 5), pixel_spacing_r)
+    Lon = np.arange(0, np.round(width * pixel_spacing_a, 5), pixel_spacing_a)
 
     XX, YY = np.meshgrid(Lon, Lat)
     XX = XX.flatten()
@@ -853,7 +854,7 @@ def calc_semivariogram():
     mask_pix = np.where(mask.flatten() == 0)
 
     print('Calculating semi-variograms of epoch displacements')
-    print('n_im\tsill\trange\tnugget')
+    print('n_im\tsill\trange\tnugget\ttime')
 
     if n_para > 1 and n_valid > 100:
         # pool = multi.Pool(processes=n_para)
@@ -882,20 +883,32 @@ def calc_epoch_semivariogram(ii):
         epoch[abs(epoch) > 55.6] = np.nan
 
         inc = np.array([XX, YY, epoch]).T
-        # Create experimental semivariogram with predefined values
-        step_radius = 1000  # Split data into bins of this size (m)
-        max_range = 100000  # Maximum range of spatial dependency (m)
-        experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
 
+        # Drop all nan data
+        inc = inc[~np.isnan(epoch), :]
+
+        # Randomly select data
+        randperm = np.random.permutation(inc.shape[0])
+        inc = inc[randperm[:10000], :]
+
+        # Create experimental semivariogram with predefined values
+        step_radius = 5000  # Split data into bins of this size (m)
+        max_range = 100000  # Maximum range of spatial dependency (m)
+        start = time.time()
+        experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
         # Automatically find the best semivariogram model from the experimental variogram
         semivariogram_model = TheoreticalVariogram()
         fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
+        if ii == 1:
+            print(fitted)
+            print(type(fitted))
 
         sill = fitted['sill']
-        range = fitted['range']
+        range = fitted['rang']
         nugget = fitted['nugget']
+        model_type = fitted['model_type']
 
-        print('{}\t{:3f}\t{:3f}\t{:3f}'.format(ii, sill, range, nugget))
+        print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
 
         sill = sill * 1e6 # Convert from m to mm
 
