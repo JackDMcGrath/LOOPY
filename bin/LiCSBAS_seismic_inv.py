@@ -917,7 +917,13 @@ def calc_epoch_semivariogram(ii):
             mod = Model(spherical)
             print(mod)
 
+            # Set positions to be centered around the approximate middle
+            inc[:, 0] = inc[:, 0] - np.nanmedian(inc[:, 0])
+            inc[:, 1] = inc[:, 1] - np.nanmedian(inc[:, 1])
             dist = np.sqrt((inc[:,0] ** 2) + (inc[:, 1] ** 2))
+            mod.set_param_hint('p', value=dat[-1])  # guess last dat
+            mod.set_param_hint('n', value=dat[0])  # guess first dat
+            mod.set_param_hint('r', value=dist[len(dist)//2])  # guess mid point distance
             result = mod.fit(inc[:,2], d=dist)
             print(result)
         except:
