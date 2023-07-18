@@ -584,7 +584,7 @@ def fit_pixel_velocities(ii):
         # G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]]
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee] # This means that intercept of the postseismic is the coseismic + avalue?
         daily_rates.append(4 + ee * 3)
-   
+
     # Weight matrix (inverse of VCM)
     W = np.linalg.inv(Q)
 
@@ -853,7 +853,7 @@ def calc_semivariogram():
     mask_pix = np.where(mask.flatten() == 0)
 
     print('Calculating semi-variograms of epoch displacements')
-    print('n_im\tsill\trange\nugget')
+    print('n_im\tsill\trange\tnugget')
 
     if n_para > 1 and n_valid > 100:
         # pool = multi.Pool(processes=n_para)
@@ -865,9 +865,9 @@ def calc_semivariogram():
         sills = np.zeros((n_im, 1))
         for ii in range(1, n_im):
             sills[ii] = calc_epoch_semivariogram(ii)
-    
+
     sills[0] = np.nanmean(sills[1:]) # As first epoch is 0
-    
+
     return sills
 
 def calc_epoch_semivariogram(ii):
@@ -876,17 +876,17 @@ def calc_epoch_semivariogram(ii):
     else:
         # Find semivariogram of incremental displacements
         epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
-        inc = np.array([XX, YY, epoch]).T
         # Nan mask pixels
-        inc[mask_pix] = np.nan
+        epoch[mask_pix] = np.nan
         # Mask out any displacement of > lambda, as coseismic or noise
-        inc[abs(inc) > 55.6] = np.nan
+        epoch[abs(epoch) > 55.6] = np.nan
 
+        inc = np.array([XX, YY, epoch]).T
         # Create experimental semivariogram with predefined values
         step_radius = 1000  # Split data into bins of this size (m)
         max_range = 100000  # Maximum range of spatial dependency (m)
         experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
-        
+
         # Automatically find the best semivariogram model from the experimental variogram
         semivariogram_model = TheoreticalVariogram()
         fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
