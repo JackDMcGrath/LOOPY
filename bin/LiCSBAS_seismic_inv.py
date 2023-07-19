@@ -928,11 +928,11 @@ def calc_epoch_semivariogram(ii):
                 print(type(fitted))
 
             sill = fitted['sill']
-            range = fitted['rang']
+            rang = fitted['rang']
             nugget = fitted['nugget']
             model_type = fitted['model_type']
 
-            print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
+            print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, rang, nugget, time.time()-start, model_type))
 
         # calc from lmfit
         mod = Model(spherical)
@@ -941,12 +941,16 @@ def calc_epoch_semivariogram(ii):
         bincenters = np.array([])
         stds = np.array([])
 
-        for ix,ii in enumerate(randperm):
+        bigstart = time.time()
+        for ix,ii in enumerate(range(n_pix)):
             inc[:, 0] -= inc[ii, 0]
             inc[:, 1] -= inc[ii, 1]
+            dists = np.sqrt(inc[:, 0] ** 2 + inc[:, 1] ** 2)
+            vals = inc[:, 2] - inc[ii, 2]
 
-            median_array, binedges = stats.binned_statistic(inc[:,0], inc[:,1], 'median', bins=50)[:-1]
-            std_array = stats.binned_statistic(inc[:,0], inc[:,1], 'std', bins=50)[0]
+
+            median_array, binedges = stats.binned_statistic(dists, vals, 'median', bins=50)[:-1]
+            std_array = stats.binned_statistic(dists, vals, 'std', bins=50)[0]
             bincenter_array = (binedges[0:-1] + binedges[1:]) / 2
 
             medians = np.concatenate([medians, median_array])
@@ -957,10 +961,10 @@ def calc_epoch_semivariogram(ii):
                 mod.set_param_hint('p', value=median_array[-1])  # guess last dat
                 mod.set_param_hint('n', value=median_array[0])  # guess first dat
                 mod.set_param_hint('r', value=bincenter_array[len(bincenter_array)//2])  # guess mid point distance
-                sigma = stds + np.power(bincenter_array / max(bincenter_array), 2)
+                sigma = std_array + np.power(bincenter_array / max(bincenter_array), 2)
                 start=time.time()
                 result = mod.fit(median_array, d=bincenter_array, weights=sigma)
-                print('1 pix in {} seconds'.format(time.time()-start))
+                print('1 pix in {:.3f} seconds'.format(time.time()-start))
 
         mod.set_param_hint('p', value=medians[-1])  # guess last dat
         mod.set_param_hint('n', value=medians[0])  # guess first dat
@@ -968,14 +972,14 @@ def calc_epoch_semivariogram(ii):
         sigma = stds + np.power(bincenters / max(bincenters), 2)
         start=time.time()
         result = mod.fit(medians, d=bincenters, weights=sigma)
-        print('{} pix in {} seconds'.format(n_pix, time.time()-start))
+        print('{} pix in {:.3f} seconds (total {:.3f} seconds)'.format(n_pix, time.time()-start), time.time()-bigstart)
 
         sill = result.best_values['p'] + result.best_values['n']
-        range = result.best_values['r']
+        rang = result.best_values['r']
         nugget = result.best_values['n']
         if ii == 1:
             print(sill)
-            print(range)
+            print(rang)
             print(nugget)
 
     return sill
