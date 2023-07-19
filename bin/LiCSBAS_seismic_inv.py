@@ -908,7 +908,11 @@ def calc_epoch_semivariogram(ii):
         n_pix = 10000
         if n_pix < inc.shape[0]:
             randperm = np.random.permutation(inc.shape[0])
-            inc = inc[randperm[:n_pix], :]
+        else:
+            n_pix = inc.shape[0]
+            randperm = np.arange(n_pix)   
+ 
+        inc = inc[randperm[:n_pix], :]
 
         #Calc from pyinterpolate
         # Create experimental semivariogram with predefined values
@@ -933,26 +937,43 @@ def calc_epoch_semivariogram(ii):
         # calc from lmfit
         mod = Model(spherical)
         print(mod)
+        medians = np.array([])
+        bincenters = np.array([])
+        stds = np.array([])
 
-        median_array, binedges = stats.binned_statistic(inc[:,0], inc[:,1], 'median', bins=50)[:-1]
-        std_array = stats.binned_statistic(inc[:,0], inc[:,1], 'std', bins=50)[0]
-        bincenter_array = (binedges[0:-1] + binedges[1:]) / 2
+        for ix,ii in enumerate(randperm):
+            inc[:, 0] -= inc[ii, 0]
+            inc[:, 1] -= inc[ii, 1]
 
-        mod.set_param_hint('p', value=median_array[-1])  # guess last dat
-        mod.set_param_hint('n', value=median_array[0])  # guess first dat
-        mod.set_param_hint('r', value=bincenter_array[len(bincenter_array)//2])  # guess mid point distance
+            median_array, binedges = stats.binned_statistic(inc[:,0], inc[:,1], 'median', bins=50)[:-1]
+            std_array = stats.binned_statistic(inc[:,0], inc[:,1], 'std', bins=50)[0]
+            bincenter_array = (binedges[0:-1] + binedges[1:]) / 2
 
-        sigma = std_array + np.power(bincenter_array / max(bincenter_array), 2)
-        result = mod.fit(median_array, d=bincenter_array, weights=sigma)
+            medians = np.concatenate([medians, median_array])
+            bincenters = np.concatenate([bincenters, bincenter_array])
+            stds = np.concatenate([stds, std_array])
+
+            if ix == 1:
+                mod.set_param_hint('p', value=median_array[-1])  # guess last dat
+                mod.set_param_hint('n', value=median_array[0])  # guess first dat
+                mod.set_param_hint('r', value=bincenter_array[len(bincenter_array)//2])  # guess mid point distance
+                sigma = stds + np.power(bincenter_array / max(bincenter_array), 2)
+                start=time.time()
+                result = mod.fit(median_array, d=bincenter_array, weights=sigma)
+                print('1 pix in {} seconds'.format(time.time()-start))
+
+        mod.set_param_hint('p', value=medians[-1])  # guess last dat
+        mod.set_param_hint('n', value=medians[0])  # guess first dat
+        mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
+        sigma = stds + np.power(bincenters / max(bincenters), 2)
+        start=time.time()
+        result = mod.fit(medians, d=bincenters, weights=sigma)
+        print('{} pix in {} seconds'.format(n_pix, time.time()-start))
 
         sill = result.best_values['p'] + result.best_values['n']
         range = result.best_values['r']
         nugget = result.best_values['n']
         if ii == 1:
-            print('Med', median_array, type(median_array))
-            print('BinEdge', binedges, type(binedges))
-            print('BinCenter', bincenter_array, type(bincenter_array))
-            print('sigma', sigma, type(sigma))
             print(sill)
             print(range)
             print(nugget)
