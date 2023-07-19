@@ -46,6 +46,7 @@ from sklearn.linear_model import RANSACRegressor
 from scipy.interpolate import CubicSpline
 from pyinterpolate import build_experimental_variogram, TheoreticalVariogram, build_theoretical_variogram
 from lmfit.model import *
+from scipy import stats
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -911,8 +912,6 @@ def calc_epoch_semivariogram(ii):
 
         #Calc from pyinterpolate
         # Create experimental semivariogram with predefined values
-        step_radius = 5000  # Split data into bins of this size (m)
-        max_range = 100000  # Maximum range of spatial dependency (m)
         start = time.time()
         experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
         # Automatically find the best semivariogram model from the experimental variogram
@@ -930,32 +929,30 @@ def calc_epoch_semivariogram(ii):
         print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
 
         # calc from lmfit
-        try:
-            mod = Model(spherical)
-            print(mod)
+        mod = Model(spherical)
+        print(mod)
 
-            # Set positions to be centered around the approximate middle
-            inc[:, 0] = inc[:, 0] - np.nanmedian(inc[:, 0])
-            inc[:, 1] = inc[:, 1] - np.nanmedian(inc[:, 1])
-            dist = np.sqrt((inc[:,0] ** 2) + (inc[:, 1] ** 2))
-            mod.set_param_hint('p', value=inc[-1,2])  # guess last dat
-            mod.set_param_hint('n', value=inc[0,2])  # guess first dat
-            mod.set_param_hint('r', value=dist[len(dist)//2])  # guess mid point distance
-            sigma = abs(dist)/np.max(abs(dist))
-            result = mod.fit(inc[:,2], d=dist, weights=sigma) # 
-            sill = result.best_values['p']
-            range = result.best_values['r']
-            nugget = result.best_values['n']
-        except:
-            print('{} No'.format(ii))
-            sill = 0
+        median_array, binedges = stats.binned_statistic(inc[:,0], inc[:,1], 'median', bins=50)[:-1]
+        std_array = stats.binned_statistic(inc[:,0], inc[:,1], 'std', bins=100)[0]
+        bincenter_array = (binedges[0:-1] + binedges[1:]) / 2
 
+        mod.set_param_hint('p', value=median_array[-1])  # guess last dat
+        mod.set_param_hint('n', value=median_array[0])  # guess first dat
+        mod.set_param_hint('r', value=bincenter_array[len(bincenter_array)//2])  # guess mid point distance
 
+        dist = np.sqrt((inc[:,0] ** 2) + (inc[:, 1] ** 2))
+        sigma = std_array + np.power(bincenter_array / max(bincenter_array), 2)
+        result = mod.fit(inc[:,2], d=dist, weights=sigma)
 
+        sill = result.best_values['p'] + result.best_values['n']
+        range = result.best_values['r']
+        nugget = result.best_values['n']
 
-
-
-        sill = sill * 1e6 # Convert from m to mm
+        print(bincenter_array)
+        print(sigma)
+        print(sill)
+        print(range)
+        print(nugget)
 
     return sill
 
