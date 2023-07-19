@@ -871,6 +871,8 @@ def calc_semivariogram():
     else:
         sills = np.zeros((n_im, 1))
         for ii in range(1, n_im):
+            print('XX shape before calculating semivariogram', XX.shape)
+            print(globals())
             sills[ii] = calc_epoch_semivariogram(ii)
 
     sills[0] = np.nanmean(sills[1:]) # As first epoch is 0
