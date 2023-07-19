@@ -871,8 +871,6 @@ def calc_semivariogram():
     else:
         sills = np.zeros((n_im, 1))
         for ii in range(1, n_im):
-            print('XX shape before calculating semivariogram', XX.shape)
-            print(globals())
             sills[ii] = calc_epoch_semivariogram(ii)
 
     sills[0] = np.nanmean(sills[1:]) # As first epoch is 0
@@ -922,7 +920,7 @@ def calc_epoch_semivariogram(ii):
 
         #Calc from pyinterpolate
         # Create experimental semivariogram with predefined values
-        do_slowly = True
+        do_slowly = False
         if do_slowly:
             start = time.time()
             experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
@@ -942,7 +940,6 @@ def calc_epoch_semivariogram(ii):
 
         # calc from lmfit
         mod = Model(spherical)
-        print(mod)
         medians = np.array([])
         bincenters = np.array([])
         stds = np.array([])
@@ -964,10 +961,10 @@ def calc_epoch_semivariogram(ii):
             np.delete(pix_2, duplicate)
             
         # Trim to n_pix
-        pix_1 = pix_1[:n_pix]
-        pix_2 = pix_2[:n_pix]
+        pix_1 = pix_1[:n_pix].astype(np.int16)
+        pix_2 = pix_2[:n_pix].astype(np.int16)
 
-        dist = np.sqrt((XX[pix_1] - XX[pix_2]) ** 2 + (YY[pix_1] - YY[pix_2]) ** 2)
+        dists = np.sqrt((XX[pix_1] - XX[pix_2]) ** 2 + (YY[pix_1] - YY[pix_2]) ** 2)
         vals = (epoch[pix_1] - epoch[pix_2]) ** 2
 
         medians, binedges = stats.binned_statistic(dists, vals, 'median', bins=100)[:-1]
