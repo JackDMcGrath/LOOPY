@@ -912,47 +912,50 @@ def calc_epoch_semivariogram(ii):
 
         #Calc from pyinterpolate
         # Create experimental semivariogram with predefined values
-        start = time.time()
-        experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
-        # Automatically find the best semivariogram model from the experimental variogram
-        semivariogram_model = TheoreticalVariogram()
-        fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
-        if ii == 1:
-            print(fitted)
-            print(type(fitted))
-        
-        sill = fitted['sill']
-        range = fitted['rang']
-        nugget = fitted['nugget']
-        model_type = fitted['model_type']
-        
-        print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
+        do_slowly = True
+        if do_slowly:
+            start = time.time()
+            experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
+            # Automatically find the best semivariogram model from the experimental variogram
+            semivariogram_model = TheoreticalVariogram()
+            fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
+            if ii == 1:
+                print(fitted)
+                print(type(fitted))
+
+            sill = fitted['sill']
+            range = fitted['rang']
+            nugget = fitted['nugget']
+            model_type = fitted['model_type']
+
+            print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
 
         # calc from lmfit
         mod = Model(spherical)
         print(mod)
 
         median_array, binedges = stats.binned_statistic(inc[:,0], inc[:,1], 'median', bins=50)[:-1]
-        std_array = stats.binned_statistic(inc[:,0], inc[:,1], 'std', bins=100)[0]
+        std_array = stats.binned_statistic(inc[:,0], inc[:,1], 'std', bins=50)[0]
         bincenter_array = (binedges[0:-1] + binedges[1:]) / 2
 
         mod.set_param_hint('p', value=median_array[-1])  # guess last dat
         mod.set_param_hint('n', value=median_array[0])  # guess first dat
         mod.set_param_hint('r', value=bincenter_array[len(bincenter_array)//2])  # guess mid point distance
 
-        dist = np.sqrt((inc[:,0] ** 2) + (inc[:, 1] ** 2))
         sigma = std_array + np.power(bincenter_array / max(bincenter_array), 2)
-        result = mod.fit(inc[:,2], d=dist, weights=sigma)
+        result = mod.fit(median_array, d=bincenter_array, weights=sigma)
 
         sill = result.best_values['p'] + result.best_values['n']
         range = result.best_values['r']
         nugget = result.best_values['n']
-
-        print(bincenter_array)
-        print(sigma)
-        print(sill)
-        print(range)
-        print(nugget)
+        if ii == 1:
+            print(median_array)
+            print(binedges)
+            print(bincenter_array)
+            print(sigma)
+            print(sill)
+            print(range)
+            print(nugget)
 
     return sill
 
