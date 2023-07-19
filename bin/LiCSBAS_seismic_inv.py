@@ -847,6 +847,10 @@ def calc_semivariogram():
     Lat = np.arange(0, np.round(length * pixel_spacing_r, 5), pixel_spacing_r)
     Lon = np.arange(0, np.round(width * pixel_spacing_a, 5), pixel_spacing_a)
 
+    # Center on reference point
+    Lat -= (refy1 * pixel_spacing_r)
+    Lon -= (refx1 * pixel_spacing_a)
+
     XX, YY = np.meshgrid(Lon, Lat)
     XX = XX.flatten()
     YY = YY.flatten()
@@ -883,59 +887,69 @@ def calc_epoch_semivariogram(ii):
         # Mask out any displacement of > lambda, as coseismic or noise
         epoch[abs(epoch) > 55.6] = np.nan
 
+        # Reference to it's own median
+        epoch -= np.nanmedian(epoch)
+
         inc = np.array([XX, YY, epoch]).T
 
         # Drop all nan data
         inc = inc[~np.isnan(epoch), :]
+        dist = np.sqrt(inc[:, 0] ** 2 + inc[:, 1] ** 2)
+
+        # Define lag bin distance and max search range
+        step_radius = 2000  # Split data into bins of this size (m)
+        max_range = 75000  # Maximum range of spatial dependency (m)
+
+        # Drop data > max_range from the reference
+        inc = inc[dist <= max_range, :]
 
         # Randomly select data
-        randperm = np.random.permutation(inc.shape[0])
-        inc = inc[randperm[:10000], :]
+        n_pix = 10000
+        if n_pix < inc.shape[0]:
+            randperm = np.random.permutation(inc.shape[0])
+            inc = inc[randperm[:n_pix], :]
 
         #Calc from pyinterpolate
         # Create experimental semivariogram with predefined values
-        step_radius = 5000  # Split data into bins of this size (m)
-        max_range = 100000  # Maximum range of spatial dependency (m)
-        # start = time.time()
-        # experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
-        # # Automatically find the best semivariogram model from the experimental variogram
-        # semivariogram_model = TheoreticalVariogram()
-        # fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
-        # if ii == 1:
-        #     print(fitted)
-        #     print(type(fitted))
+
+        start = time.time()
+        experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
+        # Automatically find the best semivariogram model from the experimental variogram
+        semivariogram_model = TheoreticalVariogram()
+        fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
+        if ii == 1:
+            print(fitted)
+
+        sill = fitted['sill']
+        range = fitted['rang']
+        nugget = fitted['nugget']
+        model_type = fitted['model_type']
+
+        print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
+
+        # # calc from lmfit
+        # try:
+        #     start=time.time()
+        #     mod = Model(spherical)
         #
-        # sill = fitted['sill']
-        # range = fitted['rang']
-        # nugget = fitted['nugget']
-        # model_type = fitted['model_type']
+        #     fits = fitted['fitted_model']
+        #     x = fits[1]
+        #     dist = fits[0]
         #
-        # print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
-
-        # calc from lmfit
-        try:
-            mod = Model(spherical)
-            print(mod)
-
-            # Set positions to be centered around the approximate middle
-            inc[:, 0] = inc[:, 0] - np.nanmedian(inc[:, 0])
-            inc[:, 1] = inc[:, 1] - np.nanmedian(inc[:, 1])
-            dist = np.sqrt((inc[:,0] ** 2) + (inc[:, 1] ** 2))
-            mod.set_param_hint('p', value=dat[-1])  # guess last dat
-            mod.set_param_hint('n', value=dat[0])  # guess first dat
-            mod.set_param_hint('r', value=dist[len(dist)//2])  # guess mid point distance
-            result = mod.fit(inc[:,2], d=dist)
-            print(result)
-        except:
-            print('{} No'.format(ii))
-            sill = 0
-
-
-
-
-
-
-        sill = sill * 1e6 # Convert from m to mm
+        #     result = mod.fit(x, d=dist)
+        #     sill = result.best_values['p']
+        #     range = result.best_values['r']
+        #     nugget = result.best_values['n']
+        #     print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, 'spherical'))
+        # except:
+        #     print('{} No'.format(ii))
+        #     fits = fitted['fitted_model']
+        #     x = fits[1]
+        #     dist = fits[0]
+        #     result = mod.fit(x, d=dist)
+        #     print(result.best_values)
+        #
+        #     sill = 0
 
     return sill
 
