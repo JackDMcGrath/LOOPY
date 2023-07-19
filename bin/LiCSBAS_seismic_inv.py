@@ -856,7 +856,6 @@ def calc_semivariogram():
     mask_pix = np.where(mask.flatten() == 0)
 
     print('Calculating semi-variograms of epoch displacements')
-    print('n_im\tsill\trange\tnugget\ttime')
 
     if n_para > 1 and n_valid > 100:
         # pool = multi.Pool(processes=n_para)
@@ -877,6 +876,8 @@ def calc_epoch_semivariogram(ii):
     if ii == 0:
         sill = 0 # Reference image
     else:
+        begin_semi = time.time()
+
         # Find semivariogram of incremental displacements
         epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
         # Nan mask pixels
@@ -900,13 +901,15 @@ def calc_epoch_semivariogram(ii):
 
         # Find random pairings of pixels to check
         # Number of random checks
-        n_pix = int(10e6)
+        n_pix = int(1e6)
 
         pix_1 = np.array([])
         pix_2 = np.array([])
 
-        # Going to look at n_pix pairs
-        while pix_1.shape[0] < n_pix:
+        # Going to look at n_pix pairs. Only iterate 5 times. Life is short
+        its = 0
+        while pix_1.shape[0] < n_pix and its < 5:
+            its += 1
             # Create n_pix random selection of data points (Random selection with replacement)
             # Work out too many in case we need to remove duplicates
             pix_1 = np.concatenate([pix_1, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
@@ -922,6 +925,10 @@ def calc_epoch_semivariogram(ii):
             pix_1 = unique_pix[:, 0]
             pix_2 = unique_pix[:, 1]
 
+        # In case of early ending
+        if n_pix > len(pix_1):
+            n_pix = len(pix_1)
+
         # Trim to n_pix, and create integer array
         pix_1 = pix_1[:n_pix].astype('int')
         pix_2 = pix_2[:n_pix].astype('int')
@@ -935,14 +942,33 @@ def calc_epoch_semivariogram(ii):
         stds = stats.binned_statistic(dists, vals, 'std', bins=100)[0]
         bincenters = (binedges[0:-1] + binedges[1:]) / 2
 
-        mod.set_param_hint('p', value=np.nanmax(medians))  # guess maximum variance
-        mod.set_param_hint('n', value=0)  # guess 0
-        mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
-        sigma = stds + np.power(bincenters / max(bincenters), 2)
-        result = mod.fit(medians, d=bincenters, weights=sigma)
+        try:
+            mod.set_param_hint('p', value=np.nanmax(medians))  # guess maximum variance
+            mod.set_param_hint('n', value=0)  # guess 0
+            mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
+            sigma = stds + np.power(bincenters / max(bincenters), 2)
+            result = mod.fit(medians, d=bincenters, weights=sigma)
+        except:
+            # Try smaller ranges
+            length = len(bincenters)
+            try:
+                bincenters = bincenters[:int(length * 3 / 4)]
+                stds = stds[:int(length * 3 / 4)]
+                medians = medians[:int(length * 3 / 4)]
+                sigma = stds + np.power(bincenters / max(bincenters), 3)
+                result = mod.fit(medians, d=bincenters, weights=sigma)
+            except:
+                bincenters = bincenters[:int(length / 2)]
+                stds = stds[:int(length / 2)]
+                medians = medians[:int(length / 2)]
+                sigma = stds + np.power(bincenters / max(bincenters), 3)
+                result = mod.fit(medians, d=bincenters, weights=sigma)
 
         # Sill is partial sill + nugget
         sill = result.best_values['p'] + result.best_values['n']
+
+        if np.mod(ii + 1, 10) == 0:
+            print('\t{}/{}\tSill: {:.2f} ({:.2e} pairs processed in {:.1f} seconds)'.format(ii + 1, n_im, sill, n_pix, time.time() - begin_semi))
 
     return sill
 
