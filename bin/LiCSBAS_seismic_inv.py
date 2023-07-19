@@ -896,21 +896,21 @@ def calc_epoch_semivariogram(ii):
         # Create experimental semivariogram with predefined values
         step_radius = 5000  # Split data into bins of this size (m)
         max_range = 100000  # Maximum range of spatial dependency (m)
-        # start = time.time()
-        # experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
-        # # Automatically find the best semivariogram model from the experimental variogram
-        # semivariogram_model = TheoreticalVariogram()
-        # fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
-        # if ii == 1:
-        #     print(fitted)
-        #     print(type(fitted))
-        #
-        # sill = fitted['sill']
-        # range = fitted['rang']
-        # nugget = fitted['nugget']
-        # model_type = fitted['model_type']
-        #
-        # print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
+        start = time.time()
+        experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
+        # Automatically find the best semivariogram model from the experimental variogram
+        semivariogram_model = TheoreticalVariogram()
+        fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
+        if ii == 1:
+            print(fitted)
+            print(type(fitted))
+        
+        sill = fitted['sill']
+        range = fitted['rang']
+        nugget = fitted['nugget']
+        model_type = fitted['model_type']
+        
+        print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, range, nugget, time.time()-start, model_type))
 
         # calc from lmfit
         try:
@@ -921,11 +921,14 @@ def calc_epoch_semivariogram(ii):
             inc[:, 0] = inc[:, 0] - np.nanmedian(inc[:, 0])
             inc[:, 1] = inc[:, 1] - np.nanmedian(inc[:, 1])
             dist = np.sqrt((inc[:,0] ** 2) + (inc[:, 1] ** 2))
-            mod.set_param_hint('p', value=dat[-1])  # guess last dat
-            mod.set_param_hint('n', value=dat[0])  # guess first dat
+            mod.set_param_hint('p', value=inc[-1,2])  # guess last dat
+            mod.set_param_hint('n', value=inc[0,2])  # guess first dat
             mod.set_param_hint('r', value=dist[len(dist)//2])  # guess mid point distance
-            result = mod.fit(inc[:,2], d=dist)
-            print(result)
+            sigma = abs(dist)/np.max(abs(dist))
+            result = mod.fit(inc[:,2], d=dist, weights=sigma) # 
+            sill = result.best_values['p']
+            range = result.best_values['r']
+            nugget = result.best_values['n']
         except:
             print('{} No'.format(ii))
             sill = 0
