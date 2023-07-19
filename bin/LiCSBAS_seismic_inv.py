@@ -891,12 +891,10 @@ def calc_epoch_semivariogram(ii):
         # Reference to it's own median
         epoch -= np.nanmedian(epoch)
 
-        # Drop all nan data
-        XX = XX[~np.isnan(epoch)]
-        YY = YY[~np.isnan(epoch)]
-        epoch = YY[~np.isnan(epoch)]
-        
         inc = np.array([XX, YY, epoch]).T
+
+        # Drop all nan data
+        inc = inc[~np.isnan(epoch), :]
         dist = np.sqrt(inc[:, 0] ** 2 + inc[:, 1] ** 2)
 
         # Define lag bin distance and max search range
@@ -951,10 +949,10 @@ def calc_epoch_semivariogram(ii):
         range = result.best_values['r']
         nugget = result.best_values['n']
         if ii == 1:
-            print('Med', median_array, type(median_array))
-            print('BinEdge', binedges, type(binedges))
-            print('BinCenter', bincenter_array, type(bincenter_array))
-            print('sigma', sigma, type(sigma))
+            print(median_array)
+            print(binedges)
+            print(bincenter_array)
+            print(sigma)
             print(sill)
             print(range)
             print(nugget)
