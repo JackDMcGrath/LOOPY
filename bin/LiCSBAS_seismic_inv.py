@@ -541,11 +541,13 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
 def fit_velocities():
     global pcst, results, n_para, Q
 
-    use_weights = True
+    use_weights = False
+    # Create VCM of observables (no c)
     Q = np.eye(n_im)
     if use_weights:
         sills = calc_semivariogram()
-        np.fill_diagonal(Q, sills)
+        np.fill_diagonal(Q, 1 / sills)
+        print(Q)
 
     # Define post-seismic constant
     pcst = 1 / args.tau
@@ -553,23 +555,26 @@ def fit_velocities():
         # pool = multi.Pool(processes=n_para)
         # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
         p = q.Pool(n_para)
-        results = np.array(p.map(fit_pixel_velocities, range(10)), dtype="object")
+        results = np.array(p.map(fit_pixel_velocities, range(201)), dtype="object")
         p.close()
         print(results.shape)
-        print(results)
+        # print(results)
         print("")
-        print(results[:,0])
+        # print(results[:,0])
         print("")
-        print(results[:,1])
+        # print(results[:,1])
         print("")
-        print(results[0,:].shape)
-        print(results[1,:].shape)
+        print(results[:,0].shape)
+        print(results[:,1].shape)
+        print(results[[0,100,200],:])
     else:
         results = np.zeros((n_valid, 3 + n_eq * 3))
         for ii in range(n_valid):
             results[ii, :] = fit_pixel_velocities(ii)
 
 def fit_pixel_velocities(ii):
+
+    if np.mod(ii, 100) == 0: print('{}/{}'.format(ii,n_valid))
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
     # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
@@ -602,11 +607,12 @@ def fit_pixel_velocities(ii):
 
     # Calculate error
     rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
-    print(rms.shape)
+    if np.mod(ii, 100) == 0: print('\tRMS', rms)
     sigma=np.sqrt(np.diag(invVCM) * rms / n_im)
-    print(sigma, sigma.shape)
+    if np.mod(ii, 100) == 0: print('\tSigma (day?)', sigma)
+    if np.mod(ii, 100) == 0: print('\tSigma (yrs?)', sigma * np.array([1,365.25,1,1,365.25]))
     rms=np.sqrt(rms / np.nansum(Q.flatten()))
-    print(rms, rms.shape)
+    if np.mod(ii, 100) == 0: print('\tRMS', rms)
 
     # if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
     #     plt.scatter(dates, disp, s=2, c='k')
@@ -695,8 +701,6 @@ def fit_pixel_velocities(ii):
     for dd in daily_rates:
         x[dd] *= 365.25
         inverr[dd] *= 365.25
-
-    print('{}/{}'.format(ii,n_valid))
 
     # # If using long term rate, calculate the 'true' postseismic linear
     # x[4] = x[1] + x[4]
@@ -964,8 +968,8 @@ def calc_epoch_semivariogram(ii):
                 sigma = stds + np.power(bincenters / max(bincenters), 3)
                 result = mod.fit(medians, d=bincenters, weights=sigma)
 
-        # Sill is partial sill + nugget
-        sill = result.best_values['p'] + result.best_values['n']
+        # Print Sill (ie variance)
+        sill = result.best_values['p']
 
         if np.mod(ii + 1, 10) == 0:
             print('\t{}/{}\tSill: {:.2f} ({:.2e} pairs processed in {:.1f} seconds)'.format(ii + 1, n_im, sill, n_pix, time.time() - begin_semi))
