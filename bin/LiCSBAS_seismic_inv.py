@@ -848,10 +848,6 @@ def calc_semivariogram():
     Lat = np.arange(0, np.round(length * pixel_spacing_r, 5), pixel_spacing_r)
     Lon = np.arange(0, np.round(width * pixel_spacing_a, 5), pixel_spacing_a)
 
-    # Center on reference point
-    Lat -= (refy1 * pixel_spacing_r)
-    Lon -= (refx1 * pixel_spacing_a)
-
     XX, YY = np.meshgrid(Lon, Lat)
     XX = XX.flatten()
     YY = YY.flatten()
@@ -895,48 +891,6 @@ def calc_epoch_semivariogram(ii):
         xdist = XX[~np.isnan(epoch)]
         ydist = YY[~np.isnan(epoch)]
         epoch = epoch[~np.isnan(epoch)]
-        inc = np.array([xdist, ydist, epoch]).T
-
-        # Drop all nan data
-        # inc = inc[~np.isnan(epoch), :]
-        dist = np.sqrt(inc[:, 0] ** 2 + inc[:, 1] ** 2)
-
-        # Define lag bin distance and max search range
-        step_radius = 2000  # Split data into bins of this size (m)
-        max_range = 75000  # Maximum range of spatial dependency (m)
-
-        # Drop data > max_range from the reference
-        inc = inc[dist <= max_range, :]
-
-        # Randomly select data
-        n_pix = 10000
-        if n_pix < inc.shape[0]:
-            randperm = np.random.permutation(inc.shape[0])
-        else:
-            n_pix = inc.shape[0]
-            randperm = np.arange(n_pix)   
- 
-        inc = inc[randperm[:n_pix], :]
-
-        #Calc from pyinterpolate
-        # Create experimental semivariogram with predefined values
-        do_slowly = False
-        if do_slowly:
-            start = time.time()
-            experimental_variogram = build_experimental_variogram(input_array=inc, step_size=step_radius, max_range=max_range)
-            # Automatically find the best semivariogram model from the experimental variogram
-            semivariogram_model = TheoreticalVariogram()
-            fitted = semivariogram_model.autofit(experimental_variogram=experimental_variogram)
-            if ii == 1:
-                print(fitted)
-                print(type(fitted))
-
-            sill = fitted['sill']
-            rang = fitted['rang']
-            nugget = fitted['nugget']
-            model_type = fitted['model_type']
-
-            print('{}\t{:.1f}\t{:.0f}\t{:.3f}\t{:.1f} secs\t{}'.format(ii, sill, rang, nugget, time.time()-start, model_type))
 
         # calc from lmfit
         mod = Model(spherical)
@@ -944,84 +898,51 @@ def calc_epoch_semivariogram(ii):
         bincenters = np.array([])
         stds = np.array([])
 
-        bigstart = time.time()
+        # Find random pairings of pixels to check
+        # Number of random checks
+        n_pix = int(10e6)
 
-        pix_1, pix_2 = np.array([]), np.array([])
+        pix_1 = np.array([])
+        pix_2 = np.array([])
 
         # Going to look at n_pix pairs
-
         while pix_1.shape[0] < n_pix:
             # Create n_pix random selection of data points (Random selection with replacement)
+            # Work out too many in case we need to remove duplicates
             pix_1 = np.concatenate([pix_1, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
             pix_2 = np.concatenate([pix_2, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
 
-            # Find duplicate pairs and remove
+            # Find where the same pixel is selected twice
             duplicate = np.where(pix_1 == pix_2)[0]
             np.delete(pix_1, duplicate)
             np.delete(pix_2, duplicate)
-            
-        # Trim to n_pix
-        pix_1 = pix_1[:n_pix].astype(np.int16)
-        pix_2 = pix_2[:n_pix].astype(np.int16)
 
-        dists = np.sqrt((XX[pix_1] - XX[pix_2]) ** 2 + (YY[pix_1] - YY[pix_2]) ** 2)
-        vals = (epoch[pix_1] - epoch[pix_2]) ** 2
+            # Drop duplicate pairings
+            unique_pix = np.unique(np.vstack([pix_1, pix_2]).T, axis=0)
+            pix_1 = unique_pix[:, 0]
+            pix_2 = unique_pix[:, 1]
+
+        # Trim to n_pix, and create integer array
+        pix_1 = pix_1[:n_pix].astype('int')
+        pix_2 = pix_2[:n_pix].astype('int')
+
+        # Calculate distances between random points
+        dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
+        # Calculate squared difference between random points
+        vals = abs((epoch[pix_1] - epoch[pix_2])) ** 2
 
         medians, binedges = stats.binned_statistic(dists, vals, 'median', bins=100)[:-1]
         stds = stats.binned_statistic(dists, vals, 'std', bins=100)[0]
         bincenters = (binedges[0:-1] + binedges[1:]) / 2
 
-        mod.set_param_hint('p', value=np.nanmax(medians))  # guess last dat
-        mod.set_param_hint('n', value=np.nanmin(medians))  # guess first dat
+        mod.set_param_hint('p', value=np.nanmax(medians))  # guess maximum variance
+        mod.set_param_hint('n', value=0)  # guess 0
         mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
         sigma = stds + np.power(bincenters / max(bincenters), 2)
-        start=time.time()
         result = mod.fit(medians, d=bincenters, weights=sigma)
-        print('{} pix in {:.3f} seconds (total {:.3f} seconds)'.format(n_pix, time.time()-start, time.time()-bigstart))
-        print(result.best_values)
 
-        plt.scatter(dists, vals, label='Input')
-        plt.scatter(bincenters, medians, label='Binned')
-        plt.legend()
-        plt.savefig(os.path.join(outdir, 'semivariogram{}.png'.format(ii)))
-        plt.close()
-
-        for ix, pix in enumerate(range(n_pix)):
-            inc[:, 0] -= inc[pix, 0]
-            inc[:, 1] -= inc[pix, 1]
-            dists = np.sqrt(inc[:, 0] ** 2 + inc[:, 1] ** 2)
-            vals = (inc[:, 2] - inc[pix, 2])
-
-
-            median_array, binedges = stats.binned_statistic(dists, vals, 'median', bins=50)[:-1]
-            std_array = stats.binned_statistic(dists, vals, 'std', bins=50)[0]
-            bincenter_array = (binedges[0:-1] + binedges[1:]) / 2
-
-            medians = np.concatenate([medians, median_array])
-            bincenters = np.concatenate([bincenters, bincenter_array])
-            stds = np.concatenate([stds, std_array])
-
-            if ix == 1:
-                mod.set_param_hint('p', value=median_array[-1])  # guess last dat
-                mod.set_param_hint('n', value=median_array[0])  # guess first dat
-                mod.set_param_hint('r', value=bincenter_array[len(bincenter_array)//2])  # guess mid point distance
-                sigma = std_array + np.power(bincenter_array / max(bincenter_array), 2)
-                start=time.time()
-                result = mod.fit(median_array, d=bincenter_array, weights=sigma)
-                print('1 pix in {:.3f} seconds'.format(time.time()-start))
-
-        mod.set_param_hint('p', value=medians[-1])  # guess last dat
-        mod.set_param_hint('n', value=medians[0])  # guess first dat
-        mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
-        sigma = stds + np.power(bincenters / max(bincenters), 2)
-        start=time.time()
-        result = mod.fit(medians, d=bincenters, weights=sigma)
-        print('{} pix in {:.3f} seconds (total {:.3f} seconds)'.format(n_pix, time.time()-start, time.time()-bigstart))
-
+        # Sill is partial sill + nugget
         sill = result.best_values['p'] + result.best_values['n']
-        rang = result.best_values['r']
-        nugget = result.best_values['n']
-        print(result.best_values)
 
     return sill
 
