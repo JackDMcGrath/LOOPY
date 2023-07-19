@@ -892,10 +892,10 @@ def calc_epoch_semivariogram(ii):
         epoch -= np.nanmedian(epoch)
 
         # Drop all nan data
-        XX = XX[~np.isnan(epoch)]
-        YY = YY[~np.isnan(epoch)]
+        xdist = XX[~np.isnan(epoch)]
+        ydist = YY[~np.isnan(epoch)]
         epoch = epoch[~np.isnan(epoch)]
-        inc = np.array([XX, YY, epoch]).T
+        inc = np.array([xdist, ydist, epoch]).T
 
         # Drop all nan data
         # inc = inc[~np.isnan(epoch), :]
@@ -987,16 +987,11 @@ def calc_epoch_semivariogram(ii):
         plt.savefig(os.path.join(outdir, 'semivariogram{}.png'.format(ii)))
         plt.close()
 
-
-
-
-
-
         for ix, pix in enumerate(range(n_pix)):
-            inc[:, 0] -= inc[ii, 0]
-            inc[:, 1] -= inc[ii, 1]
+            inc[:, 0] -= inc[pix, 0]
+            inc[:, 1] -= inc[pix, 1]
             dists = np.sqrt(inc[:, 0] ** 2 + inc[:, 1] ** 2)
-            vals = (inc[:, 2] - inc[ii, 2])
+            vals = (inc[:, 2] - inc[pix, 2])
 
 
             median_array, binedges = stats.binned_statistic(dists, vals, 'median', bins=50)[:-1]
