@@ -891,10 +891,14 @@ def calc_epoch_semivariogram(ii):
         # Reference to it's own median
         epoch -= np.nanmedian(epoch)
 
+        # Drop all nan data
+        XX = XX[~np.isnan(epoch)]
+        YY = YY[~np.isnan(epoch)]
+        epoch = epoch[~np.isnan(epoch)]
         inc = np.array([XX, YY, epoch]).T
 
         # Drop all nan data
-        inc = inc[~np.isnan(epoch), :]
+        # inc = inc[~np.isnan(epoch), :]
         dist = np.sqrt(inc[:, 0] ** 2 + inc[:, 1] ** 2)
 
         # Define lag bin distance and max search range
@@ -942,11 +946,57 @@ def calc_epoch_semivariogram(ii):
         stds = np.array([])
 
         bigstart = time.time()
-        for ix,ii in enumerate(range(n_pix)):
+
+        pix_1, pix_2 = np.array([]), np.array([])
+
+        # Going to look at n_pix pairs
+
+        while pix_1.shape[0] < n_pix:
+            # Create n_pix random selection of data points (Random selection with replacement)
+            pix_1 = np.concatenate([pix_1, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
+            pix_2 = np.concatenate([pix_2, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
+
+            # Find duplicate pairs and remove
+            duplicate = np.where(pix_1 == pix_2)[0]
+            np.delete(pix_1, duplicate)
+            np.delete(pix_2, duplicate)
+            
+        # Trim to n_pix
+        pix_1 = pix_1[:n_pix]
+        pix_2 = pix_2[:n_pix]
+
+        dist = np.sqrt((XX[pix_1] - XX[pix_2]) ** 2 + (YY[pix_1] - YY[pix_2]) ** 2)
+        vals = (epoch[pix_1] - epoch[pix_2]) ** 2
+
+        medians, binedges = stats.binned_statistic(dists, vals, 'median', bins=100)[:-1]
+        stds = stats.binned_statistic(dists, vals, 'std', bins=100)[0]
+        bincenters = (binedges[0:-1] + binedges[1:]) / 2
+
+        mod.set_param_hint('p', value=np.nanmax(medians))  # guess last dat
+        mod.set_param_hint('n', value=np.nanmin(medians))  # guess first dat
+        mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
+        sigma = stds + np.power(bincenters / max(bincenters), 2)
+        start=time.time()
+        result = mod.fit(medians, d=bincenters, weights=sigma)
+        print('{} pix in {:.3f} seconds (total {:.3f} seconds)'.format(n_pix, time.time()-start, time.time()-bigstart))
+        print(result.best_values)
+
+        plt.scatter(dists, vals, label='Input')
+        plt.scatter(bincenters, medians, label='Binned')
+        plt.legend()
+        plt.savefig(os.path.join(outdir, 'semivariogram{}.png'.format(ii)))
+        plt.close()
+
+
+
+
+
+
+        for ix, pix in enumerate(range(n_pix)):
             inc[:, 0] -= inc[ii, 0]
             inc[:, 1] -= inc[ii, 1]
             dists = np.sqrt(inc[:, 0] ** 2 + inc[:, 1] ** 2)
-            vals = inc[:, 2] - inc[ii, 2]
+            vals = (inc[:, 2] - inc[ii, 2])
 
 
             median_array, binedges = stats.binned_statistic(dists, vals, 'median', bins=50)[:-1]
@@ -972,15 +1022,12 @@ def calc_epoch_semivariogram(ii):
         sigma = stds + np.power(bincenters / max(bincenters), 2)
         start=time.time()
         result = mod.fit(medians, d=bincenters, weights=sigma)
-        print('{} pix in {:.3f} seconds (total {:.3f} seconds)'.format(n_pix, time.time()-start), time.time()-bigstart)
+        print('{} pix in {:.3f} seconds (total {:.3f} seconds)'.format(n_pix, time.time()-start, time.time()-bigstart))
 
         sill = result.best_values['p'] + result.best_values['n']
         rang = result.best_values['r']
         nugget = result.best_values['n']
-        if ii == 1:
-            print(sill)
-            print(rang)
-            print(nugget)
+        print(result.best_values)
 
     return sill
 
