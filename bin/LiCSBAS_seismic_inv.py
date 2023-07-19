@@ -949,10 +949,10 @@ def calc_epoch_semivariogram(ii):
         range = result.best_values['r']
         nugget = result.best_values['n']
         if ii == 1:
-            print(median_array)
-            print(binedges)
-            print(bincenter_array)
-            print(sigma)
+            print('Med', median_array, type(median_array))
+            print('BinEdge', binedges, type(binedges))
+            print('BinCenter', bincenter_array, type(bincenter_array))
+            print('sigma', sigma, type(sigma))
             print(sill)
             print(range)
             print(nugget)
