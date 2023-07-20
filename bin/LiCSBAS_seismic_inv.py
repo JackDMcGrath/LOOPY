@@ -73,7 +73,6 @@ def init_args():
     parser.add_argument('-m', dest='mask_file', default='mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
-    parser.add_argument('-c', dest='detect_thre', default=1, type=float, help="Coseismic detection threshold (n * vstd)")
     parser.add_argument('--n_para', dest='n_para', default=False, type=int, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
@@ -186,11 +185,6 @@ def load_data():
     if args.n_para:
         n_para = args.n_para if args.n_para <= n_para else n_para
 
-    if n_para > 1:
-        print('Using {} parallel processing'.format(n_para))
-    else:
-        print('Using no parallel processing')
-
     ## Sort dates
     # Get list of earthquake dates and index
     eq_dates = io_lib.read_ifg_list(eqfile)
@@ -246,6 +240,7 @@ def temporal_filter(cum):
     """
 
     print('Filtering Temporally for outliers > {} std'.format(outlier_thresh))
+    print('Using {} parallel processing'.format(n_para))
 
     dt_cum = date_ord / 365.25  # Set dates in terms of years
     filtwidth_yr = dt_cum[-1] / (n_im - 1) * 3  # Set the filter width based on n * average epoch seperation
@@ -286,7 +281,6 @@ def temporal_filter(cum):
             maskx, masky = np.where(mask == 0)
             cum[:, maskx, masky] = np.nan
 
-        #cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
         cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling
 
         print('Finding moving stddev')
@@ -376,27 +370,27 @@ def find_outliers_RANSAC():
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
     print('\n{} outliers identified\n'.format(len(outlier[0])))
 
-    x_pix = valid[1][15001]
-    y_pix = valid[0][15001]
-    x_pix = 347
-    y_pix = 492
-    fig=plt.figure(figsize=(12,24))
-    plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b', label='Inliers')
-    plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='r', label='Outliers')
-    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix], c='g', label='Filters')
-    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] + filt_std[:, y_pix, x_pix], c='r', label='1 STD')
-    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] + outlier_thresh * filt_std[:, y_pix, x_pix], c='b', label='Outlier Thresh')
-    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] - filt_std[:, y_pix, x_pix], c='r')
-    plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] - outlier_thresh * filt_std[:, y_pix, x_pix], c='b')
-    plt.legend()
+    # x_pix = valid[1][15001]
+    # y_pix = valid[0][15001]
+    # x_pix = 347
+    # y_pix = 492
+    # fig=plt.figure(figsize=(12,24))
+    # plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b', label='Inliers')
+    # plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='r', label='Outliers')
+    # plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix], c='g', label='Filters')
+    # plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] + filt_std[:, y_pix, x_pix], c='r', label='1 STD')
+    # plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] + outlier_thresh * filt_std[:, y_pix, x_pix], c='b', label='Outlier Thresh')
+    # plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] - filt_std[:, y_pix, x_pix], c='r')
+    # plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] - outlier_thresh * filt_std[:, y_pix, x_pix], c='b')
+    # plt.legend()
 
     # Replace outliers with filter data
     cum[outlier] = cum_lpt[outlier]
 
-    plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b')
-    plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
-    plt.close()
-    print(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
+    # plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b')
+    # plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
+    # plt.close()
+    # print(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
 
     return cum, filt_std
 
@@ -410,8 +404,7 @@ def run_RANSAC(ii):
     resid = diff[:, valid[0][ii], valid[1][ii]]
     filtered = cum_lpt[:, valid[0][ii], valid[1][ii]]
     # Set RANSAC threshold based off median std
-    std = np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
-    limits = outlier_thresh*np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
+    limits = outlier_thresh * np.nanmedian(filt_std[:, valid[0][ii], valid[1][ii]])
     reg = RANSACRegressor(residual_threshold=limits).fit(date_ord[keep].reshape((-1,1)),resid[keep].reshape((-1,1)))
     inliers = reg.inlier_mask_
     outliers = np.logical_not(reg.inlier_mask_)
@@ -546,15 +539,14 @@ def fit_velocities():
     Q = np.eye(n_im)
     if use_weights:
         sills = calc_semivariogram()
-        np.fill_diagonal(Q, 1 / sills)
-        print(Q)
+        np.fill_diagonal(Q, sills)
 
     # Define post-seismic constant
     pcst = 1 / args.tau
     n_variables = 2 + n_eq * 3
 
     _n_para = n_para if n_para < 25 else 25 # Diminishing returns after this, empirically
-    print('Velocity fitting on {} Cores'.format(_n_para))
+    print('\nVelocity fitting on {} Cores'.format(_n_para))
     if _n_para > 1 and n_valid > 100:
         p = q.Pool(_n_para)
         results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype="object")
@@ -566,6 +558,152 @@ def fit_velocities():
         errors = np.zeros((n_valid, n_variables + 2))
         for ii in range(n_valid):
             model[ii, :], errors[ii, :] = fit_pixel_velocities(ii)
+
+def calc_semivariogram():
+    global XX, YY, mask_pix
+    # Get range and aximuth pixel spacing
+    param13 =  os.path.join(infodir, '13parameters.txt')
+    pixel_spacing_a = float(io_lib.get_param_par(param13, 'pixel_spacing_a'))
+    pixel_spacing_r = float(io_lib.get_param_par(param13, 'pixel_spacing_r'))
+
+    # Rounding as otherwise phantom decimals appearing that makes some Lats too long
+    Lat = np.arange(0, np.round(length * pixel_spacing_r, 5), pixel_spacing_r)
+    Lon = np.arange(0, np.round(width * pixel_spacing_a, 5), pixel_spacing_a)
+
+    XX, YY = np.meshgrid(Lon, Lat)
+    XX = XX.flatten()
+    YY = YY.flatten()
+
+    mask = io_lib.read_img(maskfile, length, width)
+    mask_pix = np.where(mask.flatten() == 0)
+
+    print('\nCalculating semi-variograms of epoch displacements')
+    print('Using {} processing'.format(n_para))
+    if n_para > 1 and n_valid > 100:
+        p = q.Pool(n_para)
+        sills = np.array(p.map(calc_epoch_semivariogram, range(n_im)), dtype="object")
+        p.close()
+    else:
+        sills = np.zeros((n_im, 1))
+        for ii in range(1, n_im):
+            sills[ii] = calc_epoch_semivariogram(ii)
+
+    sills[0] = np.nanmean(sills[1:]) # As first epoch is 0
+
+    return sills
+
+def calc_epoch_semivariogram(ii):
+    if ii == 0:
+        sill = 0 # Reference image
+    else:
+        begin_semi = time.time()
+
+        # Find semivariogram of incremental displacements
+        epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
+        # Nan mask pixels
+        epoch[mask_pix] = np.nan
+        # Mask out any displacement of > lambda, as coseismic or noise
+        epoch[abs(epoch) > 55.6] = np.nan
+
+        # Reference to it's own median
+        epoch -= np.nanmedian(epoch)
+
+        # Drop all nan data
+        xdist = XX[~np.isnan(epoch)]
+        ydist = YY[~np.isnan(epoch)]
+        epoch = epoch[~np.isnan(epoch)]
+
+        # calc from lmfit
+        mod = Model(spherical)
+        medians = np.array([])
+        bincenters = np.array([])
+        stds = np.array([])
+
+        # Find random pairings of pixels to check
+        # Number of random checks
+        n_pix = int(1e6)
+
+        pix_1 = np.array([])
+        pix_2 = np.array([])
+
+        # Going to look at n_pix pairs. Only iterate 5 times. Life is short
+        its = 0
+        while pix_1.shape[0] < n_pix and its < 5:
+            its += 1
+            # Create n_pix random selection of data points (Random selection with replacement)
+            # Work out too many in case we need to remove duplicates
+            pix_1 = np.concatenate([pix_1, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
+            pix_2 = np.concatenate([pix_2, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
+
+            # Find where the same pixel is selected twice
+            duplicate = np.where(pix_1 == pix_2)[0]
+            np.delete(pix_1, duplicate)
+            np.delete(pix_2, duplicate)
+
+            # Drop duplicate pairings
+            unique_pix = np.unique(np.vstack([pix_1, pix_2]).T, axis=0)
+            pix_1 = unique_pix[:, 0]
+            pix_2 = unique_pix[:, 1]
+
+        # In case of early ending
+        if n_pix > len(pix_1):
+            n_pix = len(pix_1)
+
+        # Trim to n_pix, and create integer array
+        pix_1 = pix_1[:n_pix].astype('int')
+        pix_2 = pix_2[:n_pix].astype('int')
+
+        # Calculate distances between random points
+        dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
+        # Calculate squared difference between random points
+        vals = abs((epoch[pix_1] - epoch[pix_2])) ** 2
+
+        medians, binedges = stats.binned_statistic(dists, vals, 'median', bins=100)[:-1]
+        stds = stats.binned_statistic(dists, vals, 'std', bins=100)[0]
+        bincenters = (binedges[0:-1] + binedges[1:]) / 2
+
+        try:
+            mod.set_param_hint('p', value=np.nanmax(medians))  # guess maximum variance
+            mod.set_param_hint('n', value=0)  # guess 0
+            mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
+            sigma = stds + np.power(bincenters / max(bincenters), 2)
+            result = mod.fit(medians, d=bincenters, weights=sigma)
+        except:
+            # Try smaller ranges
+            length = len(bincenters)
+            try:
+                bincenters = bincenters[:int(length * 3 / 4)]
+                stds = stds[:int(length * 3 / 4)]
+                medians = medians[:int(length * 3 / 4)]
+                sigma = stds + np.power(bincenters / max(bincenters), 3)
+                result = mod.fit(medians, d=bincenters, weights=sigma)
+            except:
+                bincenters = bincenters[:int(length / 2)]
+                stds = stds[:int(length / 2)]
+                medians = medians[:int(length / 2)]
+                sigma = stds + np.power(bincenters / max(bincenters), 3)
+                result = mod.fit(medians, d=bincenters, weights=sigma)
+
+        # Print Sill (ie variance)
+        sill = result.best_values['p']
+
+        if np.mod(ii + 1, 10) == 0:
+            print('\t{}/{}\tSill: {:.2f} ({:.2e}\tpairs processed in {:.1f} seconds)'.format(ii + 1, n_im, sill, n_pix, time.time() - begin_semi))
+
+    return sill
+
+def spherical(d, p, n, r):
+    """
+    Compute spherical variogram model
+    @param d: 1D distance array
+    @param p: partial sill
+    @param n: nugget
+    @param r: range
+    @return: spherical variogram model
+    """
+    if r>d.max():
+        r=d.max()-1
+    return np.where(d > r, p + n, p * (3/2 * d/r - 1/2 * d**3 / r**3) + n)
 
 def fit_pixel_velocities(ii):
 
@@ -780,154 +918,6 @@ def even_split(a, n):
     n = min(n, len(a)) # to avoid empty lists
     k, m = divmod(len(a), n)
     return [a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n)]
-
-def calc_semivariogram():
-    global XX, YY, mask_pix
-    # Get range and aximuth pixel spacing
-    param13 =  os.path.join(infodir, '13parameters.txt')
-    pixel_spacing_a = float(io_lib.get_param_par(param13, 'pixel_spacing_a'))
-    pixel_spacing_r = float(io_lib.get_param_par(param13, 'pixel_spacing_r'))
-
-    # Rounding as otherwise phantom decimals appearing that makes some Lats too long
-    Lat = np.arange(0, np.round(length * pixel_spacing_r, 5), pixel_spacing_r)
-    Lon = np.arange(0, np.round(width * pixel_spacing_a, 5), pixel_spacing_a)
-
-    XX, YY = np.meshgrid(Lon, Lat)
-    XX = XX.flatten()
-    YY = YY.flatten()
-
-    mask = io_lib.read_img(maskfile, length, width)
-    mask_pix = np.where(mask.flatten() == 0)
-
-    print('Calculating semi-variograms of epoch displacements')
-
-    if n_para > 1 and n_valid > 100:
-        # pool = multi.Pool(processes=n_para)
-        # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
-        p = q.Pool(n_para)
-        sills = np.array(p.map(calc_epoch_semivariogram, range(n_im)), dtype="object")
-        p.close()
-    else:
-        sills = np.zeros((n_im, 1))
-        for ii in range(1, n_im):
-            sills[ii] = calc_epoch_semivariogram(ii)
-
-    sills[0] = np.nanmean(sills[1:]) # As first epoch is 0
-
-    return sills
-
-def calc_epoch_semivariogram(ii):
-    if ii == 0:
-        sill = 0 # Reference image
-    else:
-        begin_semi = time.time()
-
-        # Find semivariogram of incremental displacements
-        epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
-        # Nan mask pixels
-        epoch[mask_pix] = np.nan
-        # Mask out any displacement of > lambda, as coseismic or noise
-        epoch[abs(epoch) > 55.6] = np.nan
-
-        # Reference to it's own median
-        epoch -= np.nanmedian(epoch)
-
-        # Drop all nan data
-        xdist = XX[~np.isnan(epoch)]
-        ydist = YY[~np.isnan(epoch)]
-        epoch = epoch[~np.isnan(epoch)]
-
-        # calc from lmfit
-        mod = Model(spherical)
-        medians = np.array([])
-        bincenters = np.array([])
-        stds = np.array([])
-
-        # Find random pairings of pixels to check
-        # Number of random checks
-        n_pix = int(1e6)
-
-        pix_1 = np.array([])
-        pix_2 = np.array([])
-
-        # Going to look at n_pix pairs. Only iterate 5 times. Life is short
-        its = 0
-        while pix_1.shape[0] < n_pix and its < 5:
-            its += 1
-            # Create n_pix random selection of data points (Random selection with replacement)
-            # Work out too many in case we need to remove duplicates
-            pix_1 = np.concatenate([pix_1, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
-            pix_2 = np.concatenate([pix_2, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
-
-            # Find where the same pixel is selected twice
-            duplicate = np.where(pix_1 == pix_2)[0]
-            np.delete(pix_1, duplicate)
-            np.delete(pix_2, duplicate)
-
-            # Drop duplicate pairings
-            unique_pix = np.unique(np.vstack([pix_1, pix_2]).T, axis=0)
-            pix_1 = unique_pix[:, 0]
-            pix_2 = unique_pix[:, 1]
-
-        # In case of early ending
-        if n_pix > len(pix_1):
-            n_pix = len(pix_1)
-
-        # Trim to n_pix, and create integer array
-        pix_1 = pix_1[:n_pix].astype('int')
-        pix_2 = pix_2[:n_pix].astype('int')
-
-        # Calculate distances between random points
-        dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
-        # Calculate squared difference between random points
-        vals = abs((epoch[pix_1] - epoch[pix_2])) ** 2
-
-        medians, binedges = stats.binned_statistic(dists, vals, 'median', bins=100)[:-1]
-        stds = stats.binned_statistic(dists, vals, 'std', bins=100)[0]
-        bincenters = (binedges[0:-1] + binedges[1:]) / 2
-
-        try:
-            mod.set_param_hint('p', value=np.nanmax(medians))  # guess maximum variance
-            mod.set_param_hint('n', value=0)  # guess 0
-            mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
-            sigma = stds + np.power(bincenters / max(bincenters), 2)
-            result = mod.fit(medians, d=bincenters, weights=sigma)
-        except:
-            # Try smaller ranges
-            length = len(bincenters)
-            try:
-                bincenters = bincenters[:int(length * 3 / 4)]
-                stds = stds[:int(length * 3 / 4)]
-                medians = medians[:int(length * 3 / 4)]
-                sigma = stds + np.power(bincenters / max(bincenters), 3)
-                result = mod.fit(medians, d=bincenters, weights=sigma)
-            except:
-                bincenters = bincenters[:int(length / 2)]
-                stds = stds[:int(length / 2)]
-                medians = medians[:int(length / 2)]
-                sigma = stds + np.power(bincenters / max(bincenters), 3)
-                result = mod.fit(medians, d=bincenters, weights=sigma)
-
-        # Print Sill (ie variance)
-        sill = result.best_values['p']
-
-        if np.mod(ii + 1, 10) == 0:
-            print('\t{}/{}\tSill: {:.2f} ({:.2e} pairs processed in {:.1f} seconds)'.format(ii + 1, n_im, sill, n_pix, time.time() - begin_semi))
-
-    return sill
-
-def spherical(d, p, n, r):
-    """
-    Compute spherical variogram model
-    @param d: 1D distance array
-    @param p: partial sill
-    @param n: nugget
-    @param r: range
-    @return: spherical variogram model
-    """
-    if r>d.max():
-        r=d.max()-1
-    return np.where(d > r, p + n, p * (3/2 * d/r - 1/2 * d**3 / r**3) + n)
 
 def main():
     start()
