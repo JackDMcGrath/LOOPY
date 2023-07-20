@@ -556,8 +556,8 @@ def fit_velocities():
         p = q.Pool(n_para)
         results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype="object")
         p.close()
-        model = np.concatenate(results[:,0]).reshape(n_valid, n_varaibles)
-        errors = np.concatenate(results[:,1]).reshape(n_valid, n_varaibles + 2)
+        model = np.concatenate(results[:,0]).reshape(n_valid, n_variables)
+        errors = np.concatenate(results[:,1]).reshape(n_valid, n_variables + 2)
     else:
         model = np.zeros((n_valid, n_variables))
         errors = np.zeros((n_valid, n_variables + 2))
@@ -589,17 +589,15 @@ def fit_pixel_velocities(ii):
 
     # Calculate VCM of inverted model parameters
     invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
-    # Calculate STD as sqrt of variance
-    inverr = np.sqrt(np.diag(invVCM).copy())
 
     x = np.matmul(invVCM, np.matmul(G.T, disp))
 
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
 
-    # Calculate error
+    # Calculate inversion parameter standard errors and root mean square error
     rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
-    sigma=np.sqrt(np.diag(invVCM) * rms / n_im)
+    inverr=np.sqrt(np.diag(invVCM) * rms / n_im)
     rms=np.sqrt(rms / np.nansum(Q.flatten()))
 
     # if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
@@ -614,7 +612,7 @@ def fit_pixel_velocities(ii):
     # Find standard deviations of the velocity residuals
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
-    # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
+    # Run a check to ensure that the modelled changes are within the error bounds
     recalculate = False
 
     for ee in range(n_eq):
@@ -705,65 +703,73 @@ def plot_timeseries(dates, disp, invvel, ii, x, y):
         plt.axvline(x=eq_dt[ii], color="grey", linestyle="--")
     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
+def set_file_names():
+   
+    names = []
+    titles = []
+
+    for ext in ['', '_err']:
+        names = names + ['intercept{}'.format(ext), 'pre_vel{}'.format(ext)]
+        for n in range(n_eq):
+            names = names + ['coseismic{}{}'.format(eq_dates[n], ext), 'a_value{}{}'.format(eq_dates[n], ext), 'post_vel{}{}'.format(eq_dates[n], ext)]
+    n_vel = len(names)
+    
+    names = names + ['rms', 'vstd']
+    
+    for ext in ['', ' Error']:
+        titles = titles + ['Velocity Intercept{} (mm/yr)'.format(ext), 'Preseismic Velocity{} (mm/yr)'.format(ext)]
+        for n in range(n_eq):
+            titles = titles + ['Coseismic Displacement{} {} (mm)'.format(ext, eq_dates[n]), 'Postseismic A-value{} {} (mm)'.format(ext, eq_dates[n]), 'Postseismic Velocity{} {} (mm/yr)'.format(ext, eq_dates[n])]
+    titles = titles + ['RMSE (mm/yr)', 'Velocity Std (mm/yr)']
+
+    return names, titles, n_vel
+
+
 def write_outputs():
 
     if not os.path.exists(outdir):
         os.mkdir(outdir)
 
-    names = ['intercept', 'pre_vel']
-    titles = ['Intercept of Velocity (mm/yr)', 'Preseismic Velocity (mm/yr)']
-    for n in range(n_eq):
-        eq_names = ['coseismic{}'.format(eq_dates[n]), 'a_value{}'.format(eq_dates[n]), 'post_vel{}'.format(eq_dates[n])]
-        eq_titles = ['Coseismic Displacement {} (mm)'.format(eq_dates[n]), 'Postseismic A-value {} (mm)'.format(eq_dates[n]), 'Postseismic velocity {} (mm/yr)'.format(eq_dates[n])]
-        names = names + eq_names
-        titles = titles + eq_titles
+    results = np.hstack([model, errors])
 
-    names.append('vstd')
-    titles.append('Velocity Std (mm/yr)')
+    names, titles, n_vel = set_file_names()
 
     print('Writing Outputs to file and png')
 
+    if mask_final:
+        mask = io_lib.read_img(maskfile, length, width)
+        mask_pix = np.where(mask == 0)
+    
     gridResults = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
-    for n in range(len(names)):
-        filename = os.path.join(outdir, names[n])
+    for ix, name in enumerate(names):
+        filename = os.path.join(outdir, name)
         pngname = '{}.png'.format(filename)
-        gridResults[n, valid[0], valid[1]] = results[:, n]
-        gridResults[n, :, :].tofile(filename)
+        gridResults[ix, valid[0], valid[1]] = results[:, ix]
+        gridResults[ix, :, :].tofile(filename)
 
-        vmax = np.nanpercentile(gridResults[n, :, :], 95)
-        if 'vstd' in names[n]:
+        vmax = np.nanpercentile(gridResults[ix, :, :], 95)
+        if ix >= n_vel:
             vmin = 0
             cmap = 'viridis_r'
         else:
-            vmin = np.nanpercentile(gridResults[n, :, :], 5)
+            vmin = np.nanpercentile(gridResults[ix, :, :], 5)
             vmin = -np.nanmax([abs(vmin), abs(vmax)])
             vmax = np.nanmax([abs(vmin), abs(vmax)])
             cmap = SCM.roma.reversed()
-        plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap, titles[n], vmin, vmax)
+        plot_lib.make_im_png(gridResults[ix, :, :], pngname, cmap, titles[ix], vmin, vmax)
 
-    if mask_final:
-        print('Creating masked png images')
-        gridMasked = gridResults.copy()
-        mask = io_lib.read_img(maskfile, length, width)
-        mask_pix = np.where(mask == 0)
-        gridMasked[:, mask_pix[0], mask_pix[1]] = np.nan
-
-        for n in range(len(names)):
-            filename = os.path.join(outdir, names[n])
-            pngname = '{}.mskd.png'.format(filename)
-
-            vmax = np.nanpercentile(gridMasked[n, :, :], 95)
-            if 'vstd' in names[n]:
-                vmin = 0
-                cmap = 'viridis_r'
-            else:
-                vmin = np.nanpercentile(gridMasked[n, :, :], 5)
+        if mask_final:
+            maskpngname = '{}.mskd.png'.format(filename)
+            mask_data = gridResults[ix, :, :]
+            mask_data[mask_pix[0], mask_pix[1]] = np.nan
+            
+            vmax = np.nanpercentile(mask_data, 95)
+            if ix < n_vel:
+                vmin = np.nanpercentile(mask_data, 5)
                 vmin = -np.nanmax([abs(vmin), abs(vmax)])
                 vmax = np.nanmax([abs(vmin), abs(vmax)])
-                cmap = SCM.roma.reversed()
-
-            plot_lib.make_im_png(gridMasked[n, :, :], pngname, cmap, titles[n], vmin, vmax)
+            plot_lib.make_im_png(mask_data, maskpngname, cmap, titles[ix], vmin, vmax)
 
     write_h5(gridResults, data)
 
@@ -818,6 +824,7 @@ def write_h5(gridResults, data):
         cumh5.create_dataset('{} coseismic'.format(eq_dates[nn]), data=gridResults[2 + nn * 3], compression=compress)
         cumh5.create_dataset('{} avalue'.format(eq_dates[nn]), data=gridResults[3 + nn * 3], compression=compress)
         cumh5.create_dataset('{} postvel'.format(eq_dates[nn]), data=gridResults[4 + nn * 3], compression=compress)
+
 
     cumh5.close()
 
