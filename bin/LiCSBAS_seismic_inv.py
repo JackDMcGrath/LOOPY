@@ -534,12 +534,13 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
 def fit_velocities():
     global pcst, Q, model, errors
 
-    use_weights = True
+    use_weights = False
     # Create VCM of observables (no c)
     Q = np.eye(n_im)
     if use_weights:
         sills = calc_semivariogram()
-        np.fill_diagonal(Q, sills)
+        # Create weight matrix (inverse of VCM, faster than np.linalg.inv)
+        np.fill_diagonal(Q, 1 / sills)
 
     # Define post-seismic constant
     pcst = 1 / args.tau
@@ -728,7 +729,8 @@ def fit_pixel_velocities(ii):
         daily_rates.append(4 + ee * 3)
 
     # Weight matrix (inverse of VCM)
-    W = np.linalg.inv(Q)
+    # W = np.linalg.inv(Q) # Too slow. Faster to do 1/sill before this
+    W = Q.copy()
 
     # Calculate VCM of inverted model parameters
     invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
@@ -798,7 +800,7 @@ def set_file_names():
         names = names + ['intercept{}'.format(ext), 'pre_vel{}'.format(ext)]
         for n in range(n_eq):
             names = names + ['coseismic{}{}'.format(eq_dates[n], ext), 'a_value{}{}'.format(eq_dates[n], ext), 'post_vel{}{}'.format(eq_dates[n], ext)]
-    n_vel = len(names)
+        n_vel = len(names)
 
     names = names + ['rms', 'vstd']
 
