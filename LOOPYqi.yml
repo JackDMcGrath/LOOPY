@@ -29,3 +29,5 @@ dependencies:
   - scikit-learn
   - dask
   - networkx
+  - pyinterpolate
+  - lmfit
