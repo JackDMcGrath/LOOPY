@@ -566,7 +566,9 @@ def fit_velocities():
 
 def fit_pixel_velocities(ii):
 
-    if np.mod(ii, 100) == 0: print('{}/{}'.format(ii,n_valid))
+    if np.mod(ii, 1000) == 0:
+        print('{}/{}'.format(ii,n_valid))
+    
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
     # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
@@ -578,10 +580,10 @@ def fit_pixel_velocities(ii):
     daily_rates = [1]
 
     for ee in range(0, n_eq):
+        # Create Gmatrix for coseismic, a-value, postseismic
         G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 1
         G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = np.log(1 + pcst * (date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]))
-        # G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]]
-        G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee] # This means that intercept of the postseismic is the coseismic + avalue?
+        G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]
         daily_rates.append(4 + ee * 3)
 
     # Weight matrix (inverse of VCM)
@@ -590,10 +592,10 @@ def fit_pixel_velocities(ii):
     # Calculate VCM of inverted model parameters
     invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
 
-    x = np.matmul(invVCM, np.matmul(G.T, disp))
+    model = np.matmul(invVCM, np.matmul(G.T, disp))
 
     # Invert for modelled displacement
-    invvel = np.matmul(G, x)
+    invvel = np.matmul(G, model)
 
     # Calculate inversion parameter standard errors and root mean square error
     rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
@@ -612,85 +614,29 @@ def fit_pixel_velocities(ii):
     # Find standard deviations of the velocity residuals
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
-    # Run a check to ensure that the modelled changes are within the error bounds
-    recalculate = False
+    # Find 'True' Parameters
+    truemodel = model.copy()
 
     for ee in range(n_eq):
-        # Sod it - only doing 1 earthquake at the moment. Can't work out 2 yet
-        Gpre = G[eq_ix[ee] - 1, :]
-        Gpre[1] = ord_eq[ee]
-        pre_disp = np.matmul(Gpre, x)
-        Gpost = G[eq_ix[ee] + 1, :]
-        Gpost[3] = np.log(1 + pcst * 0)
-        Gpost[4] = 0
-        post_disp = np.matmul(Gpost, x)
-        coseismic = post_disp - pre_disp
-        if abs(coseismic) < args.detect_thre * std:
-            recalculate = True
-            if np.mod(ii, 1000) == 0 and n_para == 1:
-                print('Plotting recalculation')
-                print(invvel[-1])
-                print(ord_eq[ee] - date_ord[-1])
-                print((ord_eq[ee] - date_ord[-1]) * x[4])
-                if not os.path.exists(outdir):
-                    os.mkdir(outdir)
-                plt.scatter(dates, disp, s=2, c='k')
-                plt.plot(dates, invvel, c='g',label='Before')
-                plt.plot(dates, invvel + std, c='r',label='Before STD')
-                plt.plot(dates, invvel - std, c='r')
-                title = '({},{}) {} \nSTD: {:.2f} Pre: {:.2f} Post: {:.2f} Coseis: {:.2f}\n {:.2f} {:.2f} {:.2f} {:.2f} {:.2f}'.format(valid[0][ii], valid[1][ii], date_ord[eq_ix[ee]], std, pre_disp, post_disp, coseismic, x[0], x[1]*365.25, x[2], x[3],(x[4])*365.25)
+        # Fix postseismic
+        truemodel[4 + n_eq * 3] = truemodel[4 + n_eq * 3] + truemodel[1]
+        # Calculate coseismic (only need a reduced Gmatrix as they all work off long-term rates)
+        Gcos = np.zeros((2, 3))
+        Gcos[:, 0] = 1
+        Gcos[:, 1] = ord_eq[ee]
+        Gcos[1, 2] = 1
 
-            # No coseismic deformation -> Check the effect of referencing now, we set the reference to 0, so there will never be a displacement there.....
-            # Allow no coseismic displacement or post-seismic relaxation, but allow a change in the linear velocity afterwards
-            G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 1 # Allow coseismic displacement
-            G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = 0 # Allow no postseismic relaxation
-            G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee] # Allow a change in linear velocity -> should we allow this?
-
-        # else:
-        #     # Change value in result to be true coseismic displacement
-        #     x[2 + ee * 3] = coseismic
-
-    if recalculate:
-        # Check for Singular matrix
-        if (G == 0).all(axis=0).any():
-            # Find singular values and remove from the inversion
-            singular = np.where((G == 0).all(axis=0))[0]
-            good = np.where((G != 0).any(axis=0))[0]
-            G = G[:, good]
-        else:
-            good = np.arange(G.shape[1])
-
-        # Recalculate values
-        new = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
-        invvel = np.matmul(G, new)
-        std = np.sqrt((1 / n_im) * np.sum(((disp - invvel) ** 2)))
-
-        if singular.any():
-            x[singular] = 0
-            x[good] = new
-        else:
-            x = new
-
-        if np.mod(ii, 1000) == 0 and n_para == 1:
-            plt.plot(dates, invvel, c='b',label='After')
-            plt.plot(dates, invvel + std, c='m',label='After STD')
-            plt.plot(dates, invvel - std, c='m')
-            plt.legend()
-            plt.title(title + '\n{:.2f} {:.2f} {:.2f} {:.2f} {:.2f}'.format(x[0], x[1]*365.25, x[2], x[3] ,(x[4])*365.25))
-            for ee in range(0, n_eq):
-                plt.axvline(x=eq_dt[ee], color="grey", linestyle="--")
-            plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
-            plt.close()
-            print(os.path.join(outdir, '{}.png'.format(ii)))
+        coseismic = np.matmul(Gcos, model[[0, 1, 2 + n_eq * 3]])
+        truemodel[2 + n_eq * 3] = coseismic[1] - coseismic[0]
 
     # Convert mm/day to mm/yr
     for dd in daily_rates:
-        x[dd] *= 365.25
+        truemodel[dd] *= 365.25
         inverr[dd] *= 365.25
 
     inverr = np.append(inverr, [rms, std])
 
-    return x, inverr
+    return truemodel, inverr
 
 def plot_timeseries(dates, disp, invvel, ii, x, y):
     if not os.path.exists(outdir):
@@ -717,9 +663,9 @@ def set_file_names():
     names = names + ['rms', 'vstd']
     
     for ext in ['', ' Error']:
-        titles = titles + ['Velocity Intercept{} (mm/yr)'.format(ext), 'Preseismic Velocity{} (mm/yr)'.format(ext)]
+        titles = titles + ['Velocity Intercept{} (mm/yr)'.format(ext), 'Preseismic Linear Velocity{} (mm/yr)'.format(ext)]
         for n in range(n_eq):
-            titles = titles + ['Coseismic Displacement{} {} (mm)'.format(ext, eq_dates[n]), 'Postseismic A-value{} {} (mm)'.format(ext, eq_dates[n]), 'Postseismic Velocity{} {} (mm/yr)'.format(ext, eq_dates[n])]
+            titles = titles + ['Coseismic Displacement{} {} (mm)'.format(ext, eq_dates[n]), 'Postseismic Relaxation A-value{} {} (mm)'.format(ext, eq_dates[n]), 'Postseismic Linear Velocity Component{} {} (mm/yr)'.format(ext, eq_dates[n])]
     titles = titles + ['RMSE (mm/yr)', 'Velocity Std (mm/yr)']
 
     return names, titles, n_vel
