@@ -553,11 +553,10 @@ def fit_velocities():
     pcst = 1 / args.tau
     n_variables = 2 + n_eq * 3
     
-    if n_para > 25: # Diminishing returns after this point, empirically
-        n_para = 25
-    print('Velocity fitting on {} Cores'.format(n_para))
-    if n_para > 1 and n_valid > 100:
-        p = q.Pool(n_para)
+    _n_para = n_para if n_para < 25 else 25 # Diminishing returns after this, empirically
+    print('Velocity fitting on {} Cores'.format(_n_para))
+    if _n_para > 1 and n_valid > 100:
+        p = q.Pool(_n_para)
         results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype="object")
         p.close()
         model = np.concatenate(results[:,0]).reshape(n_valid, n_variables)
