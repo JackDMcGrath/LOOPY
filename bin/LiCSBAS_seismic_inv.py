@@ -539,7 +539,7 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     return ixs_dict
 
 def fit_velocities():
-    global pcst, results, n_para, Q
+    global pcst, Q, model, errors
 
     use_weights = False
     # Create VCM of observables (no c)
@@ -551,26 +551,18 @@ def fit_velocities():
 
     # Define post-seismic constant
     pcst = 1 / args.tau
+    n_variables = 2 + n_eq * 3
     if n_para > 1 and n_valid > 100:
-        # pool = multi.Pool(processes=n_para)
-        # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
         p = q.Pool(n_para)
-        results = np.array(p.map(fit_pixel_velocities, range(201)), dtype="object")
+        results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype="object")
         p.close()
-        print(results.shape)
-        # print(results)
-        print("")
-        # print(results[:,0])
-        print("")
-        # print(results[:,1])
-        print("")
-        print(results[:,0].shape)
-        print(results[:,1].shape)
-        print(results[[0,100,200],:])
+        model = np.concatenate(results[:,0]).reshape(n_valid, n_varaibles)
+        errors = np.concatenate(results[:,1]).reshape(n_valid, n_varaibles + 2)
     else:
-        results = np.zeros((n_valid, 3 + n_eq * 3))
+        model = np.zeros((n_valid, n_variables))
+        errors = np.zeros((n_valid, n_variables + 2))
         for ii in range(n_valid):
-            results[ii, :] = fit_pixel_velocities(ii)
+            model[ii, :], errors[ii, :] = fit_pixel_velocities(ii)
 
 def fit_pixel_velocities(ii):
 
@@ -607,12 +599,8 @@ def fit_pixel_velocities(ii):
 
     # Calculate error
     rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
-    if np.mod(ii, 100) == 0: print('\tRMS', rms)
     sigma=np.sqrt(np.diag(invVCM) * rms / n_im)
-    if np.mod(ii, 100) == 0: print('\tSigma (day?)', sigma)
-    if np.mod(ii, 100) == 0: print('\tSigma (yrs?)', sigma * np.array([1,365.25,1,1,365.25]))
     rms=np.sqrt(rms / np.nansum(Q.flatten()))
-    if np.mod(ii, 100) == 0: print('\tRMS', rms)
 
     # if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
     #     plt.scatter(dates, disp, s=2, c='k')
@@ -623,7 +611,7 @@ def fit_pixel_velocities(ii):
     #     print(os.path.join(outdir, '{}.png'.format(ii)))
 
 
-    # Find velocity standard deviation # INFUTURE, USE BOOTSTRAPPING
+    # Find standard deviations of the velocity residuals
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
     # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
@@ -702,9 +690,7 @@ def fit_pixel_velocities(ii):
         x[dd] *= 365.25
         inverr[dd] *= 365.25
 
-    # # If using long term rate, calculate the 'true' postseismic linear
-    # x[4] = x[1] + x[4]
-    x = np.append(x, std)
+    inverr = np.append(inverr, [rms, std])
 
     return x, inverr
 
