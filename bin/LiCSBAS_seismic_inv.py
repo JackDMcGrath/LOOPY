@@ -704,7 +704,7 @@ def plot_timeseries(dates, disp, invvel, ii, x, y):
     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
 def set_file_names():
-   
+
     names = []
     titles = []
 
@@ -713,9 +713,9 @@ def set_file_names():
         for n in range(n_eq):
             names = names + ['coseismic{}{}'.format(eq_dates[n], ext), 'a_value{}{}'.format(eq_dates[n], ext), 'post_vel{}{}'.format(eq_dates[n], ext)]
     n_vel = len(names)
-    
+
     names = names + ['rms', 'vstd']
-    
+
     for ext in ['', ' Error']:
         titles = titles + ['Velocity Intercept{} (mm/yr)'.format(ext), 'Preseismic Velocity{} (mm/yr)'.format(ext)]
         for n in range(n_eq):
@@ -739,7 +739,7 @@ def write_outputs():
     if mask_final:
         mask = io_lib.read_img(maskfile, length, width)
         mask_pix = np.where(mask == 0)
-    
+
     gridResults = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
     for ix, name in enumerate(names):
@@ -763,7 +763,7 @@ def write_outputs():
             maskpngname = '{}.mskd.png'.format(filename)
             mask_data = gridResults[ix, :, :]
             mask_data[mask_pix[0], mask_pix[1]] = np.nan
-            
+
             vmax = np.nanpercentile(mask_data, 95)
             if ix < n_vel:
                 vmin = np.nanpercentile(mask_data, 5)
