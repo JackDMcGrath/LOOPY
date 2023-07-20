@@ -44,6 +44,9 @@ import LiCSBAS_plot_lib as plot_lib
 import SCM
 from sklearn.linear_model import RANSACRegressor
 from scipy.interpolate import CubicSpline
+from pyinterpolate import build_experimental_variogram, TheoreticalVariogram, build_theoretical_variogram
+from lmfit.model import *
+from scipy import stats
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -283,7 +286,8 @@ def temporal_filter(cum):
             maskx, masky = np.where(mask == 0)
             cum[:, maskx, masky] = np.nan
 
-        cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+        #cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+        cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling
 
         print('Finding moving stddev')
         filt_std = np.ones(cum.shape) * np.nan
@@ -535,22 +539,34 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
     return ixs_dict
 
 def fit_velocities():
-    global pcst, results, n_para
+    global pcst, Q, model, errors
+
+    use_weights = False
+    # Create VCM of observables (no c)
+    Q = np.eye(n_im)
+    if use_weights:
+        sills = calc_semivariogram()
+        np.fill_diagonal(Q, 1 / sills)
+        print(Q)
 
     # Define post-seismic constant
     pcst = 1 / args.tau
+    n_variables = 2 + n_eq * 3
     if n_para > 1 and n_valid > 100:
-        # pool = multi.Pool(processes=n_para)
-        # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
         p = q.Pool(n_para)
-        results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype=np.float32)
+        results = np.array(p.map(fit_pixel_velocities, range(n_valid)), dtype="object")
         p.close()
+        model = np.concatenate(results[:,0]).reshape(n_valid, n_variables)
+        errors = np.concatenate(results[:,1]).reshape(n_valid, n_variables + 2)
     else:
-        results = np.zeros((n_valid, 3 + n_eq * 3))
+        model = np.zeros((n_valid, n_variables))
+        errors = np.zeros((n_valid, n_variables + 2))
         for ii in range(n_valid):
-            results[ii, :] = fit_pixel_velocities(ii)
+            model[ii, :], errors[ii, :] = fit_pixel_velocities(ii)
 
 def fit_pixel_velocities(ii):
+
+    if np.mod(ii, 100) == 0: print('{}/{}'.format(ii,n_valid))
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
     # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
@@ -568,10 +584,21 @@ def fit_pixel_velocities(ii):
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee] # This means that intercept of the postseismic is the coseismic + avalue?
         daily_rates.append(4 + ee * 3)
 
-    x = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, disp))
+    # Weight matrix (inverse of VCM)
+    W = np.linalg.inv(Q)
+
+    # Calculate VCM of inverted model parameters
+    invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
+
+    x = np.matmul(invVCM, np.matmul(G.T, disp))
 
     # Invert for modelled displacement
     invvel = np.matmul(G, x)
+
+    # Calculate inversion parameter standard errors and root mean square error
+    rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
+    inverr=np.sqrt(np.diag(invVCM) * rms / n_im)
+    rms=np.sqrt(rms / np.nansum(Q.flatten()))
 
     # if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
     #     plt.scatter(dates, disp, s=2, c='k')
@@ -582,10 +609,10 @@ def fit_pixel_velocities(ii):
     #     print(os.path.join(outdir, '{}.png'.format(ii)))
 
 
-    # Find velocity standard deviation # INFUTURE, INCLUDE BOOTSTRAPPING
+    # Find standard deviations of the velocity residuals
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
-    # Check that coseismic displacement is at detectable limit (< std) -> Look to also comparing against STD of filtered values either side of the eq
+    # Run a check to ensure that the modelled changes are within the error bounds
     recalculate = False
 
     for ee in range(n_eq):
@@ -659,12 +686,11 @@ def fit_pixel_velocities(ii):
     # Convert mm/day to mm/yr
     for dd in daily_rates:
         x[dd] *= 365.25
+        inverr[dd] *= 365.25
 
-    # # If using long term rate, calculate the 'true' postseismic linear
-    # x[4] = x[1] + x[4]
-    x = np.append(x, std)
+    inverr = np.append(inverr, [rms, std])
 
-    return x
+    return x, inverr
 
 def plot_timeseries(dates, disp, invvel, ii, x, y):
     if not os.path.exists(outdir):
@@ -677,65 +703,73 @@ def plot_timeseries(dates, disp, invvel, ii, x, y):
         plt.axvline(x=eq_dt[ii], color="grey", linestyle="--")
     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
+def set_file_names():
+
+    names = []
+    titles = []
+
+    for ext in ['', '_err']:
+        names = names + ['intercept{}'.format(ext), 'pre_vel{}'.format(ext)]
+        for n in range(n_eq):
+            names = names + ['coseismic{}{}'.format(eq_dates[n], ext), 'a_value{}{}'.format(eq_dates[n], ext), 'post_vel{}{}'.format(eq_dates[n], ext)]
+    n_vel = len(names)
+
+    names = names + ['rms', 'vstd']
+
+    for ext in ['', ' Error']:
+        titles = titles + ['Velocity Intercept{} (mm/yr)'.format(ext), 'Preseismic Velocity{} (mm/yr)'.format(ext)]
+        for n in range(n_eq):
+            titles = titles + ['Coseismic Displacement{} {} (mm)'.format(ext, eq_dates[n]), 'Postseismic A-value{} {} (mm)'.format(ext, eq_dates[n]), 'Postseismic Velocity{} {} (mm/yr)'.format(ext, eq_dates[n])]
+    titles = titles + ['RMSE (mm/yr)', 'Velocity Std (mm/yr)']
+
+    return names, titles, n_vel
+
+
 def write_outputs():
 
     if not os.path.exists(outdir):
         os.mkdir(outdir)
 
-    names = ['intercept', 'pre_vel']
-    titles = ['Intercept of Velocity (mm/yr)', 'Preseismic Velocity (mm/yr)']
-    for n in range(n_eq):
-        eq_names = ['coseismic{}'.format(eq_dates[n]), 'a_value{}'.format(eq_dates[n]), 'post_vel{}'.format(eq_dates[n])]
-        eq_titles = ['Coseismic Displacement {} (mm)'.format(eq_dates[n]), 'Postseismic A-value {} (mm)'.format(eq_dates[n]), 'Postseismic velocity {} (mm/yr)'.format(eq_dates[n])]
-        names = names + eq_names
-        titles = titles + eq_titles
+    results = np.hstack([model, errors])
 
-    names.append('vstd')
-    titles.append('Velocity Std (mm/yr)')
+    names, titles, n_vel = set_file_names()
 
     print('Writing Outputs to file and png')
 
+    if mask_final:
+        mask = io_lib.read_img(maskfile, length, width)
+        mask_pix = np.where(mask == 0)
+
     gridResults = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
-    for n in range(len(names)):
-        filename = os.path.join(outdir, names[n])
+    for ix, name in enumerate(names):
+        filename = os.path.join(outdir, name)
         pngname = '{}.png'.format(filename)
-        gridResults[n, valid[0], valid[1]] = results[:, n]
-        gridResults[n, :, :].tofile(filename)
+        gridResults[ix, valid[0], valid[1]] = results[:, ix]
+        gridResults[ix, :, :].tofile(filename)
 
-        vmax = np.nanpercentile(gridResults[n, :, :], 95)
-        if 'vstd' in names[n]:
+        vmax = np.nanpercentile(gridResults[ix, :, :], 95)
+        if ix >= n_vel:
             vmin = 0
             cmap = 'viridis_r'
         else:
-            vmin = np.nanpercentile(gridResults[n, :, :], 5)
+            vmin = np.nanpercentile(gridResults[ix, :, :], 5)
             vmin = -np.nanmax([abs(vmin), abs(vmax)])
             vmax = np.nanmax([abs(vmin), abs(vmax)])
             cmap = SCM.roma.reversed()
-        plot_lib.make_im_png(gridResults[n, :, :], pngname, cmap, titles[n], vmin, vmax)
+        plot_lib.make_im_png(gridResults[ix, :, :], pngname, cmap, titles[ix], vmin, vmax)
 
-    if mask_final:
-        print('Creating masked png images')
-        gridMasked = gridResults.copy()
-        mask = io_lib.read_img(maskfile, length, width)
-        mask_pix = np.where(mask == 0)
-        gridMasked[:, mask_pix[0], mask_pix[1]] = np.nan
+        if mask_final:
+            maskpngname = '{}.mskd.png'.format(filename)
+            mask_data = gridResults[ix, :, :]
+            mask_data[mask_pix[0], mask_pix[1]] = np.nan
 
-        for n in range(len(names)):
-            filename = os.path.join(outdir, names[n])
-            pngname = '{}.mskd.png'.format(filename)
-
-            vmax = np.nanpercentile(gridMasked[n, :, :], 95)
-            if 'vstd' in names[n]:
-                vmin = 0
-                cmap = 'viridis_r'
-            else:
-                vmin = np.nanpercentile(gridMasked[n, :, :], 5)
+            vmax = np.nanpercentile(mask_data, 95)
+            if ix < n_vel:
+                vmin = np.nanpercentile(mask_data, 5)
                 vmin = -np.nanmax([abs(vmin), abs(vmax)])
                 vmax = np.nanmax([abs(vmin), abs(vmax)])
-                cmap = SCM.roma.reversed()
-
-            plot_lib.make_im_png(gridMasked[n, :, :], pngname, cmap, titles[n], vmin, vmax)
+            plot_lib.make_im_png(mask_data, maskpngname, cmap, titles[ix], vmin, vmax)
 
     write_h5(gridResults, data)
 
@@ -791,6 +825,7 @@ def write_h5(gridResults, data):
         cumh5.create_dataset('{} avalue'.format(eq_dates[nn]), data=gridResults[3 + nn * 3], compression=compress)
         cumh5.create_dataset('{} postvel'.format(eq_dates[nn]), data=gridResults[4 + nn * 3], compression=compress)
 
+
     cumh5.close()
 
 def even_split(a, n):
@@ -798,6 +833,154 @@ def even_split(a, n):
     n = min(n, len(a)) # to avoid empty lists
     k, m = divmod(len(a), n)
     return [a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n)]
+
+def calc_semivariogram():
+    global XX, YY, mask_pix
+    # Get range and aximuth pixel spacing
+    param13 =  os.path.join(infodir, '13parameters.txt')
+    pixel_spacing_a = float(io_lib.get_param_par(param13, 'pixel_spacing_a'))
+    pixel_spacing_r = float(io_lib.get_param_par(param13, 'pixel_spacing_r'))
+
+    # Rounding as otherwise phantom decimals appearing that makes some Lats too long
+    Lat = np.arange(0, np.round(length * pixel_spacing_r, 5), pixel_spacing_r)
+    Lon = np.arange(0, np.round(width * pixel_spacing_a, 5), pixel_spacing_a)
+
+    XX, YY = np.meshgrid(Lon, Lat)
+    XX = XX.flatten()
+    YY = YY.flatten()
+
+    mask = io_lib.read_img(maskfile, length, width)
+    mask_pix = np.where(mask.flatten() == 0)
+
+    print('Calculating semi-variograms of epoch displacements')
+
+    if n_para > 1 and n_valid > 100:
+        # pool = multi.Pool(processes=n_para)
+        # results = pool.map(fit_pixel_velocities, even_split(np.arange(0, n_valid, 1).tolist(), n_para))
+        p = q.Pool(n_para)
+        sills = np.array(p.map(calc_epoch_semivariogram, range(n_im)), dtype="object")
+        p.close()
+    else:
+        sills = np.zeros((n_im, 1))
+        for ii in range(1, n_im):
+            sills[ii] = calc_epoch_semivariogram(ii)
+
+    sills[0] = np.nanmean(sills[1:]) # As first epoch is 0
+
+    return sills
+
+def calc_epoch_semivariogram(ii):
+    if ii == 0:
+        sill = 0 # Reference image
+    else:
+        begin_semi = time.time()
+
+        # Find semivariogram of incremental displacements
+        epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
+        # Nan mask pixels
+        epoch[mask_pix] = np.nan
+        # Mask out any displacement of > lambda, as coseismic or noise
+        epoch[abs(epoch) > 55.6] = np.nan
+
+        # Reference to it's own median
+        epoch -= np.nanmedian(epoch)
+
+        # Drop all nan data
+        xdist = XX[~np.isnan(epoch)]
+        ydist = YY[~np.isnan(epoch)]
+        epoch = epoch[~np.isnan(epoch)]
+
+        # calc from lmfit
+        mod = Model(spherical)
+        medians = np.array([])
+        bincenters = np.array([])
+        stds = np.array([])
+
+        # Find random pairings of pixels to check
+        # Number of random checks
+        n_pix = int(1e6)
+
+        pix_1 = np.array([])
+        pix_2 = np.array([])
+
+        # Going to look at n_pix pairs. Only iterate 5 times. Life is short
+        its = 0
+        while pix_1.shape[0] < n_pix and its < 5:
+            its += 1
+            # Create n_pix random selection of data points (Random selection with replacement)
+            # Work out too many in case we need to remove duplicates
+            pix_1 = np.concatenate([pix_1, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
+            pix_2 = np.concatenate([pix_2, np.random.choice(np.arange(epoch.shape[0]), n_pix * 2)])
+
+            # Find where the same pixel is selected twice
+            duplicate = np.where(pix_1 == pix_2)[0]
+            np.delete(pix_1, duplicate)
+            np.delete(pix_2, duplicate)
+
+            # Drop duplicate pairings
+            unique_pix = np.unique(np.vstack([pix_1, pix_2]).T, axis=0)
+            pix_1 = unique_pix[:, 0]
+            pix_2 = unique_pix[:, 1]
+
+        # In case of early ending
+        if n_pix > len(pix_1):
+            n_pix = len(pix_1)
+
+        # Trim to n_pix, and create integer array
+        pix_1 = pix_1[:n_pix].astype('int')
+        pix_2 = pix_2[:n_pix].astype('int')
+
+        # Calculate distances between random points
+        dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
+        # Calculate squared difference between random points
+        vals = abs((epoch[pix_1] - epoch[pix_2])) ** 2
+
+        medians, binedges = stats.binned_statistic(dists, vals, 'median', bins=100)[:-1]
+        stds = stats.binned_statistic(dists, vals, 'std', bins=100)[0]
+        bincenters = (binedges[0:-1] + binedges[1:]) / 2
+
+        try:
+            mod.set_param_hint('p', value=np.nanmax(medians))  # guess maximum variance
+            mod.set_param_hint('n', value=0)  # guess 0
+            mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
+            sigma = stds + np.power(bincenters / max(bincenters), 2)
+            result = mod.fit(medians, d=bincenters, weights=sigma)
+        except:
+            # Try smaller ranges
+            length = len(bincenters)
+            try:
+                bincenters = bincenters[:int(length * 3 / 4)]
+                stds = stds[:int(length * 3 / 4)]
+                medians = medians[:int(length * 3 / 4)]
+                sigma = stds + np.power(bincenters / max(bincenters), 3)
+                result = mod.fit(medians, d=bincenters, weights=sigma)
+            except:
+                bincenters = bincenters[:int(length / 2)]
+                stds = stds[:int(length / 2)]
+                medians = medians[:int(length / 2)]
+                sigma = stds + np.power(bincenters / max(bincenters), 3)
+                result = mod.fit(medians, d=bincenters, weights=sigma)
+
+        # Print Sill (ie variance)
+        sill = result.best_values['p']
+
+        if np.mod(ii + 1, 10) == 0:
+            print('\t{}/{}\tSill: {:.2f} ({:.2e} pairs processed in {:.1f} seconds)'.format(ii + 1, n_im, sill, n_pix, time.time() - begin_semi))
+
+    return sill
+
+def spherical(d, p, n, r):
+    """
+    Compute spherical variogram model
+    @param d: 1D distance array
+    @param p: partial sill
+    @param n: nugget
+    @param r: range
+    @return: spherical variogram model
+    """
+    if r>d.max():
+        r=d.max()-1
+    return np.where(d > r, p + n, p * (3/2 * d/r - 1/2 * d**3 / r**3) + n)
 
 def main():
     start()
