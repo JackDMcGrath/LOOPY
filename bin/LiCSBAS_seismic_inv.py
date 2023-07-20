@@ -602,29 +602,35 @@ def fit_pixel_velocities(ii):
     inverr=np.sqrt(np.diag(invVCM) * rms / n_im)
     rms=np.sqrt(rms / np.nansum(Q.flatten()))
 
-    # if valid[0][ii] > 335 and valid[0][ii] < 345  and valid[1][ii] > 335 and valid[1][ii] < 345:
-    #     plt.scatter(dates, disp, s=2, c='k')
-    #     plt.plot(dates, invvel, c='g',label='Before')
-    #     plt.title('({}/{})'.format(valid[1][ii], valid[0][ii]))
-    #     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
-    #     plt.close()
-    #     print(os.path.join(outdir, '{}.png'.format(ii)))
-
-
     # Find standard deviations of the velocity residuals
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
     # Find 'True' Parameters
     truemodel = model.copy()
+    print('n_eq:', n_eq)
+    print('ord_eq', ord_eq)
+    Gcos = np.zeros((2 * n_eq, 2 + n_eq * 3))
+    Gcos[:, 0] = 1
+    Gcos[:, 1] = [ord for ord in ord_eq for _ in range(2)]
 
     for ee in range(n_eq):
         # Fix postseismic
         truemodel[4 + n_eq * 3] = truemodel[4 + n_eq * 3] + truemodel[1]
-        # Calculate coseismic (only need a reduced Gmatrix as they all work off long-term rates)
-        Gcos = np.zeros((2, 3))
-        Gcos[:, 0] = 1
-        Gcos[:, 1] = ord_eq[ee]
-        Gcos[1, 2] = 1
+        eq = ee * 2 # eq = index of immediately before eq, eq+1 = index of immediately after
+
+        Gcos[eq + 1, 2 + ee * 3] = 1 # Coseismic (for post eq1)
+        Gcos[eq + 1, 3 + ee * 3] = np.log(1 + pcst * (ord_eq[ee] - ord_eq[ee])) # Avalue (for post eq1)
+        Gcos[eq + 1, 4 + ee * 3] = ord_eq[ee] - ord_eq[ee] # Postseismic (for post eq1)
+        Gcos[eq + 2, 2 + ee * 3] = 1 # Coseismic (for pre-eq2)
+        Gcos[eq + 2, 3 + ee * 3] = np.log(1 + pcst * (ord_eq[ee + 1] - ord_eq[ee])) # Avalue (for pre eq2)
+        Gcos[eq + 2, 4 + ee * 3] = ord_eq[ee + 1] - ord_eq[ee] # Postseismic (for pre eq2)
+    print(Gcos)
+
+    for ee in range(0, n_eq):
+        # Create Gmatrix for coseismic, a-value, postseismic
+        G[eq_ix[ee]:eq_ix[ee + 1], 2 + ee * 3] = 1
+        G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = np.log(1 + pcst * (date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]))
+        G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]
 
         coseismic = np.matmul(Gcos, model[[0, 1, 2 + n_eq * 3]])
         truemodel[2 + n_eq * 3] = coseismic[1] - coseismic[0]
