@@ -553,7 +553,8 @@ def fit_velocities():
     pcst = 1 / args.tau
     n_variables = 2 + n_eq * 3
     
-    n_para = n_para if n_para < 25 else 25 # Diminishing returns after this point, empirically
+    if n_para > 25: # Diminishing returns after this point, empirically
+        n_para = 25
     print('Velocity fitting on {} Cores'.format(n_para))
     if n_para > 1 and n_valid > 100:
         p = q.Pool(n_para)
