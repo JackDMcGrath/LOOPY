@@ -541,7 +541,7 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
 def fit_velocities():
     global pcst, Q, model, errors
 
-    use_weights = False
+    use_weights = True
     # Create VCM of observables (no c)
     Q = np.eye(n_im)
     if use_weights:
@@ -552,7 +552,7 @@ def fit_velocities():
     # Define post-seismic constant
     pcst = 1 / args.tau
     n_variables = 2 + n_eq * 3
-    
+
     _n_para = n_para if n_para < 25 else 25 # Diminishing returns after this, empirically
     print('Velocity fitting on {} Cores'.format(_n_para))
     if _n_para > 1 and n_valid > 100:
@@ -571,7 +571,7 @@ def fit_pixel_velocities(ii):
 
     if np.mod(ii, 1000) == 0:
         print('{}/{}'.format(ii,n_valid))
-    
+
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
     # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
@@ -610,12 +610,11 @@ def fit_pixel_velocities(ii):
 
     # Find 'True' Parameters
     truemodel = model.copy()
-    print('n_eq:', n_eq)
-    print('ord_eq', ord_eq)
+
     Gcos = np.zeros((2 * n_eq, 2 + n_eq * 3))
     Gcos[:, 0] = 1
     Gcos[:, 1] = [ord for ord in ord_eq for _ in range(2)]
-    print(truemodel)
+
     for ee in range(n_eq):
         # Fix postseismic
         truemodel[4 + ee * 3] = truemodel[4 + ee * 3] + truemodel[1]
@@ -628,12 +627,9 @@ def fit_pixel_velocities(ii):
             Gcos[eq + 2, 2 + ee * 3] = 1 # Coseismic (for pre-eq2)
             Gcos[eq + 2, 3 + ee * 3] = np.log(1 + pcst * (ord_eq[ee + 1] - ord_eq[ee])) # Avalue (for pre eq2)
             Gcos[eq + 2, 4 + ee * 3] = ord_eq[ee + 1] - ord_eq[ee] # Postseismic (for pre eq2)
-    print(Gcos)
 
     coseismic = np.matmul(Gcos, model)
-    print(truemodel)
-    truemodel[2:2+n_eq*3:3] = coseismic[1:2*n_eq:2, 2:2+n_eq*3:3] - coseismic[0:2*n_eq:2, 2:2+n_eq*3:3]
-    print(truemodel)
+    truemodel[2:2+n_eq*3:3] = coseismic[1:n_eq*2:2] - coseismic[0:n_eq*2:2]
 
     # Convert mm/day to mm/yr
     for dd in daily_rates:
@@ -656,7 +652,7 @@ def plot_timeseries(dates, disp, invvel, ii, x, y):
     plt.savefig(os.path.join(outdir, '{}.png'.format(ii)))
 
 def set_file_names():
-   
+
     names = []
     titles = []
 
@@ -665,9 +661,9 @@ def set_file_names():
         for n in range(n_eq):
             names = names + ['coseismic{}{}'.format(eq_dates[n], ext), 'a_value{}{}'.format(eq_dates[n], ext), 'post_vel{}{}'.format(eq_dates[n], ext)]
     n_vel = len(names)
-    
+
     names = names + ['rms', 'vstd']
-    
+
     for ext in ['', ' Error']:
         titles = titles + ['Velocity Intercept{} (mm/yr)'.format(ext), 'Preseismic Linear Velocity{} (mm/yr)'.format(ext)]
         for n in range(n_eq):
@@ -690,7 +686,7 @@ def write_outputs():
     if mask_final:
         mask = io_lib.read_img(maskfile, length, width)
         mask_pix = np.where(mask == 0)
-    
+
     gridResults = np.zeros((len(names), length, width), dtype=np.float32) * np.nan
 
     for ix, name in enumerate(names):
@@ -714,7 +710,7 @@ def write_outputs():
             maskpngname = '{}.mskd.png'.format(filename)
             mask_data = gridResults[ix, :, :]
             mask_data[mask_pix[0], mask_pix[1]] = np.nan
-            
+
             vmax = np.nanpercentile(mask_data, 95)
             if ix < n_vel:
                 vmin = np.nanpercentile(mask_data, 5)
