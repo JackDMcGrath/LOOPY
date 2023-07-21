@@ -740,7 +740,20 @@ def fit_pixel_velocities(ii):
 
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
-    # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
+    # Intercept (reference term), Pre-Seismic Velocity, [[C]oseismic-offset, log [R]elaxation, [P]ost-seismic linear velocity]
+    n_param = 2 + len(''.join(eq_params))
+    truemodel = np.zeros((2 + n_eq * 3))
+    inverr = np.zeros((2 + n_eq * 3))
+    invert_ix = [0, 1]
+
+    for ix, param in enumerate(eq_params):
+        if 'C' in param:
+            invert_ix.append(2 + ix * 3)
+        if 'R' in param:
+            invert_ix.append(3 + ix * 3)
+        if 'P' in param:
+            invert_ix.append(4 + ix * 3)
+
     G = np.zeros([n_im, 2 + n_eq * 3])
     G[:, 0] = 1
     # G[:eq_ix[0], 1] = date_ord[:eq_ix[0]]
@@ -754,6 +767,8 @@ def fit_pixel_velocities(ii):
         G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = np.log(1 + pcst * (date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]))
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]
         daily_rates.append(4 + ee * 3)
+
+    G = G[:, invert_ix]
 
     # Weight matrix (inverse of VCM)
     # W = np.linalg.inv(Q) # Too slow. Faster to do 1/sill before this
@@ -769,14 +784,14 @@ def fit_pixel_velocities(ii):
 
     # Calculate inversion parameter standard errors and root mean square error
     rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
-    inverr=np.sqrt(np.diag(invVCM) * rms / n_im)
-    rms=np.sqrt(rms / np.nansum(Q.flatten()))
+    inverr[invert_ix]=np.sqrt(np.diag(invVCM) * rms / n_im)
+    rms=np.sqrt(rms / n_im)
 
     # Find standard deviations of the velocity residuals
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
     # Find 'True' Parameters
-    truemodel = model.copy()
+    truemodel[invert_ix] = model
 
     Gcos = np.zeros((2 * n_eq, 2 + n_eq * 3))
     Gcos[:, 0] = 1
@@ -795,7 +810,7 @@ def fit_pixel_velocities(ii):
             Gcos[eq + 2, 3 + ee * 3] = np.log(1 + pcst * (ord_eq[ee + 1] - ord_eq[ee])) # Avalue (for pre eq2)
             Gcos[eq + 2, 4 + ee * 3] = ord_eq[ee + 1] - ord_eq[ee] # Postseismic (for pre eq2)
 
-    coseismic = np.matmul(Gcos, model)
+    coseismic = np.matmul(Gcos[:, invert_ix], model)
     truemodel[2:2+n_eq*3:3] = coseismic[1:n_eq*2:2] - coseismic[0:n_eq*2:2]
 
     # Convert mm/day to mm/yr
