@@ -322,9 +322,9 @@ if __name__ == "__main__":
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         sys.exit(2)
 
-    # if not linear_vel and cumfile2:
-    #     print("\nERROR: Cannot currently parse --seismic and --i2 options")
-    #     sys.exit(2)
+    if not linear_vel and cumfile2:
+        print("\nERROR: Cannot currently parse --seismic and --i2 options")
+        sys.exit(2)
 
     #%% Set cmap
     cmap = tools_lib.get_cmap(cmap_name)
@@ -717,21 +717,21 @@ if __name__ == "__main__":
 
 
     #%% Radio buttom for velocity selection
-    ## Add vel to mapdict only if not using seismics
-    if linear_vel:
-        if cumfile2:
-            mapdict_vel = {'vel(1)': vel, 'vel(2)': vel2}
-            mapdict_unit.update([('vel(1)', 'mm/yr'), ('vel(2)', 'mm/yr')])
-        else:
+    ## Add vel to mapdict
+    if cumfile2:
+        mapdict_vel = {'vel(1)': vel, 'vel(2)': vel2}
+        mapdict_unit.update([('vel(1)', 'mm/yr'), ('vel(2)', 'mm/yr')])
+    else:
+        if linear_vel:
             mapdict_vel = {'vel': vel}
             mapdict_unit.update([('vel', 'mm/yr')])
-    else:
-        mapdict_vel = {'vel': vel, 'prevel': prevel}
-        mapdict_unit.update([('vel', 'mm/yr'), ('prevel', 'mm/yr')])        
-        # Merge eqdict into mapdict_vel
-        mapdict_vel = {**mapdict_vel, **eqdict}
-        for eq in eqdates:
-            mapdict_unit.update([('{}_coseismic'.format(eq), 'mm'), ('{}_avalue'.format(eq), 'mm'), ('{}_postvel'.format(eq), 'mm/yr')])
+        else:
+            mapdict_vel = {'vel': vel, 'prevel': prevel}
+            mapdict_unit.update([('vel', 'mm/yr'), ('prevel', 'mm/yr')])
+            # Merge eqdict into mapdict_vel
+            mapdict_vel = {**mapdict_vel, **eqdict}
+            for eq in eqdates:
+                mapdict_unit.update([('{}_coseismic'.format(eq), 'mm'), ('{}_avalue'.format(eq), 'mm'), ('{}_postvel'.format(eq), 'mm/yr')])
 
     mapdict_vel.update(mapdict_data)
     mapdict_data = mapdict_vel  ## To move vel to top
