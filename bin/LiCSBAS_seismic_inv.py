@@ -847,7 +847,7 @@ def set_file_names():
         names = names + ['intercept{}'.format(ext), 'pre_vel{}'.format(ext)]
         for n in range(n_eq):
             names = names + ['coseismic{}{}'.format(eq_dates[n], ext), 'a_value{}{}'.format(eq_dates[n], ext), 'post_vel{}{}'.format(eq_dates[n], ext)]
-        n_vel = len(names)
+    n_vel = len(names) / 2
 
     names = names + ['rms', 'vstd']
 
