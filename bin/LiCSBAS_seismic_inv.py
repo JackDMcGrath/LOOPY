@@ -423,8 +423,9 @@ def find_outliers_RANSAC():
     # plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] - outlier_thresh * filt_std[:, y_pix, x_pix], c='b')
     # plt.legend()
 
-    # Replace outliers with filter data
-    cum[outlier] = cum_lpt[outlier]
+    # # Replace outliers with filter data
+    # cum[outlier] = cum_lpt[outlier]
+    cum[outlier] = np.nan
 
     # plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b')
     # plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
