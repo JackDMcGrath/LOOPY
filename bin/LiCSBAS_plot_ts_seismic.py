@@ -405,7 +405,7 @@ if __name__ == "__main__":
         vel = cumh5['vel']
         eqparams = []
     else:
-        vel = io_lib.read_img(os.path.join(resultsdir, 'vel'), length, width)
+        vel = cumh5['vel']
         eqdates = cumh5['eqdates'][()].astype(str).tolist()
         eqparams = cumh5['eqparams'][()].astype(str).tolist()
         n_eq = len(eqdates)
