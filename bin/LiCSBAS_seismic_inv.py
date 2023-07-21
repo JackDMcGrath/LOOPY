@@ -74,7 +74,7 @@ def init_args():
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
-    parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
+    parser.add_argument('-r', dest='ref_file', default='13ref.txt', help='txt file containing reference area')
     parser.add_argument('-m', dest='mask_file', default='mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
@@ -122,18 +122,18 @@ def set_input_output():
     h5file = os.path.join(tsadir, args.h5_file)
     outh5file = os.path.join(tsadir, outdir, 'cum.h5')
 
-    # If no reffile defined, search for 130ref, then 13ref, in this folder and infodir
+    # If no reffile defined, search for 13ref, then 130ref, in this folder and infodir
     reffile = os.path.join(tsadir, args.ref_file)
     if not os.path.exists(reffile):
         reffile = os.path.join(infodir, args.ref_file)
         if not os.path.exists(reffile):
-            if args.ref_file == '130ref.txt':
+            if args.ref_file == '13ref.txt':
                 # Seach for 13ref.txt
-                reffile = os.path.join(tsadir, '13ref.txt')
+                reffile = os.path.join(tsadir, '130ref.txt')
                 if not os.path.exists(reffile):
-                    reffile = os.path.join(infodir, '13ref.txt')
+                    reffile = os.path.join(infodir, '130ref.txt')
                     if not os.path.exists(reffile):
-                        print('\nNo reffile 130ref.txt or 13ref.txt found! No referencing occuring')
+                        print('\nNo reffile 13ref.txt or 130ref.txt found! No referencing occuring')
                         reffile = []
             else:
                 print('\nNo reffile {} found! No referencing occuring'.format(args.ref_file))
