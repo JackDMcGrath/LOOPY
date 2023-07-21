@@ -219,12 +219,13 @@ def read_eq_list(eq_listfile):
             if len(line.split()) == 2:
                 if line.split()[1] == 'X':
                     line = f.readline()
+                else:
+                    eqdates.append(str(line.split()[0]))
+                    parameters.append(str(line.split()[1]).upper())
+                    line = f.readline()
             else:
                 eqdates.append(str(line.split()[0]))
-                if len(line.split()) == 2:
-                    parameters.append(str(line.split()[1]).upper())
-                else:
-                    parameters.append('CRP')
+                parameters.append('CRP')
                 line = f.readline()
         else:
             line = f.readline()
