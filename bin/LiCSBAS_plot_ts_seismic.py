@@ -134,7 +134,7 @@ class Usage(Exception):
         self.msg = msg
 
 #%% Calc model
-def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
+def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[], eq_params=[]):
 
     imdates_years = imdates_ordinal/365.25 ## dont care abs
     xvalues_years = xvalues/365.25
@@ -177,10 +177,11 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
         # If no eq dates offered, set eq date to be after the timeseries
         if len(eq_date) == 0:
             eq_date = imdates[-1] + 1
+            eq_params = 'CRP'
 
         n_eq = len(eq_date)
         # Create G-matrix for inverting the parameters from displacement
-        G = create_gmatrix(eq_date, n_eq, imdates)
+        G = create_gmatrix(eq_date, n_eq, imdates, eq_params)
 
         # Invert displacements to come up with velocity parameters
         inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
@@ -191,11 +192,20 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[]):
 
     return yvalues
 
-def create_gmatrix(eq_date, n_eq, dates):
+def create_gmatrix(eq_date, n_eq, dates, eq_params):
 
     eq_ix = []
     for nn in range(n_eq):
         eq_ix.append(np.sum([1 for d in dates if d < eq_date[nn]]))
+    invert_ix = [0, 1]
+
+    for ix, param in enumerate(eq_params):
+        if 'C' in param:
+            invert_ix.append(2 + ix * 3)
+        if 'R' in param:
+            invert_ix.append(3 + ix * 3)
+        if 'P' in param:
+            invert_ix.append(4 + ix * 3)
 
     G = np.zeros((len(dates), 2 + (n_eq - 1) * 3))
     G[:, 0] = 1 # All dates have an intercept
@@ -205,7 +215,7 @@ def create_gmatrix(eq_date, n_eq, dates):
         G[eq_ix[nn]:eq_ix[nn + 1], 3 + nn * 3] = np.log(1 + (1/6) * (dates[eq_ix[nn]:eq_ix[nn + 1]] - eq_date[nn])) # Avalue
         G[eq_ix[nn]:eq_ix[nn + 1], 4 + nn * 3] = dates[eq_ix[nn]:eq_ix[nn + 1]] - eq_date[nn] # Post-seismic
 
-    return G
+    return G[:, invert_ix]
 
 
 #%% Find colorbar limits
@@ -393,9 +403,11 @@ if __name__ == "__main__":
     n_im, length, width = cum.shape
     if linear_vel:
         vel = cumh5['vel']
+        eqparams = []
     else:
         vel = io_lib.read_img(os.path.join(resultsdir, 'vel'), length, width)
         eqdates = cumh5['eqdates'][()].astype(str).tolist()
+        eqparams = cumh5['eqparams'][()].astype(str).tolist()
         n_eq = len(eqdates)
         vint = cumh5['vintercept']
         prevel = cumh5['prevel']
@@ -969,7 +981,7 @@ if __name__ == "__main__":
         td10day = dt.timedelta(days=timestep)
         xvalues_dt = np.arange(imdates_dt[0], imdates_dt[-1], td10day)
         for model, vis in enumerate(visibilities):
-            yvalues = calc_model(dph, imdates_ordinal, xvalues, model, eq_date=eq_dates)
+            yvalues = calc_model(dph, imdates_ordinal, xvalues, model, eq_date=eq_dates, eq_params=eqparams)
             lines1[model], = axts.plot(xvalues_dt, yvalues, 'b-', visible=vis, alpha=0.6, zorder=3)
 
         axts.scatter(imdates_dt, dph, label=label1, c='b', alpha=0.6, zorder=5)
@@ -984,7 +996,7 @@ if __name__ == "__main__":
             ## fit function
             lines2 = [0, 0, 0, 0, 0]
             for model, vis in enumerate(visibilities):
-                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates)
+                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates, eq_params=eqparams)
                 lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
 
             axts.scatter(imdates_dt, dphf, c='r', label=label2, alpha=0.6, zorder=4)
