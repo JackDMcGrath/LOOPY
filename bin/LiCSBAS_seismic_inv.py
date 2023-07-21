@@ -946,6 +946,7 @@ def write_h5(gridResults, data):
 
     # Add new data to h5
     cumh5.create_dataset('eqdates', data=[np.int32(eqd) for eqd in eq_dates])
+    cumh5.create_dataset('eq_params', data=[str(param) for param in eq_params])
     cumh5.create_dataset('cum', data=cum, compression=compress)
     cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
     cumh5.create_dataset('prevel', data=gridResults[1], compression=compress)
