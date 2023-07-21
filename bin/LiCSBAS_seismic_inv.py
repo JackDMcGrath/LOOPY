@@ -22,8 +22,8 @@ Work flow:
         A check can be added for the minimum coseismic displacement, where inverted displacement < threshold is considered beneath detectable limits
 
 Input files:
-    eq_list.txt: Text file containing EQ dates, and optionally which parameters to fit to that earthquake ([C]oseismic displacement, logarithmic [R]elaxation, [P]ostseismic linear velocity)
-                    e.g. 20161113 CRP
+    eq_list.txt: Text file containing EQ dates, and optionally which parameters to fit to that earthquake ([C]oseismic displacement, logarithmic [R]elaxation, [P]ostseismic linear velocity, e[X]clude EQ)
+                    e.g. 20161113 CRP 
     mask:        Mask file produced by LiCSBAS15_mask_ts.py
     cum.h5:      Output from LiCSBAS13_sb_inv.py. Required as certain masking parameters (e.g. residual rms) are not regenerated    
 
@@ -216,12 +216,16 @@ def read_eq_list(eq_listfile):
 
     while line:
         if line[0].isnumeric():
-            eqdates.append(str(line.split()[0]))
             if len(line.split()) == 2:
-                parameters.append(str(line.split()[1]).upper())
+                if line.split()[1] == 'X':
+                    line = f.readline()
             else:
-                parameters.append('CRP')
-            line = f.readline()
+                eqdates.append(str(line.split()[0]))
+                if len(line.split()) == 2:
+                    parameters.append(str(line.split()[1]).upper())
+                else:
+                    parameters.append('CRP')
+                line = f.readline()
         else:
             line = f.readline()
             continue
