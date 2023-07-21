@@ -874,9 +874,9 @@ def write_outputs():
     
     for meta in metafiles:
         if os.path.exists(os.path.join(resultdir, meta)):
-            shutil.copy(os.path.join(resultdir, meta), os.path.join(outdir, meta))
+            shutil.copy(os.path.join(resultdir, meta), os.path.join(metadir, meta))
         if os.path.exists(os.path.join(resultdir, meta + '.png')):
-            shutil.copy(os.path.join(resultdir, meta + '.png'), os.path.join(outdir, meta + '.png'))
+            shutil.copy(os.path.join(resultdir, meta + '.png'), os.path.join(metadir, meta + '.png'))
 
     results = np.hstack([model, errors])
 
