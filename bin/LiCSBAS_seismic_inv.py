@@ -120,6 +120,8 @@ def set_input_output():
 
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
+    if args.deoutlier:
+        h5file = h5file[:-3] + '_deoutlier.h5'
     outh5file = os.path.join(tsadir, outdir, 'cum.h5')
 
     # If no reffile defined, search for 13ref, then 130ref, in this folder and infodir
