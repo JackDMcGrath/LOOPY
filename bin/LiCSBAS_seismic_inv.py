@@ -225,9 +225,9 @@ def read_eq_list(eq_listfile):
         else:
             line = f.readline()
             continue
-    sort_ix = sorted(range(len(eqdates)), key=eqdates.__getitem__)
-    eq_dates.sort()
-    parameters = parameters[sort_ix]
+    sort_ix = np.array(sorted(range(len(eqdates)), key=eqdates.__getitem__))
+    eqdates.sort()
+    parameters = np.array(parameters)[sort_ix].tolist()
 
     return eqdates, parameters
 
@@ -741,7 +741,6 @@ def fit_pixel_velocities(ii):
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
     # Intercept (reference term), Pre-Seismic Velocity, [[C]oseismic-offset, log [R]elaxation, [P]ost-seismic linear velocity]
-    n_param = 2 + len(''.join(eq_params))
     truemodel = np.zeros((2 + n_eq * 3))
     inverr = np.zeros((2 + n_eq * 3))
     invert_ix = [0, 1]
@@ -753,6 +752,7 @@ def fit_pixel_velocities(ii):
             invert_ix.append(3 + ix * 3)
         if 'P' in param:
             invert_ix.append(4 + ix * 3)
+    invert_ix.sort()
 
     G = np.zeros([n_im, 2 + n_eq * 3])
     G[:, 0] = 1
@@ -946,7 +946,7 @@ def write_h5(gridResults, data):
 
     # Add new data to h5
     cumh5.create_dataset('eqdates', data=[np.int32(eqd) for eqd in eq_dates])
-    cumh5.create_dataset('eq_params', data=[str(param) for param in eq_params])
+    cumh5.create_dataset('eqparams', data=[str(param) for param in eq_params])
     cumh5.create_dataset('cum', data=cum, compression=compress)
     cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
     cumh5.create_dataset('prevel', data=gridResults[1], compression=compress)
