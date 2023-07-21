@@ -21,6 +21,12 @@ Work flow:
         relaxation (as a logarithmic decay) and a post-seismic velocity (linear)
         A check can be added for the minimum coseismic displacement, where inverted displacement < threshold is considered beneath detectable limits
 
+Input files:
+    eq_list.txt: Text file containing EQ dates, and optionally which parameters to fit to that earthquake ([C]oseismic displacement, logarithmic [R]elaxation, [P]ostseismic linear velocity, e[X]clude EQ)
+                    e.g. 20161113 CRP 
+    mask:        Mask file produced by LiCSBAS15_mask_ts.py
+    cum.h5:      Output from LiCSBAS13_sb_inv.py. Required as certain masking parameters (e.g. residual rms) are not regenerated    
+
 #%% Change log
 
 v1.0.0 20230714 Jack McGrath, University of Leeds
@@ -44,7 +50,6 @@ import LiCSBAS_plot_lib as plot_lib
 import SCM
 from sklearn.linear_model import RANSACRegressor
 from scipy.interpolate import CubicSpline
-from pyinterpolate import build_experimental_variogram, TheoreticalVariogram, build_theoretical_variogram
 from lmfit.model import *
 from scipy import stats
 
@@ -148,7 +153,7 @@ def set_input_output():
     q = multi.get_context('fork')
 
 def load_data():
-    global width, length, data, n_im, cum, dates, length, width, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid, ref
+    global width, length, data, n_im, cum, dates, length, width, n_para, eq_dates, eq_params, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid, ref
 
     data = h5.File(h5file, 'r')
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in np.array(data['imdates'])]
@@ -187,8 +192,7 @@ def load_data():
 
     ## Sort dates
     # Get list of earthquake dates and index
-    eq_dates = io_lib.read_ifg_list(eqfile)
-    eq_dates.sort()
+    eq_dates, eq_params = read_eq_list(eqfile)
     n_eq = len(eq_dates)
 
     # Find which index each earthquake correlates to
@@ -203,6 +207,34 @@ def load_data():
     # Make all dates ordinal
     ord_eq = np.array([eq.toordinal() for eq in eq_dt]) - dates[0].toordinal()
     date_ord = np.array([x.toordinal() for x in dates]) - dates[0].toordinal()
+
+def read_eq_list(eq_listfile):
+    eqdates = []
+    parameters = []
+    f = open(eq_listfile)
+    line = f.readline()
+
+    while line:
+        if line[0].isnumeric():
+            if len(line.split()) == 2:
+                if line.split()[1] == 'X':
+                    line = f.readline()
+                else:
+                    eqdates.append(str(line.split()[0]))
+                    parameters.append(str(line.split()[1]).upper())
+                    line = f.readline()
+            else:
+                eqdates.append(str(line.split()[0]))
+                parameters.append('CRP')
+                line = f.readline()
+        else:
+            line = f.readline()
+            continue
+    sort_ix = np.array(sorted(range(len(eqdates)), key=eqdates.__getitem__))
+    eqdates.sort()
+    parameters = np.array(parameters)[sort_ix].tolist()
+
+    return eqdates, parameters
 
 def reference_disp(data, reffile):
     global refx1, refx2, refy1, refy2
@@ -713,7 +745,20 @@ def fit_pixel_velocities(ii):
 
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
-    # Intercept (reference term), Pre-Seismic Velocity, [offset, log-param, post-seismic velocity]
+    # Intercept (reference term), Pre-Seismic Velocity, [[C]oseismic-offset, log [R]elaxation, [P]ost-seismic linear velocity]
+    truemodel = np.zeros((2 + n_eq * 3))
+    inverr = np.zeros((2 + n_eq * 3))
+    invert_ix = [0, 1]
+
+    for ix, param in enumerate(eq_params):
+        if 'C' in param:
+            invert_ix.append(2 + ix * 3)
+        if 'R' in param:
+            invert_ix.append(3 + ix * 3)
+        if 'P' in param:
+            invert_ix.append(4 + ix * 3)
+    invert_ix.sort()
+
     G = np.zeros([n_im, 2 + n_eq * 3])
     G[:, 0] = 1
     # G[:eq_ix[0], 1] = date_ord[:eq_ix[0]]
@@ -727,6 +772,8 @@ def fit_pixel_velocities(ii):
         G[eq_ix[ee]:eq_ix[ee + 1], 3 + ee * 3] = np.log(1 + pcst * (date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]))
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]
         daily_rates.append(4 + ee * 3)
+
+    G = G[:, invert_ix]
 
     # Weight matrix (inverse of VCM)
     # W = np.linalg.inv(Q) # Too slow. Faster to do 1/sill before this
@@ -742,14 +789,14 @@ def fit_pixel_velocities(ii):
 
     # Calculate inversion parameter standard errors and root mean square error
     rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
-    inverr=np.sqrt(np.diag(invVCM) * rms / n_im)
-    rms=np.sqrt(rms / np.nansum(Q.flatten()))
+    inverr[invert_ix]=np.sqrt(np.diag(invVCM) * rms / n_im)
+    rms=np.sqrt(rms / n_im)
 
     # Find standard deviations of the velocity residuals
     std = np.sqrt((1 / n_im) * np.sum((disp - invvel) ** 2))
 
     # Find 'True' Parameters
-    truemodel = model.copy()
+    truemodel[invert_ix] = model
 
     Gcos = np.zeros((2 * n_eq, 2 + n_eq * 3))
     Gcos[:, 0] = 1
@@ -768,7 +815,7 @@ def fit_pixel_velocities(ii):
             Gcos[eq + 2, 3 + ee * 3] = np.log(1 + pcst * (ord_eq[ee + 1] - ord_eq[ee])) # Avalue (for pre eq2)
             Gcos[eq + 2, 4 + ee * 3] = ord_eq[ee + 1] - ord_eq[ee] # Postseismic (for pre eq2)
 
-    coseismic = np.matmul(Gcos, model)
+    coseismic = np.matmul(Gcos[:, invert_ix], model)
     truemodel[2:2+n_eq*3:3] = coseismic[1:n_eq*2:2] - coseismic[0:n_eq*2:2]
 
     # Convert mm/day to mm/yr
@@ -800,7 +847,7 @@ def set_file_names():
         names = names + ['intercept{}'.format(ext), 'pre_vel{}'.format(ext)]
         for n in range(n_eq):
             names = names + ['coseismic{}{}'.format(eq_dates[n], ext), 'a_value{}{}'.format(eq_dates[n], ext), 'post_vel{}{}'.format(eq_dates[n], ext)]
-        n_vel = len(names)
+    n_vel = len(names) / 2
 
     names = names + ['rms', 'vstd']
 
@@ -904,6 +951,7 @@ def write_h5(gridResults, data):
 
     # Add new data to h5
     cumh5.create_dataset('eqdates', data=[np.int32(eqd) for eqd in eq_dates])
+    cumh5.create_dataset('eqparams', data=[str(param) for param in eq_params])
     cumh5.create_dataset('cum', data=cum, compression=compress)
     cumh5.create_dataset('vel', data=data['vel'])
     cumh5.create_dataset('vintercept', data=gridResults[0], compression=compress)
