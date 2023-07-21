@@ -21,6 +21,12 @@ Work flow:
         relaxation (as a logarithmic decay) and a post-seismic velocity (linear)
         A check can be added for the minimum coseismic displacement, where inverted displacement < threshold is considered beneath detectable limits
 
+Input files:
+    eq_list.txt: Text file containing EQ dates, and optionally which parameters to fit to that earthquake ([C]oseismic displacement, logarithmic [R]elaxation, [P]ostseismic linear velocity)
+                    e.g. 20161113 CRP
+    mask:        Mask file produced by LiCSBAS15_mask_ts.py
+    cum.h5:      Output from LiCSBAS13_sb_inv.py. Required as certain masking parameters (e.g. residual rms) are not regenerated    
+
 #%% Change log
 
 v1.0.0 20230714 Jack McGrath, University of Leeds
@@ -44,7 +50,6 @@ import LiCSBAS_plot_lib as plot_lib
 import SCM
 from sklearn.linear_model import RANSACRegressor
 from scipy.interpolate import CubicSpline
-from pyinterpolate import build_experimental_variogram, TheoreticalVariogram, build_theoretical_variogram
 from lmfit.model import *
 from scipy import stats
 
@@ -148,7 +153,7 @@ def set_input_output():
     q = multi.get_context('fork')
 
 def load_data():
-    global width, length, data, n_im, cum, dates, length, width, n_para, eq_dates, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid, ref
+    global width, length, data, n_im, cum, dates, length, width, n_para, eq_dates, eq_params, n_eq, eq_dt, eq_ix, ord_eq, date_ord, eq_dates, valid, n_valid, ref
 
     data = h5.File(h5file, 'r')
     dates = [dt.datetime.strptime(str(d), '%Y%m%d').date() for d in np.array(data['imdates'])]
@@ -187,8 +192,7 @@ def load_data():
 
     ## Sort dates
     # Get list of earthquake dates and index
-    eq_dates = io_lib.read_ifg_list(eqfile)
-    eq_dates.sort()
+    eq_dates, eq_params = read_eq_list(eqfile)
     n_eq = len(eq_dates)
 
     # Find which index each earthquake correlates to
@@ -203,6 +207,29 @@ def load_data():
     # Make all dates ordinal
     ord_eq = np.array([eq.toordinal() for eq in eq_dt]) - dates[0].toordinal()
     date_ord = np.array([x.toordinal() for x in dates]) - dates[0].toordinal()
+
+def read_eq_list(eq_listfile):
+    eqdates = []
+    parameters = []
+    f = open(eq_listfile)
+    line = f.readline()
+
+    while line:
+        if line[0].isnumeric():
+            eqdates.append(str(line.split()[0]))
+            if len(line.split()) == 2:
+                parameters.append(str(line.split()[1]).upper())
+            else:
+                parameters.append('CRP')
+            line = f.readline()
+        else:
+            line = f.readline()
+            continue
+    sort_ix = sorted(range(len(eqdates)), key=eqdates.__getitem__)
+    eq_dates.sort()
+    parameters = parameters[sort_ix]
+
+    return eqdates, parameters
 
 def reference_disp(data, reffile):
     global refx1, refx2, refy1, refy2
