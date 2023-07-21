@@ -406,17 +406,23 @@ if __name__ == "__main__":
         eqparams = []
     else:
         vel = cumh5['vel']
-        eqdates = cumh5['eqdates'][()].astype(str).tolist()
-        eqparams = cumh5['eqparams'][()].astype(str).tolist()
-        n_eq = len(eqdates)
-        vint = cumh5['vintercept']
-        prevel = cumh5['prevel']
-        # Create dictionary to store multiple eq datasets
-        eqdict = {}
-        for eq in eqdates:
-            eqdict.update({'{}_coseismic'.format(eq): cumh5['{} coseismic'.format(eq)]})
-            eqdict.update({'{}_avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
-            eqdict.update({'{}_postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
+        try:
+            eqdates = cumh5['eqdates'][()].astype(str).tolist()
+            eqparams = cumh5['eqparams'][()].astype(str).tolist()
+            n_eq = len(eqdates)
+            vint = cumh5['vintercept']
+            prevel = cumh5['prevel']
+            # Create dictionary to store multiple eq datasets
+            eqdict = {}
+            for eq in eqdates:
+                eqdict.update({'{}_coseismic'.format(eq): cumh5['{} coseismic'.format(eq)]})
+                eqdict.update({'{}_avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
+                eqdict.update({'{}_postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
+        except:
+            print("This doesn't look like an output from LiCSBAS_seismic_inv.py.\nContinuing only with linear LOS velocity")
+            linear_vel = True
+            vstdfile = os.path.join(resultsdir, 'vstd')
+            resultsdir = os.path.join(cumdir, 'results')
 
     try:
         gap = cumh5['gap']
