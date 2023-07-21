@@ -740,7 +740,7 @@ def spherical(d, p, n, r):
 
 def fit_pixel_velocities(ii):
 
-    if np.mod(ii, 1000) == 0:
+    if np.mod(ii, 10000) == 0:
         print('{}/{}'.format(ii,n_valid))
 
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
