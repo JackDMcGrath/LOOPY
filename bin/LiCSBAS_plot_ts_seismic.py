@@ -187,7 +187,7 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[], eq_params=[]):
         inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
 
         # Create G-matrix for modelling the velocities
-        G = create_gmatrix(eq_date, n_eq, xvalues)
+        G = create_gmatrix(eq_date, n_eq, xvalues, eq_params)
         yvalues = np.matmul(G, inv)
 
     return yvalues
