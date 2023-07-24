@@ -642,15 +642,17 @@ def main(argv=None):
 
     if nullify:
         if treat_as_bad:
-            print('Aggresive Nullification: Nullifying all unws associated with a loop error')
+            print('Aggressive Nullification: Nullifying all unws associated with a loop error')
         else:
             print('Conservative Nullification: Only Nullifying unws where all loops are errors')
         
-        if _n_para > 1:
+        if _n_para > 1 and len(ifgdates) < _n_para:
+            print('with {} parallel processing...'.format(_n_para), flush=True)
             p = q.Pool(_n_para)
             p.map(nullify_unw, range(len(ifgdates)))
             p.close()
         else:
+            print('with no parallel processing...', flush=True)
             for ix, ifgd in enumerate(ifgdates):
                 mask = da.loc[:,:,ifgd].values
                 # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
