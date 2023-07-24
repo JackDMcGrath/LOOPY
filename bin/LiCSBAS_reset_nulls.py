@@ -83,7 +83,7 @@ def set_input_output():
         args.reset_NoLoop = False
         args.reset_LoopErr = False
 
-    if not args.reset_all and not args.reset_NoLoop and args.reset_LoopErr:
+    if not args.reset_all and not args.reset_NoLoop and not args.reset_LoopErr:
         raise Exception('No reset options selected......')
     
     if args.reset_all or args.reset_NoLoop:
