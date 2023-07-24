@@ -139,7 +139,7 @@ def main(argv=None):
     print("\n{} ver{} {} {}".format(os.path.basename(argv[0]), ver, date, author), flush=True)
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
-    global Aloop, ifgdates, ifgdir, length, width, loop_pngdir, cycle, \
+    global Aloop, ifgdates, ifgdir, length, width, loop_pngdir, cycle, n_ifg, da,\
         multi_prime, bad_ifg, noref_ifg, bad_ifg_all, refy1, refy2, refx1, refx2, cmap_wrap, \
         treat_as_bad  ## for parallel processing
 
@@ -642,14 +642,20 @@ def main(argv=None):
 
     if nullify:
         if treat_as_bad:
-            print('Aggresive Nullification: Nullifying all unws associated with a loop error - not parallel now')
+            print('Aggresive Nullification: Nullifying all unws associated with a loop error')
         else:
-            print('Conservative Nullification: Only Nullifying unws where all loops are errors - not parallel now')
-        for ix, ifgd in enumerate(ifgdates):
-            mask = da.loc[:,:,ifgd].values
-            # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
-            if not np.min(mask) and np.max(mask):
-                nullify_unw(ifgd, mask, ix, n_ifg)
+            print('Conservative Nullification: Only Nullifying unws where all loops are errors')
+        
+        if _n_para > 1:
+            p = q.Pool(_n_para)
+            p.map(nullify_unw, range(len(ifgdates)))
+            p.close()
+        else:
+            for ix, ifgd in enumerate(ifgdates):
+                mask = da.loc[:,:,ifgd].values
+                # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
+                if not np.min(mask) and np.max(mask):
+                    nullify_unw(ifgd, mask, ix, n_ifg)
 
         da = xr.DataArray(
             data=a,
@@ -1191,7 +1197,10 @@ def loop_closure_4th(args, da):
     return ns_loop_err1, da
 
 
-def nullify_unw(ifgd, mask, ix, n_ifg):
+def nullify_unw(ix):
+    ifgd = ifgdates[ix]
+    mask = da.loc[:,:,ifgd].values
+
     unwfile = os.path.join(ifgdir, ifgd, ifgd+'.unw')
     # Check for backed up files. THIS ASSUMES ALL DATA HAS BEEN NULLED THE SAME WAY
     trueorigfile = os.path.join(ifgdir, ifgd, ifgd + '_orig.unw')
