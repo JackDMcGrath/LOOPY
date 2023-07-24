@@ -90,6 +90,8 @@ def set_input_output():
         noLoopDir = os.path.join(ifgdir, 'no_loop_ifg')
         if os.path.exists(noLoopDir):
             noLoopList = glob.glob(os.path.join(noLoopDir, '20*'))
+        else:
+            noLoopList = []
 
 def reset_all():
     # Return No Loop IFGs to the main folder
