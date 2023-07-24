@@ -44,9 +44,9 @@ def init_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=CustomFormatter)
     parser.add_argument('-f', dest='frame_dir', default="./", help="Frame directory")
     parser.add_argument('-d', dest='geoc_dir', default="GEOCml10GACOS", help="GEOCdir containing IFGs to be reset")
-    parser.add_argument('--reset_all', default=False, action='store_true', help='Reset all IFGs to original, unnulled state')
-    parser.add_argument('--reset_NoLoop', default=False, action='store_true', help='Add noLoops back into the IFGs (LiCSBAS130_remove_noloops.py must have been the last nullification)')
-    parser.add_argument('--reset_LoopErr', default=False, action='store_true', help='Add Loop Errors back into the IFGs (LiCSBAS12_loop_closure.py must have been the last nullification)')
+    parser.add_argument('--reset_all', dest='reset_all', default=False, action='store_true', help='Reset all IFGs to original, unnulled state')
+    parser.add_argument('--reset_NoLoop', dest='reset_NoLoop', default=False, action='store_true', help='Add noLoops back into the IFGs (LiCSBAS130_remove_noloops.py must have been the last nullification)')
+    parser.add_argument('--reset_LoopErr', dest='reset_LoopErr', default=False, action='store_true', help='Add Loop Errors back into the IFGs (LiCSBAS12_loop_closure.py must have been the last nullification)')
     args = parser.parse_args()
 
 def start():
@@ -124,7 +124,7 @@ def reset_null():
             ifgd = re.split('/', ifg)[-1]
             shutil.move(ifg, os.path.join(ifgdir, ifgd))
 
-        ifglist = glob.glob(os.path.join(ifgdir, '20*'))
+    ifglist = glob.glob(os.path.join(ifgdir, '20*'))
 
     for ifg in ifglist:
         ifgd = re.split('/', ifg)[-1]        
