@@ -644,7 +644,7 @@ def main(argv=None):
         if treat_as_bad:
             print('Aggresive Nullification: Nullifying all unws associated with a loop error - not parallel now')
         else:
-            print('Gentle Nullification: Only Nullifying unws where all loops are errors - not parallel now')
+            print('Conservative Nullification: Only Nullifying unws where all loops are errors - not parallel now')
         for ix, ifgd in enumerate(ifgdates):
             mask = da.loc[:,:,ifgd].values
             # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
@@ -796,9 +796,9 @@ def main(argv=None):
 
     if nullify:
         if treat_as_bad:
-            title = 'Number of unclosed loops after aggressive nullifying (JDM)'
+            title = 'Number of unclosed loops after aggressive nullifying'
         else:
-            title = 'Number of unclosed loops after gentle nullifying (COMET dev)'
+            title = 'Number of unclosed loops after conservative nullifying'
         plot_lib.make_im_png(ns_loop_err_null, n_loop_errfile_null+'.png', cmap_noise_r, title)
 
         title = 'Number of unclosed loops before nullifying'
@@ -1215,7 +1215,7 @@ def nullify_unw(ifgd, mask, ix, n_ifg):
 
     if np.mod(ix, 100) == 0:
         print('  {}/{} IFG....'.format(ix, n_ifg))
-    
+
     # Read in preserved data, nullify, and write to .unw file
     unw = io_lib.read_img(origfile, length, width) # Read in preserved un-looperr-nullified data
     #unw[mask==False]=0  # should be ok but it appears as 0 in preview...
@@ -1226,7 +1226,7 @@ def nullify_unw(ifgd, mask, ix, n_ifg):
     if treat_as_bad:
         pngfile = os.path.join(ifgdir, ifgd, ifgd+'_aggro_null.png')
     else:
-        pngfile = os.path.join(ifgdir, ifgd, ifgd+'_gentle_null.png')
+        pngfile = os.path.join(ifgdir, ifgd, ifgd+'_conservative_null.png')
     plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), pngfile, cmap_wrap, ifgd+'.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 def nullify_mask(ifgd, mask):
