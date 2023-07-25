@@ -23,9 +23,9 @@ Work flow:
 
 Input files:
     eq_list.txt: Text file containing EQ dates, and optionally which parameters to fit to that earthquake ([C]oseismic displacement, logarithmic [R]elaxation, [P]ostseismic linear velocity, e[X]clude EQ)
-                    e.g. 20161113 CRP 
+                    e.g. 20161113 CRP
     mask:        Mask file produced by LiCSBAS15_mask_ts.py
-    cum.h5:      Output from LiCSBAS13_sb_inv.py. Required as certain masking parameters (e.g. residual rms) are not regenerated    
+    cum.h5:      Output from LiCSBAS13_sb_inv.py. Required as certain masking parameters (e.g. residual rms) are not regenerated
 
 #%% Change log
 
@@ -425,7 +425,21 @@ def find_outliers_RANSAC():
 
     # # Replace outliers with filter data
     # cum[outlier] = cum_lpt[outlier]
+    for im in range(1, n_im):
+        plt.imshow((cum[im, :, :] - cum[im - 1, :, :]) - np.nanmedian(cum[im, :, :] - cum[im - 1, :, :]), vmin=-50, vmax=50)
+        plt.colorbar()
+        plt.title(dates[im])
+        plt.savefig(os.path.join(outdir, 'im{}before.png'.format(im)))
+        plt.close()
+        print(os.path.join(outdir, 'im{}before.png'.format(im)))
     cum[outlier] = np.nan
+    for im in range(1, n_im):
+        plt.imshow((cum[im, :, :] - cum[im - 1, :, :]) - np.nanmedian(cum[im, :, :] - cum[im - 1, :, :]), vmin=-50, vmax=50)
+        plt.colorbar()
+        plt.title(dates[im])
+        plt.savefig(os.path.join(outdir, 'im{}filt.png'.format(im)))
+        plt.close()
+        print(os.path.join(outdir, 'im{}filt.png'.format(im)))
 
     # plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b')
     # plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
@@ -874,7 +888,7 @@ def write_outputs():
 
     # Copy already produced files
     metafiles = ['coh_avg', 'n_unw', 'vstd', 'maxTlen', 'n_gap', 'stc', 'n_ifg_noloop', 'n_loop_err', 'resid_rms', 'slc.mli', 'hgt']
-    
+
     for meta in metafiles:
         if os.path.exists(os.path.join(resultdir, meta)):
             shutil.copy(os.path.join(resultdir, meta), os.path.join(metadir, meta))
