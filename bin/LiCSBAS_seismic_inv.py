@@ -23,7 +23,7 @@ Work flow:
 
 Input files:
     eq_list.txt: Text file containing EQ dates, and optionally which parameters to fit to that earthquake ([C]oseismic displacement, logarithmic [R]elaxation, [P]ostseismic linear velocity, e[X]clude EQ)
-                    e.g. 20161113 CRP 
+                    e.g. 20161113 CRP
     mask:        Mask file produced by LiCSBAS15_mask_ts.py
     cum.h5:      Output from LiCSBAS13_sb_inv.py
 
@@ -109,7 +109,7 @@ def finish():
     print('Output file: {}\n'.format(os.path.relpath(outh5file)))
 
 def set_input_output():
-    global tsadir, infodir, resultdir, outdir, ifgdir
+    global tsadir, infodir, resultdir, outdir, ifgdir, metadir
     global h5file, reffile, maskfile, eqfile, outh5file
     global q, outlier_thresh, mask_final
 
@@ -118,7 +118,8 @@ def set_input_output():
     tsadir = os.path.abspath(os.path.join(args.frame_dir, args.ts_dir))
     infodir = os.path.join(tsadir, 'info')
     resultdir = os.path.join(tsadir, 'results')
-    outdir = os.path.join(tsadir, args.out_dir)
+    outdir = os.path.join(resultdir, 'seismic_vels')
+    metadir = os.path.join(outdir, 'results')
 
     # define h5 files
     h5file = os.path.join(tsadir, args.h5_file)
@@ -130,22 +131,24 @@ def set_input_output():
     else:
         outh5file = os.path.join(tsadir, outdir, 'cum.h5')    
 
-    # If no reffile defined, sarch for 130ref, then 13ref, in this folder and infodir
+    # If no reffile defined, search for 13ref, then 130ref, in this folder and infodir
     reffile = os.path.join(tsadir, args.ref_file)
     if not os.path.exists(reffile):
         reffile = os.path.join(infodir, args.ref_file)
         if not os.path.exists(reffile):
-            if args.ref_file == '130ref.txt':
+            if args.ref_file == '13ref.txt':
                 # Seach for 13ref.txt
-                reffile = os.path.join(tsadir, '13ref.txt')
+                reffile = os.path.join(tsadir, '130ref.txt')
                 if not os.path.exists(reffile):
-                    reffile = os.path.join(infodir, '13ref.txt')
+                    reffile = os.path.join(infodir, '130ref.txt')
                     if not os.path.exists(reffile):
-                        print('\nNo reffile 130ref.txt or 13ref.txt found! No referencing occuring')
+                        print('\nNo reffile 13ref.txt or 130ref.txt found! No referencing occuring')
                         reffile = []
             else:
                 print('\nNo reffile {} found! No referencing occuring'.format(args.ref_file))
                 reffile = []
+        if reffile != []:
+            print('\nHad to search for reffile. Using {}'.format(reffile))
 
     maskfile = os.path.join(tsadir, args.mask_file)
     if not os.path.exists(maskfile):
@@ -180,7 +183,9 @@ def load_data():
 
     if mask_final:
         mask = io_lib.read_img(maskfile, length, width)
-        shutil.copy(maskfile, os.path.join(outdir, 'mask'))
+        if not os.path.exists(metadir):
+            os.mkdir(metadir)
+        shutil.copy(maskfile, os.path.join(metadir, 'mask'))
         if args.apply_mask:
             print('Applying Mask to cum data')
             maskx, masky = np.where(mask == 0)
@@ -314,7 +319,7 @@ def temporal_filter(cum):
             else:
                 break
 
-        # Reload original data, replace identified outliers with final filtered values
+        # Reload original data, nan identified outliers
         cum = np.array(data['cum']) - ref
         if args.apply_mask:
             print('Applying Mask to reloaded data')
@@ -430,7 +435,7 @@ def find_outliers_RANSAC():
     # plt.plot(np.array(dates), cum_lpt[:, y_pix, x_pix] - outlier_thresh * filt_std[:, y_pix, x_pix], c='b')
     # plt.legend()
 
-    # Replace outliers with filter data
+    # Deal with outlier data
     if args.replace_outliers:
         print('Replacing Outliers')
         cum[outlier] = cum_lpt[outlier]
@@ -887,6 +892,15 @@ def write_outputs():
 
     if not os.path.exists(outdir):
         os.mkdir(outdir)
+
+    # Copy already produced files
+    metafiles = ['coh_avg', 'n_unw', 'vstd', 'maxTlen', 'n_gap', 'stc', 'n_ifg_noloop', 'n_loop_err', 'resid_rms', 'slc.mli', 'hgt']
+
+    for meta in metafiles:
+        if os.path.exists(os.path.join(resultdir, meta)):
+            shutil.copy(os.path.join(resultdir, meta), os.path.join(metadir, meta))
+        if os.path.exists(os.path.join(resultdir, meta + '.png')):
+            shutil.copy(os.path.join(resultdir, meta + '.png'), os.path.join(metadir, meta + '.png'))
 
     results = np.hstack([model, errors])
 

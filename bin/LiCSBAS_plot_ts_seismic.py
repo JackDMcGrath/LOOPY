@@ -24,12 +24,13 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
     [-u U.geo] [-r x1:x2/y1:y2] [--ref_geo lon1/lon2/lat1/lat2] [-p x/y]
     [--p_geo lon/lat] [-c cmap] [--nomask] [--vmin float] [--vmax float]
     [--auto_crange float] [--dmin float] [--dmax float] [--ylen float]
-    [--ts_png pngfile] [--eqlist textfile]
+    [--ts_png pngfile] [--seismic]
 
  -i    Input cum hdf5 file (Default: ./cum_filt.h5 or ./cum.h5)
  --i2  Input 2nd cum hdf5 file
        (Default: cum.h5 if -i cum_filt.h5, otherwise none)
- -m    Refereference (master) date for time series (Default: first date)
+       (if --seismic, only plots the displacements of the second dataset)
+ -m    Reference (master) date for time series (Default: first date)
  -d    Directory containing noise indices (e.g., mask, coh_avg, etc.)
        (Default: "results" at the same dir as cum[_filt].h5)
  -u    Input U.geo file to show incidence angle (Default: ../GEOCml*/U.geo)
@@ -328,6 +329,8 @@ if __name__ == "__main__":
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         sys.exit(2)
 
+    if not linear_vel and cumfile2:
+        print('\nseismic and i2 flags selected. Only showing {} in timeseries for displacement comparison'.format(os.path.basename(cumfile2)))
 
     #%% Set cmap
     cmap = tools_lib.get_cmap(cmap_name)
@@ -361,10 +364,7 @@ if __name__ == "__main__":
 
     ### results dir
     if not resultsdir: # if not given
-        if linear_vel:
-            resultsdir = os.path.join(cumdir, 'results')
-        else: # Currently, seismic cum.h5 stored in TS*/results/seismic_vels
-            resultsdir = os.path.abspath(os.path.join(cumdir, '..'))
+        resultsdir = os.path.join(cumdir, 'results')
 
     ### mask
     maskfile = os.path.join(resultsdir, 'mask')
@@ -411,18 +411,24 @@ if __name__ == "__main__":
         vel = cumh5['vel']
         eqparams = []
     else:
-        vel = io_lib.read_img(os.path.join(resultsdir, 'vel'), length, width)
-        eqdates = cumh5['eqdates'][()].astype(str).tolist()
-        eqparams = cumh5['eqparams'][()].astype(str).tolist()
-        n_eq = len(eqdates)
-        vint = cumh5['vintercept']
-        prevel = cumh5['prevel']
-        # Create dictionary to store multiple eq datasets
-        eqdict = {}
-        for eq in eqdates:
-            eqdict.update({'{}_coseismic'.format(eq): cumh5['{} coseismic'.format(eq)]})
-            eqdict.update({'{}_avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
-            eqdict.update({'{}_postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
+        vel = cumh5['vel']
+        try:
+            eqdates = cumh5['eqdates'][()].astype(str).tolist()
+            eqparams = cumh5['eqparams'][()].astype(str).tolist()
+            n_eq = len(eqdates)
+            vint = cumh5['vintercept']
+            prevel = cumh5['prevel']
+            # Create dictionary to store multiple eq datasets
+            eqdict = {}
+            for eq in eqdates:
+                eqdict.update({'{}_coseismic'.format(eq): cumh5['{} coseismic'.format(eq)]})
+                eqdict.update({'{}_avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
+                eqdict.update({'{}_postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
+        except:
+            print("This doesn't look like an output from LiCSBAS_seismic_inv.py.\nContinuing only with linear LOS velocity")
+            linear_vel = True
+            vstdfile = os.path.join(resultsdir, 'vstd')
+            eqparams = []
 
     try:
         gap = cumh5['gap']
@@ -502,7 +508,10 @@ if __name__ == "__main__":
         filtwidth_day = int(np.round(filtwidth_yr*365.25))
         label1 = '1: s={:.1f}km, t={:.2f}yr ({}d){}'.format(filtwidth_km, filtwidth_yr, filtwidth_day, deramp)
     else:
-        label1 = '1: No filter'
+        if 'outlier' in cumfile:
+            label1 = '1: Deoutliered, No filter'
+        else:
+            label1 = '1: No filter'
 
 
     ### Set master (reference) date
@@ -537,7 +546,10 @@ if __name__ == "__main__":
             filtwidth_day2 = int(np.round(filtwidth_yr2*365.25))
             label2 = '2: s={:.1f}km, t={:.2f}yr ({}d){}'.format(filtwidth_km2, filtwidth_yr2, filtwidth_day2, deramp2)
         else:
-            label2 = '2: No filter'
+            if 'outlier' in cumfile2:
+                label2 = '2: Deoutliered, No filter'
+            else:
+                label2 = '2: No filter'
 
 
     #%% Read Mask (1: unmask, 0: mask, nan: no cum data)
@@ -603,8 +615,12 @@ if __name__ == "__main__":
     vmax = []
     vlimauto = []
     if linear_vel:
-        velnames = ['vel']
-        velfiles = [vel]
+        if cumfile2:
+            velnames = ['vel(1)', 'vel(2)']
+            velfiles = [vel, vel2]
+        else:
+            velnames = ['vel']
+            velfiles = [vel]
     else:
         velnames = ['vel', 'prevel'] + [*eqdict]
         velfiles = [vel, prevel] + list(eqdict.values())
@@ -623,7 +639,7 @@ if __name__ == "__main__":
     pv = plt.figure('Velocity / Cumulative Displacement', figsize)
     axv = pv.add_axes([0.15,0.15,0.83,0.83])
     axt2 = pv.text(0.01, 0.99, 'Left-doubleclick:\n Plot time series\nRight-drag:\n Change ref area', fontsize=8, va='top')
-    axt = pv.text(0.01, 0.78, 'Ref area:\n X {}:{}\n Y {}:{}\n (start from 0)'.format(refx1, refx2, refy1, refy2), fontsize=8, va='bottom')
+    axt = pv.text(0.01, 0.85, 'Ref area:\n X {}:{}\n Y {}:{}\n (start from 0)'.format(refx1, refx2, refy1, refy2), fontsize=8, va='bottom')
 
     ### First show
     rax, = axv.plot([refx1h, refx2h, refx2h, refx1h, refx1h],
@@ -715,7 +731,7 @@ if __name__ == "__main__":
 
     #%% Radio buttom for velocity selection
     ## Add vel to mapdict
-    if cumfile2:
+    if cumfile2 and linear_vel:
         mapdict_vel = {'vel(1)': vel, 'vel(2)': vel2}
         mapdict_unit.update([('vel(1)', 'mm/yr'), ('vel(2)', 'mm/yr')])
     else:
@@ -880,7 +896,7 @@ if __name__ == "__main__":
         index = models.index(label)
         visibilities[index] = not visibilities[index]
         lines1[index].set_visible(not lines1[index].get_visible())
-        if cumfile2:
+        if cumfile2 and linear_vel:
             lines2[index].set_visible(not lines2[index].get_visible())
 
         pts.canvas.draw()
@@ -999,14 +1015,18 @@ if __name__ == "__main__":
             dcum2_ref = cum2_ref[ii, jj]-np.nanmean(cum2_ref[refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2])
             dphf = cum2[:, ii, jj]-np.nanmean(cum2[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum2_ref
 
-            ## fit function
-            lines2 = [0, 0, 0, 0, 0]
-            for model, vis in enumerate(visibilities):
-                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates, eq_params=eqparams)
-                lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
+            if linear_vel:
+                ## fit function
+                lines2 = [0, 0, 0, 0, 0]
+                for model, vis in enumerate(visibilities):
+                    yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates, eq_params=eqparams)
+                    lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
 
             axts.scatter(imdates_dt, dphf, c='r', label=label2, alpha=0.6, zorder=4)
-            axts.set_title('vel(1) = {:.1f} mm/yr, vel(2) = {:.1f} mm/yr @({}, {})'.format(vel1p, vel2p, jj, ii), fontsize=10)
+            if linear_vel:
+                axts.set_title('vel(1) = {:.1f} mm/yr, vel(2) = {:.1f} mm/yr @({}, {})'.format(vel1p, vel2p, jj, ii), fontsize=10)
+            else:
+                axts.set_title('vel = {:.1f} mm/yr @({}, {})'.format(vel1p, jj, ii), fontsize=10)
 
         ## gap
         if gap:
