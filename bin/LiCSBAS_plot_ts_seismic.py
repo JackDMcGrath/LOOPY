@@ -323,7 +323,7 @@ if __name__ == "__main__":
         sys.exit(2)
 
     if not linear_vel and cumfile2:
-        print('\n--seismic and --i2 selected. Only showing {} in timeseries for comparison'.format(os.path.basename(cumfile2)))
+        print('\nseismic and i2 flags selected. Only showing {} in timeseries for displacement comparison'.format(os.path.basename(cumfile2)))
 
     #%% Set cmap
     cmap = tools_lib.get_cmap(cmap_name)
@@ -889,7 +889,7 @@ if __name__ == "__main__":
         index = models.index(label)
         visibilities[index] = not visibilities[index]
         lines1[index].set_visible(not lines1[index].get_visible())
-        if cumfile2:
+        if cumfile2 and linear_vel:
             lines2[index].set_visible(not lines2[index].get_visible())
 
         pts.canvas.draw()
@@ -1008,14 +1008,18 @@ if __name__ == "__main__":
             dcum2_ref = cum2_ref[ii, jj]-np.nanmean(cum2_ref[refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2])
             dphf = cum2[:, ii, jj]-np.nanmean(cum2[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum2_ref
 
-            ## fit function
-            lines2 = [0, 0, 0, 0, 0]
-            for model, vis in enumerate(visibilities):
-                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates, eq_params=eqparams)
-                lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
+            if linear_vel:
+                ## fit function
+                lines2 = [0, 0, 0, 0, 0]
+                for model, vis in enumerate(visibilities):
+                    yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates, eq_params=eqparams)
+                    lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
 
             axts.scatter(imdates_dt, dphf, c='r', label=label2, alpha=0.6, zorder=4)
-            axts.set_title('vel(1) = {:.1f} mm/yr, vel(2) = {:.1f} mm/yr @({}, {})'.format(vel1p, vel2p, jj, ii), fontsize=10)
+            if linear_vel:
+                axts.set_title('vel(1) = {:.1f} mm/yr, vel(2) = {:.1f} mm/yr @({}, {})'.format(vel1p, vel2p, jj, ii), fontsize=10)
+            else:
+                axts.set_title('vel = {:.1f} mm/yr @({}, {})'.format(vel1p, jj, ii), fontsize=10)
 
         ## gap
         if gap:
