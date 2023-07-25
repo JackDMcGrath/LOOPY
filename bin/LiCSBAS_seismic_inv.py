@@ -322,8 +322,10 @@ def temporal_filter(cum):
             cum[:, maskx, masky] = np.nan
 
         if args.replace_outliers:
+            print('Replacing Outliers')
             cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
         else:
+            print('Nanning Outliers')
             cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling, but causing problems
 
         print('Finding moving stddev')
@@ -411,7 +413,7 @@ def find_outliers_RANSAC():
 
     # Find location of outliers
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
-    print('\n{} outliers identified ({:.1f}%)\n'.format(len(outlier[0]), len(outlier[0] / np.sum(~np.isnan(cum.flatten()))) * 100))
+    print('\n{} outliers identified ({:.1f}%)\n'.format(len(outlier[0]), (len(outlier[0]) / np.sum(~np.isnan(cum.flatten()))) * 100))
 
     # x_pix = valid[1][15001]
     # y_pix = valid[0][15001]
@@ -429,8 +431,10 @@ def find_outliers_RANSAC():
 
     # Replace outliers with filter data
     if args.replace_outliers:
+        print('Replacing Outliers')
         cum[outlier] = cum_lpt[outlier]
     else:
+        print('Nanning Outliers')
         cum[outlier] = np.nan
 
     # plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b')
