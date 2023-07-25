@@ -25,7 +25,7 @@ Input files:
     eq_list.txt: Text file containing EQ dates, and optionally which parameters to fit to that earthquake ([C]oseismic displacement, logarithmic [R]elaxation, [P]ostseismic linear velocity, e[X]clude EQ)
                     e.g. 20161113 CRP 
     mask:        Mask file produced by LiCSBAS15_mask_ts.py
-    cum.h5:      Output from LiCSBAS13_sb_inv.py. Required as certain masking parameters (e.g. residual rms) are not regenerated    
+    cum.h5:      Output from LiCSBAS13_sb_inv.py
 
 #%% Change log
 
@@ -74,8 +74,9 @@ def init_args():
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
+    parser.add_argument('-o', dest='out_dir', default='results/seismic_vels', help='folder in TSA dir outputs are written to')
     parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
-    parser.add_argument('-m', dest='mask_file', default='mask', help='mask file to apply to velocities')
+    parser.add_argument('-m', dest='mask_file', default='results/mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('--n_para', dest='n_para', default=False, type=int, help='number of parallel processing')
@@ -84,6 +85,8 @@ def init_args():
     parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
     parser.add_argument('--applymask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
     parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
+    parser.add_argument('--replace_outliers', dest='replace_outliers', default=False, action='store_true', help='Replace outliers with filter value instead of nan')
+    parser.add_argument('--no_vcm', dest='use_weights', default=True, action='store_false', help="Don't calculate VCM for each date - estimate errors with identity matrix (faster)")
 
     args = parser.parse_args()
 
@@ -103,7 +106,7 @@ def finish():
     sec = int(np.mod(elapsed_time,60))
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour,minite,sec))
     print("\n{} {} finished!".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
-    print('Output directory: {}\n'.format(os.path.relpath(outdir)))
+    print('Output file: {}\n'.format(os.path.relpath(outh5file)))
 
 def set_input_output():
     global tsadir, infodir, resultdir, outdir, ifgdir
@@ -115,11 +118,17 @@ def set_input_output():
     tsadir = os.path.abspath(os.path.join(args.frame_dir, args.ts_dir))
     infodir = os.path.join(tsadir, 'info')
     resultdir = os.path.join(tsadir, 'results')
-    outdir = os.path.join(resultdir, 'seismic_vels')
+    outdir = os.path.join(tsadir, args.out_dir)
 
-    # define input files
+    # define h5 files
     h5file = os.path.join(tsadir, args.h5_file)
-    outh5file = os.path.join(tsadir, outdir, 'cum.h5')
+    if args.deoutlier:
+        if args.replace_outliers:
+            outh5file = os.path.join(tsadir, outdir, 'cum_lptoutliers.h5')
+        else:
+            outh5file = os.path.join(tsadir, outdir, 'cum_nanoutliers.h5')
+    else:
+        outh5file = os.path.join(tsadir, outdir, 'cum.h5')    
 
     # If no reffile defined, sarch for 130ref, then 13ref, in this folder and infodir
     reffile = os.path.join(tsadir, args.ref_file)
@@ -138,7 +147,7 @@ def set_input_output():
                 print('\nNo reffile {} found! No referencing occuring'.format(args.ref_file))
                 reffile = []
 
-    maskfile = os.path.join(resultdir, 'mask')
+    maskfile = os.path.join(tsadir, args.mask_file)
     if not os.path.exists(maskfile):
         print('\nNo maskfile found. Not masking....')
         args.apply_mask = False
@@ -313,7 +322,12 @@ def temporal_filter(cum):
             maskx, masky = np.where(mask == 0)
             cum[:, maskx, masky] = np.nan
 
-        cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling
+        if args.replace_outliers:
+            print('Replacing Outliers')
+            cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+        else:
+            print('Nanning Outliers')
+            cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling, but causing problems
 
         print('Finding moving stddev')
         filt_std = np.ones(cum.shape) * np.nan
@@ -400,7 +414,7 @@ def find_outliers_RANSAC():
 
     # Find location of outliers
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
-    print('\n{} outliers identified\n'.format(len(outlier[0])))
+    print('\n{} outliers identified ({:.1f}%)\n'.format(len(outlier[0]), (len(outlier[0]) / np.sum(~np.isnan(cum.flatten()))) * 100))
 
     # x_pix = valid[1][15001]
     # y_pix = valid[0][15001]
@@ -417,7 +431,12 @@ def find_outliers_RANSAC():
     # plt.legend()
 
     # Replace outliers with filter data
-    cum[outlier] = cum_lpt[outlier]
+    if args.replace_outliers:
+        print('Replacing Outliers')
+        cum[outlier] = cum_lpt[outlier]
+    else:
+        print('Nanning Outliers')
+        cum[outlier] = np.nan
 
     # plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b')
     # plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
@@ -566,10 +585,9 @@ def get_filter_dates(dt_cum, filtwidth_yr, filterdates):
 def fit_velocities():
     global pcst, Q, model, errors
 
-    use_weights = False
     # Create VCM of observables (no c)
     Q = np.eye(n_im)
-    if use_weights:
+    if args.use_weights:
         sills = calc_semivariogram()
         # Create weight matrix (inverse of VCM, faster than np.linalg.inv)
         np.fill_diagonal(Q, 1 / sills)
@@ -745,6 +763,8 @@ def fit_pixel_velocities(ii):
 
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
+    noNanPix = ~np.isnan(disp)
+    disp = disp[noNanPix]
     # Intercept (reference term), Pre-Seismic Velocity, [[C]oseismic-offset, log [R]elaxation, [P]ost-seismic linear velocity]
     truemodel = np.zeros((2 + n_eq * 3))
     inverr = np.zeros((2 + n_eq * 3))
@@ -773,11 +793,15 @@ def fit_pixel_velocities(ii):
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]
         daily_rates.append(4 + ee * 3)
 
+    # G = G[np.ix_(noNanPix, invert_ix)]
+    G = G[noNanPix, :]
+    singular = np.where((G == 0).all(axis=0))[0].tolist()
+    invert_ix = list(set(invert_ix) - set(singular))
     G = G[:, invert_ix]
 
     # Weight matrix (inverse of VCM)
     # W = np.linalg.inv(Q) # Too slow. Faster to do 1/sill before this
-    W = Q.copy()
+    W = Q[np.ix_(noNanPix, noNanPix)].copy()
 
     # Calculate VCM of inverted model parameters
     invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
@@ -788,7 +812,7 @@ def fit_pixel_velocities(ii):
     invvel = np.matmul(G, model)
 
     # Calculate inversion parameter standard errors and root mean square error
-    rms=np.dot(np.dot((invvel-disp).T, Q),(invvel-disp))
+    rms=np.dot(np.dot((invvel-disp).T, W),(invvel-disp))
     inverr[invert_ix]=np.sqrt(np.diag(invVCM) * rms / n_im)
     rms=np.sqrt(rms / n_im)
 

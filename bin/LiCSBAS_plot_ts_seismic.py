@@ -183,6 +183,12 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[], eq_params=[]):
         # Create G-matrix for inverting the parameters from displacement
         G = create_gmatrix(eq_date, n_eq, imdates, eq_params)
 
+        noNanPix = ~np.isnan(dph)
+        dph = dph[noNanPix]
+        G = G[noNanPix, :]
+        nonSingular = np.where((G != 0).any(axis=0))[0]
+        G = G[:, nonSingular]
+
         # Invert displacements to come up with velocity parameters
         inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
 
