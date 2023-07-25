@@ -28,6 +28,7 @@ import time
 import shutil
 import argparse
 import numpy as np
+import LiCSBAS_io_lib as io_lib
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -44,6 +45,7 @@ def init_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=CustomFormatter)
     parser.add_argument('-f', dest='frame_dir', default="./", help="Frame directory")
     parser.add_argument('-d', dest='geoc_dir', default="GEOCml10GACOS", help="GEOCdir containing IFGs to be reset")
+    parser.add_argument('-t', dest='ts_dir', default="TS_$GEOCdir", help="TS_GEOCdir containing info/11bad_ifg.txt")
     parser.add_argument('--reset_all', dest='reset_all', default=False, action='store_true', help='Reset all IFGs to original, unnulled state')
     parser.add_argument('--reset_NoLoop', dest='reset_NoLoop', default=False, action='store_true', help='Add noLoops back into the IFGs (LiCSBAS130_remove_noloops.py must have been the last nullification)')
     parser.add_argument('--reset_LoopErr', dest='reset_LoopErr', default=False, action='store_true', help='Add Loop Errors back into the IFGs (LiCSBAS12_loop_closure.py must have been the last nullification)')
@@ -68,10 +70,18 @@ def finish():
     print('IFG directory: {}\n'.format(os.path.relpath(ifgdir)))
 
 def set_input_output():
-    global ifgdir, ifglist, noLoopList
+    global ifgdir, ifglist, noLoopList, bad_ifg_list
 
     ifgdir = os.path.abspath(os.path.join(args.frame_dir, args.geoc_dir))
     ifglist = glob.glob(os.path.join(ifgdir, '20*'))
+    if '$' in args.ts_dir:
+        bad_ifg11file = os.path.join(args.frame_dir, 'TS_' + args.geoc_dir, 'info', '11bad_ifg.txt')
+    else:
+        bad_ifg11file = os.path.join(args.frame_dir, args.ts_dir, 'info', '11bad_ifg.txt')
+
+    ### Read bad_ifg11 and 12
+    if os.path.exists(bad_ifg11file):
+        bad_ifg_list = io_lib.read_ifg_list(bad_ifg11file)
     
     # Set reset flags
     if args.reset_NoLoop and args.reset_LoopErr:
@@ -109,7 +119,10 @@ def reset_all():
                 else:
                     os.remove(backup)
         elif os.path.exists(os.path.join(ifg, ifgd + '.unw')):
-            print('CAUTION: NO {}_orig.unw exists to backup from!'.format(ifgd))
+            if ifgd not in bad_ifg_list:
+                print('CAUTION: NO {}_orig.unw exists to backup from!'.format(ifgd))
+            else:
+                print('CAUTION: {0} identified as a bad by step 11. No nulling occurred, so {0}_orig.unw exists to backup from!'.format(ifgd))
         else:
             print('WARNING: NO {0}.unw OR {0}_orig.unw EXISTS in {}!'.format(ifgd, os.path.dirname(ifgdir)))
 
