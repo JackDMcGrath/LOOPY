@@ -745,6 +745,8 @@ def fit_pixel_velocities(ii):
 
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
+    noNanPix = ~np.isnan(disp)
+    disp = disp[noNanPix]
     # Intercept (reference term), Pre-Seismic Velocity, [[C]oseismic-offset, log [R]elaxation, [P]ost-seismic linear velocity]
     truemodel = np.zeros((2 + n_eq * 3))
     inverr = np.zeros((2 + n_eq * 3))
@@ -773,11 +775,11 @@ def fit_pixel_velocities(ii):
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]
         daily_rates.append(4 + ee * 3)
 
-    G = G[:, invert_ix]
+    G = G[noNanPix, invert_ix]
 
     # Weight matrix (inverse of VCM)
     # W = np.linalg.inv(Q) # Too slow. Faster to do 1/sill before this
-    W = Q.copy()
+    W = Q[noNanPix, noNanPix].copy()
 
     # Calculate VCM of inverted model parameters
     invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
