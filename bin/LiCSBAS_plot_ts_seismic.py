@@ -358,10 +358,7 @@ if __name__ == "__main__":
 
     ### results dir
     if not resultsdir: # if not given
-        if linear_vel:
-            resultsdir = os.path.join(cumdir, 'results')
-        else: # Currently, seismic cum.h5 stored in TS*/results/seismic_vels
-            resultsdir = os.path.abspath(os.path.join(cumdir, '..'))
+        resultsdir = os.path.join(cumdir, 'results')
 
     ### mask
     maskfile = os.path.join(resultsdir, 'mask')
