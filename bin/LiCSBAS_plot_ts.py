@@ -975,26 +975,12 @@ if __name__ == "__main__":
                 label.set_rotation(20)
                 label.set_horizontalalignment('right')
 
-
         ### If not masked
         ### cumfile
         vel1p = vel[ii, jj]-np.nanmean((vel*mask)[refy1:refy2, refx1:refx2])
 
         dcum_ref = cum_ref[ii, jj]-np.nanmean(cum_ref[refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2])
         dph = cum[:, ii, jj]-np.nanmean(cum[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum_ref
-
-        # Unneed now we invert on the fly
-        # if linear_vel:
-        #     param = None
-        # else:
-        #     param = np.zeros((5))
-        #     velfiles[0] = vint
-        #     for ix, ff in enumerate(velfiles):
-        #         param[ix] = np.nanmean(np.array(ff)[ii, jj])
-        #         if np.isnan(param[ix]).all():
-        #             param[ix] = 0
-        #         if 'prevel' in velnames[ix] or 'postvel' in velnames[ix]:
-        #             param[ix] /= 365.25
 
         ## fit function
         lines1 = [0, 0, 0, 0, 0]
