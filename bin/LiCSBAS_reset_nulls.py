@@ -126,7 +126,7 @@ def reset_all():
             if ifgd not in bad_ifg_list:
                 print('CAUTION: NO {}_orig.unw exists to backup from!'.format(ifgd))
             else:
-                print('CAUTION: {0} identified as a bad by step 11. No nulling occurred, so {0}_orig.unw exists to backup from!'.format(ifgd))
+                print('CAUTION: {0} identified as a bad by step 11. No nulling occurred, so no {0}_orig.unw exists to backup from!'.format(ifgd))
         else:
             print('WARNING: NO {0}.unw OR {0}_orig.unw EXISTS in {}!'.format(ifgd, os.path.dirname(ifgdir)))
 
