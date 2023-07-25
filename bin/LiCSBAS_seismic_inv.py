@@ -74,8 +74,9 @@ def init_args():
     parser.add_argument('-t', dest='ts_dir', default="TS_GEOCml10GACOS", help="folder containing .h5 file")
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
+    parser.add_argument('-o', dest='out_dir', default='results/seismic_vels', help='folder in TSA dir outputs are written to')
     parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
-    parser.add_argument('-m', dest='mask_file', default='mask', help='mask file to apply to velocities')
+    parser.add_argument('-m', dest='mask_file', default='results/mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('--n_para', dest='n_para', default=False, type=int, help='number of parallel processing')
@@ -115,7 +116,7 @@ def set_input_output():
     tsadir = os.path.abspath(os.path.join(args.frame_dir, args.ts_dir))
     infodir = os.path.join(tsadir, 'info')
     resultdir = os.path.join(tsadir, 'results')
-    outdir = os.path.join(resultdir, 'seismic_vels')
+    outdir = os.path.join(tsadir, args.out_dir)
 
     # define input files
     h5file = os.path.join(tsadir, args.h5_file)
@@ -138,7 +139,7 @@ def set_input_output():
                 print('\nNo reffile {} found! No referencing occuring'.format(args.ref_file))
                 reffile = []
 
-    maskfile = os.path.join(resultdir, 'mask')
+    maskfile = os.path.join(tsadir, args.mask_file)
     if not os.path.exists(maskfile):
         print('\nNo maskfile found. Not masking....')
         args.apply_mask = False
