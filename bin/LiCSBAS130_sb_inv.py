@@ -306,7 +306,7 @@ def main():
     if os.path.exists(bad_ifg12file):
         bad_ifg12 = io_lib.read_ifg_list(bad_ifg12file)
     else:
-        bad_ifg12
+        bad_ifg12 = []
     bad_ifg_all = list(set(bad_ifg11+bad_ifg12))
     bad_ifg_all.sort()
 
