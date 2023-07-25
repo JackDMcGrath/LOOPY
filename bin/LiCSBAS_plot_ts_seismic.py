@@ -502,7 +502,7 @@ if __name__ == "__main__":
         filtwidth_day = int(np.round(filtwidth_yr*365.25))
         label1 = '1: s={:.1f}km, t={:.2f}yr ({}d){}'.format(filtwidth_km, filtwidth_yr, filtwidth_day, deramp)
     else:
-        if 'deoutlier' in cumfile:
+        if 'outlier' in cumfile:
             label1 = '1: Deoutliered, No filter'
         else:
             label1 = '1: No filter'
@@ -540,7 +540,7 @@ if __name__ == "__main__":
             filtwidth_day2 = int(np.round(filtwidth_yr2*365.25))
             label2 = '2: s={:.1f}km, t={:.2f}yr ({}d){}'.format(filtwidth_km2, filtwidth_yr2, filtwidth_day2, deramp2)
         else:
-            if 'deoutlier' in cumfile2:
+            if 'outlier' in cumfile2:
                 label2 = '2: Deoutliered, No filter'
             else:
                 label2 = '2: No filter'
@@ -609,8 +609,12 @@ if __name__ == "__main__":
     vmax = []
     vlimauto = []
     if linear_vel:
-        velnames = ['vel']
-        velfiles = [vel]
+        if cumfile2:
+            velnames = ['vel(1)', 'vel(2)']
+            velfiles = [vel, vel2]
+        else:
+            velnames = ['vel']
+            velfiles = [vel]
     else:
         velnames = ['vel', 'prevel'] + [*eqdict]
         velfiles = [vel, prevel] + list(eqdict.values())
