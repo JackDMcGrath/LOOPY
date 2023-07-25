@@ -779,7 +779,7 @@ def fit_pixel_velocities(ii):
 
     # Weight matrix (inverse of VCM)
     # W = np.linalg.inv(Q) # Too slow. Faster to do 1/sill before this
-    W = Q[np.ix(noNanPix, noNanPix)].copy()
+    W = Q[np.ix_(noNanPix, noNanPix)].copy()
 
     # Calculate VCM of inverted model parameters
     invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
