@@ -24,12 +24,13 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
     [-u U.geo] [-r x1:x2/y1:y2] [--ref_geo lon1/lon2/lat1/lat2] [-p x/y]
     [--p_geo lon/lat] [-c cmap] [--nomask] [--vmin float] [--vmax float]
     [--auto_crange float] [--dmin float] [--dmax float] [--ylen float]
-    [--ts_png pngfile] [--eqlist textfile]
+    [--ts_png pngfile] [--seismic]
 
  -i    Input cum hdf5 file (Default: ./cum_filt.h5 or ./cum.h5)
  --i2  Input 2nd cum hdf5 file
        (Default: cum.h5 if -i cum_filt.h5, otherwise none)
- -m    Refereference (master) date for time series (Default: first date)
+       (if --seismic, only plots the displacements of the second dataset)
+ -m    Reference (master) date for time series (Default: first date)
  -d    Directory containing noise indices (e.g., mask, coh_avg, etc.)
        (Default: "results" at the same dir as cum[_filt].h5)
  -u    Input U.geo file to show incidence angle (Default: ../GEOCml*/U.geo)
@@ -632,7 +633,7 @@ if __name__ == "__main__":
     pv = plt.figure('Velocity / Cumulative Displacement', figsize)
     axv = pv.add_axes([0.15,0.15,0.83,0.83])
     axt2 = pv.text(0.01, 0.99, 'Left-doubleclick:\n Plot time series\nRight-drag:\n Change ref area', fontsize=8, va='top')
-    axt = pv.text(0.01, 0.78, 'Ref area:\n X {}:{}\n Y {}:{}\n (start from 0)'.format(refx1, refx2, refy1, refy2), fontsize=8, va='bottom')
+    axt = pv.text(0.01, 0.85, 'Ref area:\n X {}:{}\n Y {}:{}\n (start from 0)'.format(refx1, refx2, refy1, refy2), fontsize=8, va='bottom')
 
     ### First show
     rax, = axv.plot([refx1h, refx2h, refx2h, refx1h, refx1h],
@@ -724,7 +725,7 @@ if __name__ == "__main__":
 
     #%% Radio buttom for velocity selection
     ## Add vel to mapdict
-    if cumfile2 and not linear_vel:
+    if cumfile2 and linear_vel:
         mapdict_vel = {'vel(1)': vel, 'vel(2)': vel2}
         mapdict_unit.update([('vel(1)', 'mm/yr'), ('vel(2)', 'mm/yr')])
     else:
