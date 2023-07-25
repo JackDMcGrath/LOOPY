@@ -323,8 +323,7 @@ if __name__ == "__main__":
         sys.exit(2)
 
     if not linear_vel and cumfile2:
-        print("\nERROR: Cannot currently parse --seismic and --i2 options")
-        sys.exit(2)
+        print('\n--seismic and --i2 selected. Only showing {} in timeseries for comparison'.format(os.path.basename(cumfile2)))
 
     #%% Set cmap
     cmap = tools_lib.get_cmap(cmap_name)
@@ -725,7 +724,7 @@ if __name__ == "__main__":
 
     #%% Radio buttom for velocity selection
     ## Add vel to mapdict
-    if cumfile2:
+    if cumfile2 and not linear_vel:
         mapdict_vel = {'vel(1)': vel, 'vel(2)': vel2}
         mapdict_unit.update([('vel(1)', 'mm/yr'), ('vel(2)', 'mm/yr')])
     else:
