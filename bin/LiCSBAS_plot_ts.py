@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-v1.13.4 20210910 Yu Morishita, GSI
+v2.0.0 20230713 Jack McGrath, Univeristy of Leeds
 
 ========
 Overview
@@ -24,12 +24,13 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
     [-u U.geo] [-r x1:x2/y1:y2] [--ref_geo lon1/lon2/lat1/lat2] [-p x/y]
     [--p_geo lon/lat] [-c cmap] [--nomask] [--vmin float] [--vmax float]
     [--auto_crange float] [--dmin float] [--dmax float] [--ylen float]
-    [--ts_png pngfile]
+    [--ts_png pngfile] [--seismic]
 
  -i    Input cum hdf5 file (Default: ./cum_filt.h5 or ./cum.h5)
  --i2  Input 2nd cum hdf5 file
        (Default: cum.h5 if -i cum_filt.h5, otherwise none)
- -m    Refereference (master) date for time series (Default: first date)
+       (if --seismic, only plots the displacements of the second dataset)
+ -m    Reference (master) date for time series (Default: first date)
  -d    Directory containing noise indices (e.g., mask, coh_avg, etc.)
        (Default: "results" at the same dir as cum[_filt].h5)
  -u    Input U.geo file to show incidence angle (Default: ../GEOCml*/U.geo)
@@ -49,10 +50,13 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
               (Default: 99 %)
  --ylen       Y Length of time series plot in mm (Default: auto)
  --ts_png     Output png file of time series plot (not display interactive viewers)
+ --seismic    flag to read in seismic velocities
 
 """
 #%% Change log
 '''
+v2.0.0  20230713 Jack McGrath, University of Leeds
+ - Add compatibility with seismic displacements
 v1.13.4 20210910 Yu Morishita, GSI
  - Avoid error for refarea in bytes
 v1.13.3 20210205 Yu Morishita, GSI
@@ -131,40 +135,111 @@ class Usage(Exception):
         self.msg = msg
 
 #%% Calc model
-def calc_model(dph, imdates_ordinal, xvalues, model):
+def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[], eq_params=[]):
 
     imdates_years = imdates_ordinal/365.25 ## dont care abs
     xvalues_years = xvalues/365.25
 
-    #models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q']
+    #models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q', 'seismic']
     A = sm.add_constant(imdates_years) #[1, t]
     An = sm.add_constant(xvalues_years) #[1, t]
-    if model == 0: # Linear
-        pass
-    if model == 1: # Annual+L
-        sin = np.sin(2*np.pi*imdates_years)
-        cos = np.cos(2*np.pi*imdates_years)
-        A = np.concatenate((A, sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
-        sin = np.sin(2*np.pi*xvalues_years)
-        cos = np.cos(2*np.pi*xvalues_years)
-        An = np.concatenate((An, sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
-    if model == 2: # Quad
-        A = np.concatenate((A, (imdates_years**2)[:, np.newaxis]), axis=1)
-        An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis]), axis=1)
-    if model == 3: # Annual+Q
-        sin = np.sin(2*np.pi*imdates_years)
-        cos = np.cos(2*np.pi*imdates_years)
-        A = np.concatenate((A, (imdates_years**2)[:, np.newaxis],
-                            sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
-        sin = np.sin(2*np.pi*xvalues_years)
-        cos = np.cos(2*np.pi*xvalues_years)
-        An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis],
-                             sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
+    if model < 4:
+        if model == 0: # Linear
+            pass
+        if model == 1: # Annual+L
+            sin = np.sin(2*np.pi*imdates_years)
+            cos = np.cos(2*np.pi*imdates_years)
+            A = np.concatenate((A, sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
+            sin = np.sin(2*np.pi*xvalues_years)
+            cos = np.cos(2*np.pi*xvalues_years)
+            An = np.concatenate((An, sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
+        if model == 2: # Quad
+            A = np.concatenate((A, (imdates_years**2)[:, np.newaxis]), axis=1)
+            An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis]), axis=1)
+        if model == 3: # Annual+Q
+            sin = np.sin(2*np.pi*imdates_years)
+            cos = np.cos(2*np.pi*imdates_years)
+            A = np.concatenate((A, (imdates_years**2)[:, np.newaxis],
+                                sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
+            sin = np.sin(2*np.pi*xvalues_years)
+            cos = np.cos(2*np.pi*xvalues_years)
+            An = np.concatenate((An, (xvalues_years**2)[:, np.newaxis],
+                                sin[:, np.newaxis], cos[:, np.newaxis]), axis=1)
 
-    result = sm.OLS(dph, A, missing='drop').fit()
-    yvalues = result.predict(An)
+        result = sm.OLS(dph, A, missing='drop').fit()
+        yvalues = result.predict(An)
+
+    else:
+        imdates = imdates_ordinal.copy()
+        if imdates[0] != 0:
+            xvalues -= imdates[0]
+            imdates -= imdates[0]
+
+        # If no eq dates offered, set eq date to be after the timeseries
+        if len(eq_date) == 0:
+            eq_date = imdates[-1] + 1
+            eq_params = 'CRP'
+
+        n_eq = len(eq_date)
+        # Create G-matrix for inverting the parameters from displacement
+        G = create_gmatrix(eq_date, n_eq, imdates, eq_params)
+
+        noNanPix = ~np.isnan(dph)
+        dph = dph[noNanPix]
+        G = G[noNanPix, :]
+        nonSingular = np.where((G != 0).any(axis=0))[0]
+        G = G[:, nonSingular]
+
+        # Invert displacements to come up with velocity parameters
+        inv = np.matmul(np.linalg.inv(np.dot(G.T, G)), np.matmul(G.T, dph))
+
+        # Create G-matrix for modelling the velocities
+        G = create_gmatrix(eq_date, n_eq, xvalues, eq_params)
+        yvalues = np.matmul(G, inv)
 
     return yvalues
+
+def create_gmatrix(eq_date, n_eq, dates, eq_params):
+
+    eq_ix = []
+    for nn in range(n_eq):
+        eq_ix.append(np.sum([1 for d in dates if d < eq_date[nn]]))
+    invert_ix = [0, 1]
+
+    for ix, param in enumerate(eq_params):
+        if 'C' in param:
+            invert_ix.append(2 + ix * 3)
+        if 'R' in param:
+            invert_ix.append(3 + ix * 3)
+        if 'P' in param:
+            invert_ix.append(4 + ix * 3)
+
+    G = np.zeros((len(dates), 2 + (n_eq - 1) * 3))
+    G[:, 0] = 1 # All dates have an intercept
+    G[:, 1] = dates # Long-term velocity (i.e. Pre-seismic)
+    for nn in range(n_eq - 1):
+        G[eq_ix[nn]:eq_ix[nn + 1], 2 + nn * 3] = 1 # Heaviside function for coseismic
+        G[eq_ix[nn]:eq_ix[nn + 1], 3 + nn * 3] = np.log(1 + (1/6) * (dates[eq_ix[nn]:eq_ix[nn + 1]] - eq_date[nn])) # Avalue
+        G[eq_ix[nn]:eq_ix[nn + 1], 4 + nn * 3] = dates[eq_ix[nn]:eq_ix[nn + 1]] - eq_date[nn] # Post-seismic
+
+    return G[:, invert_ix]
+
+
+#%% Find colorbar limits
+def find_refvel(vel, mask, refy1, refy2, refx1, refx2, auto_crange, vmin, vmax):
+    refvalue_vel = np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
+    vmin_auto = np.nanpercentile(vel*mask, 100-auto_crange)
+    vmax_auto = np.nanpercentile(vel*mask, auto_crange)
+    if vmin is None and vmax is None: ## auto
+        vlimauto = True
+        vmin = vmin_auto - refvalue_vel
+        vmax = vmax_auto - refvalue_vel
+    else:
+        vlimauto = False
+        if vmin is None: vmin_auto - refvalue_vel
+        if vmax is None: vmax_auto - refvalue_vel
+
+    return vmin, vmax, vlimauto
 
 
 #%% Main
@@ -191,17 +266,18 @@ if __name__ == "__main__":
     dmax = None
     ylen = []
     ts_pngfile = []
-    vmin = None
-    vmax = None
+    vminIn = None
+    vmaxIn = None
     cmap_name = "SCM.roma_r"
     auto_crange = 99.0
+    linear_vel = True
 
     #%% Read options
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hi:d:u:m:r:p:c:",
                ["help", "i2=", "ref_geo=", "p_geo=", "nomask", "dmin=", "dmax=",
-                "vmin=", "vmax=", "auto_crange=", "ylen=", "ts_png="])
+                "vmin=", "vmax=", "auto_crange=", "ylen=", "ts_png=", "seismic"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -231,9 +307,9 @@ if __name__ == "__main__":
             elif o == '--nomask':
                 maskflag = False
             elif o == '--vmin':
-                vmin = float(a)
+                vminIn = float(a)
             elif o == '--vmax':
-                vmax = float(a)
+                vmaxIn = float(a)
             elif o == '--dmin':
                 dmin = float(a)
             elif o == '--dmax':
@@ -244,6 +320,8 @@ if __name__ == "__main__":
                 ylen = float(a)
             elif o == '--ts_png':
                 ts_pngfile = a
+            elif o == "--seismic":
+                linear_vel = False
 
     except Usage as err:
         print("\nERROR:", file=sys.stderr, end='')
@@ -251,6 +329,8 @@ if __name__ == "__main__":
         print("\nFor help, use -h or --help.\n", file=sys.stderr)
         sys.exit(2)
 
+    if not linear_vel and cumfile2:
+        print('\nseismic and i2 flags selected. Only showing {} in timeseries for displacement comparison'.format(os.path.basename(cumfile2)))
 
     #%% Set cmap
     cmap = tools_lib.get_cmap(cmap_name)
@@ -293,10 +373,13 @@ if __name__ == "__main__":
         maskflag = False
         maskfile = []
 
-    ### Noise indecis
+    ### Noise indices
     coh_avgfile = os.path.join(resultsdir, 'coh_avg')
     n_unwfile = os.path.join(resultsdir, 'n_unw')
-    vstdfile = os.path.join(resultsdir, 'vstd')
+    if linear_vel:
+        vstdfile = os.path.join(resultsdir, 'vstd')
+    else:
+        vstdfile = os.path.join(cumdir, 'vstd')
     n_gapfile = os.path.join(resultsdir, 'n_gap')
     n_ifg_noloopfile = os.path.join(resultsdir, 'n_ifg_noloop')
     n_loop_errfile = os.path.join(resultsdir, 'n_loop_err')
@@ -322,9 +405,30 @@ if __name__ == "__main__":
     ### cumfile
     print('\nReading {}'.format(os.path.relpath(cumfile)))
     cumh5 = h5.File(cumfile,'r')
-    vel = cumh5['vel']
     cum = cumh5['cum']
     n_im, length, width = cum.shape
+    if linear_vel:
+        vel = cumh5['vel']
+        eqparams = []
+    else:
+        vel = cumh5['vel']
+        try:
+            eqdates = cumh5['eqdates'][()].astype(str).tolist()
+            eqparams = cumh5['eqparams'][()].astype(str).tolist()
+            n_eq = len(eqdates)
+            vint = cumh5['vintercept']
+            prevel = cumh5['prevel']
+            # Create dictionary to store multiple eq datasets
+            eqdict = {}
+            for eq in eqdates:
+                eqdict.update({'{}_coseismic'.format(eq): cumh5['{} coseismic'.format(eq)]})
+                eqdict.update({'{}_avalue'.format(eq): cumh5['{} avalue'.format(eq)]})
+                eqdict.update({'{}_postvel'.format(eq): cumh5['{} postvel'.format(eq)]})
+        except:
+            print("This doesn't look like an output from LiCSBAS_seismic_inv.py.\nContinuing only with linear LOS velocity")
+            linear_vel = True
+            vstdfile = os.path.join(resultsdir, 'vstd')
+            eqparams = []
 
     try:
         gap = cumh5['gap']
@@ -404,7 +508,10 @@ if __name__ == "__main__":
         filtwidth_day = int(np.round(filtwidth_yr*365.25))
         label1 = '1: s={:.1f}km, t={:.2f}yr ({}d){}'.format(filtwidth_km, filtwidth_yr, filtwidth_day, deramp)
     else:
-        label1 = '1: No filter'
+        if 'outlier' in cumfile:
+            label1 = '1: Deoutliered, No filter'
+        else:
+            label1 = '1: No filter'
 
 
     ### Set master (reference) date
@@ -439,7 +546,10 @@ if __name__ == "__main__":
             filtwidth_day2 = int(np.round(filtwidth_yr2*365.25))
             label2 = '2: s={:.1f}km, t={:.2f}yr ({}d){}'.format(filtwidth_km2, filtwidth_yr2, filtwidth_day2, deramp2)
         else:
-            label2 = '2: No filter'
+            if 'outlier' in cumfile2:
+                label2 = '2: Deoutliered, No filter'
+            else:
+                label2 = '2: No filter'
 
 
     #%% Read Mask (1: unmask, 0: mask, nan: no cum data)
@@ -501,18 +611,25 @@ if __name__ == "__main__":
         if dmin is None: dmin = dmin_auto - refvalue_lastcum
         if dmax is None: dmax = dmax_auto - refvalue_lastcum
 
-    refvalue_vel = np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
-    vmin_auto = np.nanpercentile(vel*mask, 100-auto_crange)
-    vmax_auto = np.nanpercentile(vel*mask, auto_crange)
-    if vmin is None and vmax is None: ## auto
-        vlimauto = True
-        vmin = vmin_auto - refvalue_vel
-        vmax = vmax_auto - refvalue_vel
+    vmin = []
+    vmax = []
+    vlimauto = []
+    if linear_vel:
+        if cumfile2:
+            velnames = ['vel(1)', 'vel(2)']
+            velfiles = [vel, vel2]
+        else:
+            velnames = ['vel']
+            velfiles = [vel]
     else:
-        vlimauto = False
-        if vmin is None: vmin_auto - refvalue_vel
-        if vmax is None: vmax_auto - refvalue_vel
+        velnames = ['vel', 'prevel'] + [*eqdict]
+        velfiles = [vel, prevel] + list(eqdict.values())
 
+    for ff  in velfiles:
+        vmintmp, vmaxtmp, vlimautotmp = find_refvel(ff, mask, refy1, refy2, refx1, refx2, auto_crange, vminIn, vmaxIn)
+        vmin.append(vmintmp)
+        vmax.append(vmaxtmp)
+        vlimauto.append(vlimautotmp)
 
     #%% Plot figure of cumulative displacement and velocity
     figsize_x = 6 if length > width else 9
@@ -522,13 +639,13 @@ if __name__ == "__main__":
     pv = plt.figure('Velocity / Cumulative Displacement', figsize)
     axv = pv.add_axes([0.15,0.15,0.83,0.83])
     axt2 = pv.text(0.01, 0.99, 'Left-doubleclick:\n Plot time series\nRight-drag:\n Change ref area', fontsize=8, va='top')
-    axt = pv.text(0.01, 0.78, 'Ref area:\n X {}:{}\n Y {}:{}\n (start from 0)'.format(refx1, refx2, refy1, refy2), fontsize=8, va='bottom')
+    axt = pv.text(0.01, 0.85, 'Ref area:\n X {}:{}\n Y {}:{}\n (start from 0)'.format(refx1, refx2, refy1, refy2), fontsize=8, va='bottom')
 
-    ### Fisrt show
+    ### First show
     rax, = axv.plot([refx1h, refx2h, refx2h, refx1h, refx1h],
                     [refy1h, refy1h, refy2h, refy2h, refy1h], '--k', alpha=0.8)
     data = vel*mask-np.nanmean((vel*mask)[refy1:refy2+1, refx1:refx2+1])
-    cax = axv.imshow(data, clim=[vmin, vmax], cmap=cmap, aspect=aspect, interpolation='nearest')
+    cax = axv.imshow(data, clim=[vmin[0], vmax[0]], cmap=cmap, aspect=aspect, interpolation='nearest')
 
     axv.set_title('vel')
 
@@ -614,12 +731,20 @@ if __name__ == "__main__":
 
     #%% Radio buttom for velocity selection
     ## Add vel to mapdict
-    if cumfile2:
+    if cumfile2 and linear_vel:
         mapdict_vel = {'vel(1)': vel, 'vel(2)': vel2}
         mapdict_unit.update([('vel(1)', 'mm/yr'), ('vel(2)', 'mm/yr')])
     else:
-        mapdict_vel = {'vel': vel}
-        mapdict_unit.update([('vel', 'mm/yr')])
+        if linear_vel:
+            mapdict_vel = {'vel': vel}
+            mapdict_unit.update([('vel', 'mm/yr')])
+        else:
+            mapdict_vel = {'vel': vel, 'prevel': prevel}
+            mapdict_unit.update([('vel', 'mm/yr'), ('prevel', 'mm/yr')])
+            # Merge eqdict into mapdict_vel
+            mapdict_vel = {**mapdict_vel, **eqdict}
+            for eq in eqdates:
+                mapdict_unit.update([('{}_coseismic'.format(eq), 'mm'), ('{}_avalue'.format(eq), 'mm'), ('{}_postvel'.format(eq), 'mm/yr')])
 
     mapdict_vel.update(mapdict_data)
     mapdict_data = mapdict_vel  ## To move vel to top
@@ -631,18 +756,36 @@ if __name__ == "__main__":
         label.set_fontsize(8)
 
     def show_vel(val_ind):
-        global vmin, vmax, cum_disp_flag
+        global velmin, velmax, cum_disp_flag
         cum_disp_flag = False
 
-        if 'vel' in val_ind:  ## Velocity
+        if 'vel' in val_ind or 'prevel' in val_ind or 'postvel' in val_ind:  ## Velocity
+            val_ix = velnames.index(val_ind)
             data = mapdict_data[val_ind]*mask
             data = data-np.nanmean(data[refy1:refy2, refx1:refx2])
-            if vlimauto: ## auto
-                vmin = np.nanpercentile(data*mask, 100-auto_crange)
-                vmax = np.nanpercentile(data*mask, auto_crange)
+            if vlimauto[val_ix]: ## auto
+                velmin = np.nanpercentile(data*mask, 100-auto_crange)
+                velmax = np.nanpercentile(data*mask, auto_crange)
+            else:
+                velmin = vmin[val_ix]
+                velmax = vmax[val_ix]
             cax.set_cmap(cmap)
-            cax.set_clim(vmin, vmax)
+            cax.set_clim(velmin, velmax)
             cbr.set_label('mm/yr')
+
+        elif 'coseismic' in val_ind or 'avalue' in val_ind:  ## Coseismic displacements and A-value
+            val_ix = velnames.index(val_ind)
+            data = mapdict_data[val_ind]*mask
+            data = data-np.nanmean(data[refy1:refy2, refx1:refx2])
+            if vlimauto[val_ix]: ## auto
+                velmin = np.nanpercentile(data*mask, 100-auto_crange)
+                velmax = np.nanpercentile(data*mask, auto_crange)
+            else:
+                velmin = vmin[val_ix]
+                velmax = vmax[val_ix]
+            cax.set_cmap(cmap)
+            cax.set_clim(velmin, velmax)
+            cbr.set_label('mm')
 
         elif val_ind == 'mask':
             data = mapdict_data[val_ind]
@@ -655,7 +798,7 @@ if __name__ == "__main__":
             if val_ind=='mli': data = np.log10(data)
             cmin_ind = np.nanpercentile(data*mask, 100-auto_crange)
             cmax_ind = np.nanpercentile(data*mask, auto_crange)
-            if val_ind=='hgt': cmin_ind = -cmax_ind/3 ## bnecause 1/4 of terrain is blue
+            if val_ind=='hgt': cmin_ind = -cmax_ind/3 ## because 1/4 of terrain is blue
             cmap2 = 'viridis_r'
             if val_ind in ['coh_avg', 'n_unw', 'mask', 'maxTlen']:
                 cmap2 = 'viridis'
@@ -739,13 +882,21 @@ if __name__ == "__main__":
     fitbox = pts.add_axes([0.83, 0.10, 0.16, 0.25])
     models = ['Linear', 'Annual+L', 'Quad', 'Annual+Q']
     visibilities = [True, True, False, False]
+    eq_dates = []
+    if not linear_vel:
+        models = models + ['Seismic']
+        visibilities = [False, False, False, False, True]
+        eq_dates = [dt.datetime.strptime(eq, '%Y%m%d').toordinal() + mdates.date2num(np.datetime64('0000-12-31')) for eq in eqdates]
+        eq_dates.append(imdates_ordinal[-1] + 1)
+        eq_dates -= imdates_ordinal[0]
+
     fitcheck = CheckButtons(fitbox, models, visibilities)
 
     def fitfunc(label):
         index = models.index(label)
         visibilities[index] = not visibilities[index]
         lines1[index].set_visible(not lines1[index].get_visible())
-        if cumfile2:
+        if cumfile2 and linear_vel:
             lines2[index].set_visible(not lines2[index].get_visible())
 
         pts.canvas.draw()
@@ -824,22 +975,21 @@ if __name__ == "__main__":
                 label.set_rotation(20)
                 label.set_horizontalalignment('right')
 
-
         ### If not masked
         ### cumfile
         vel1p = vel[ii, jj]-np.nanmean((vel*mask)[refy1:refy2, refx1:refx2])
 
         dcum_ref = cum_ref[ii, jj]-np.nanmean(cum_ref[refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2])
-#        dcum_ref = 0
         dph = cum[:, ii, jj]-np.nanmean(cum[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum_ref
 
         ## fit function
-        lines1 = [0, 0, 0, 0]
-        xvalues = np.arange(imdates_ordinal[0], imdates_ordinal[-1], 10)
-        td10day = dt.timedelta(days=10)
+        lines1 = [0, 0, 0, 0, 0]
+        timestep = 1
+        xvalues = np.arange(imdates_ordinal[0], imdates_ordinal[-1], timestep)
+        td10day = dt.timedelta(days=timestep)
         xvalues_dt = np.arange(imdates_dt[0], imdates_dt[-1], td10day)
         for model, vis in enumerate(visibilities):
-            yvalues = calc_model(dph, imdates_ordinal, xvalues, model)
+            yvalues = calc_model(dph, imdates_ordinal, xvalues, model, eq_date=eq_dates, eq_params=eqparams)
             lines1[model], = axts.plot(xvalues_dt, yvalues, 'b-', visible=vis, alpha=0.6, zorder=3)
 
         axts.scatter(imdates_dt, dph, label=label1, c='b', alpha=0.6, zorder=5)
@@ -851,14 +1001,18 @@ if __name__ == "__main__":
             dcum2_ref = cum2_ref[ii, jj]-np.nanmean(cum2_ref[refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2])
             dphf = cum2[:, ii, jj]-np.nanmean(cum2[:, refy1:refy2, refx1:refx2]*mask[refy1:refy2, refx1:refx2], axis=(1, 2)) - dcum2_ref
 
-            ## fit function
-            lines2 = [0, 0, 0, 0]
-            for model, vis in enumerate(visibilities):
-                yvalues = calc_model(dphf, imdates_ordinal, xvalues, model)
-                lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
+            if linear_vel:
+                ## fit function
+                lines2 = [0, 0, 0, 0, 0]
+                for model, vis in enumerate(visibilities):
+                    yvalues = calc_model(dphf, imdates_ordinal, xvalues, model, eq_date=eq_dates, eq_params=eqparams)
+                    lines2[model], = axts.plot(xvalues_dt, yvalues, 'r-', visible=vis, alpha=0.6, zorder=2)
 
             axts.scatter(imdates_dt, dphf, c='r', label=label2, alpha=0.6, zorder=4)
-            axts.set_title('vel(1) = {:.1f} mm/yr, vel(2) = {:.1f} mm/yr @({}, {})'.format(vel1p, vel2p, jj, ii), fontsize=10)
+            if linear_vel:
+                axts.set_title('vel(1) = {:.1f} mm/yr, vel(2) = {:.1f} mm/yr @({}, {})'.format(vel1p, vel2p, jj, ii), fontsize=10)
+            else:
+                axts.set_title('vel = {:.1f} mm/yr @({}, {})'.format(vel1p, jj, ii), fontsize=10)
 
         ## gap
         if gap:
