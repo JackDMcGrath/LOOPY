@@ -278,8 +278,6 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
     p13_op="$p13_op -d $GEOCmldir"
   fi
 
-  if [ ! -z $p12_GEOCmldir ];then p12_op="$p12_op -d $p12_GEOCmldir";
-    else p12_op="$p12_op -d $GEOCmldir"; fi
   if [ ! -z $p12_TSdir ];then p12_op="$p12_op -t $p12_TSdir"; fi
   if [ ! -z $p12_loop_thre ];then p12_op="$p12_op -l $p12_loop_thre"; fi
   if [ $p12_multi_prime == "y" ];then p12_op="$p12_op --multi_prime"; fi
