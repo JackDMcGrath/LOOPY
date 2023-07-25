@@ -85,6 +85,7 @@ def init_args():
     parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
     parser.add_argument('--applymask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
     parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
+    parser.add_argument('--replace_outliers', dest='replace_outliers', default=False, action='store_true', help='Replace outliers with filter value instead of nan')
 
     args = parser.parse_args()
 
@@ -118,9 +119,15 @@ def set_input_output():
     resultdir = os.path.join(tsadir, 'results')
     outdir = os.path.join(tsadir, args.out_dir)
 
-    # define input files
+    # define h5 files
     h5file = os.path.join(tsadir, args.h5_file)
-    outh5file = os.path.join(tsadir, outdir, 'cum.h5')
+    if args.deoutlier:
+        if args.replace_outliers:
+            outh5file = os.path.join(tsadir, outdir, 'cum_lptoutliers.h5')
+        else:
+            outh5file = os.path.join(tsadir, outdir, 'cum_nanoutliers.h5')
+    else:
+        outh5file = os.path.join(tsadir, outdir, 'cum.h5')    
 
     # If no reffile defined, sarch for 130ref, then 13ref, in this folder and infodir
     reffile = os.path.join(tsadir, args.ref_file)
@@ -314,7 +321,10 @@ def temporal_filter(cum):
             maskx, masky = np.where(mask == 0)
             cum[:, maskx, masky] = np.nan
 
-        cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling
+        if args.replace_outliers:
+            cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
+        else:
+            cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling, but causing problems
 
         print('Finding moving stddev')
         filt_std = np.ones(cum.shape) * np.nan
@@ -401,7 +411,7 @@ def find_outliers_RANSAC():
 
     # Find location of outliers
     outlier = np.where(abs(diff) > (outlier_thresh * filt_std))
-    print('\n{} outliers identified\n'.format(len(outlier[0])))
+    print('\n{} outliers identified ({:.1f}%)\n'.format(len(outlier[0]), len(outlier[0] / np.sum(~np.isnan(cum.flatten()))) * 100))
 
     # x_pix = valid[1][15001]
     # y_pix = valid[0][15001]
@@ -418,7 +428,10 @@ def find_outliers_RANSAC():
     # plt.legend()
 
     # Replace outliers with filter data
-    cum[outlier] = cum_lpt[outlier]
+    if args.replace_outliers:
+        cum[outlier] = cum_lpt[outlier]
+    else:
+        cum[outlier] = np.nan
 
     # plt.scatter(np.array(dates), cum[:, y_pix, x_pix], s=4, c='b')
     # plt.savefig(os.path.join(outdir, 'finRANSAC{}.png'.format(15000)))
