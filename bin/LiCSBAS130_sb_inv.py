@@ -295,13 +295,31 @@ def main():
         else: n_unw_r_thre = args.n_unw_r_thre
         cycle = 3 # 3*2pi/cycle for comparison png
 
+    bad_ifg11file = os.path.join(infodir, '11bad_ifg.txt')
+    bad_ifg12file = os.path.join(infodir, '12bad_ifg.txt')
+
+    ### Read bad_ifg11 and 12
+    if os.path.exists(bad_ifg11file):
+        bad_ifg11 = io_lib.read_ifg_list(bad_ifg11file)
+    else:
+        bad_ifg11 = []
+    if os.path.exists(bad_ifg12file):
+        bad_ifg12 = io_lib.read_ifg_list(bad_ifg12file)
+    else:
+        bad_ifg12 = []
+    bad_ifg_all = list(set(bad_ifg11+bad_ifg12))
+    bad_ifg_all.sort()
 
     #%% Read date and network information
     ### Get all ifgdates in ifgdir
     if args.ifg_list:
         ifgdates = io_lib.read_ifg_list(args.ifg_list)
     else:
-        ifgdates = tools_lib.get_ifgdates(ifgdir)
+        ifgdates_all = tools_lib.get_ifgdates(ifgdir)
+        ### Remove bad ifgs and images from list
+        ifgdates = list(set(ifgdates_all)-set(bad_ifg_all))
+        ifgdates.sort()
+
     imdates = tools_lib.ifgdates2imdates(ifgdates)
     n_ifg = len(ifgdates)
     n_im = len(imdates)
