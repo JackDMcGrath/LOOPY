@@ -615,65 +615,67 @@ def main(argv=None):
 
 
     #%% 4th loop to be used to calc n_loop_err and n_ifg_noloop
-    if nullify:
+    if nullify or nullmask:
         print('\n4th loop to compute statistics and remove pixels with loop errors...', flush=True)
-    else:
-        print('\n4th loop to compute statistics without nullifying pixels with loop errors...', flush=True)
-    #print('with {} parallel processing...'.format(_n_para2), flush=True)
-    print('dataarray is not updated through parallel processing. avoiding parallelisation now', flush=True)
+        print('dataarray is not updated through parallel processing. avoiding parallelisation now', flush=True)
 
-    # create 3D cube - False means presumed error in the loop
-    a = np.full((length,width,len(ifgdates)), treat_as_bad) #, dtype=bool)  # Jack edit - changed false to tr
-    da = xr.DataArray(
-        data=a,
-        dims=[ "y", "x", "ifgd"],
-        coords=dict(y=np.arange(length),x=np.arange(width),ifgd=ifgdates))
-
-    ### Parallel processing
-    #p = q.Pool(_n_para2)
-    #p = q.Pool(1)  # 2021-11-02: updated nullifying unw pixels with loop phase - to avoid multiple write, no parallelism
-    #res = np.array(p.map(loop_closure_4th_wrapper, args), dtype=np.int16)
-    #p.close()
-    # dataarray is not updated through parallel processing. avoiding parallelisation now
-    ns_loop_err, da = loop_closure_4th([0, len(Aloop)], da)
-
-    print('Loop Closure 4th Complete')
-    #ns_loop_err = np.sum(res[:, :, :,], axis=0)
-
-    if nullify:
-        if treat_as_bad:
-            print('Aggressive Nullification: Nullifying all unws associated with a loop error')
-        else:
-            print('Conservative Nullification: Only Nullifying unws where all loops are errors')
-        
-        if _n_para > 1:
-            print('with {} parallel processing...'.format(_n_para), flush=True)
-            p = q.Pool(_n_para)
-            p.map(nullify_unw, range(len(ifgdates)))
-            p.close()
-        else:
-            print('with no parallel processing...', flush=True)
-            for ix, ifgd in enumerate(ifgdates):
-                # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
-                if not np.min(mask) and np.max(mask):
-                    nullify_unw(ix)
-
+        # create 3D cube - True means presumed error in loop
+        a = np.full((length,width,len(ifgdates)), treat_as_bad)
         da = xr.DataArray(
             data=a,
             dims=[ "y", "x", "ifgd"],
             coords=dict(y=np.arange(length),x=np.arange(width),ifgd=ifgdates))
 
-        print('\nRecalculating n_loop_err statistics')
-        ns_loop_err_null, da = loop_closure_4th([0, len(Aloop)], da)
+        ns_loop_err, da = loop_closure_4th([0, len(Aloop)], da)
 
-    if nullmask:
-        print('saving nullify mask - not parallel now')
-        print('ifgdir = {}'.format(ifgdir))
-        for ifgd in ifgdates:
-            mask = da.loc[:, :, ifgd].values
-            # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
-            if not np.min(mask) and np.max(mask):
-                nullify_mask(ifgd, mask)
+        print('Loop Closure 4th Complete')
+
+        if nullify:
+            if treat_as_bad:
+                print('Aggressive Nullification: Nullifying all unws associated with a loop error')
+            else:
+                print('Conservative Nullification: Only Nullifying unws where all loops are errors')
+            
+            if _n_para > 1:
+                print('with {} parallel processing...'.format(_n_para), flush=True)
+                p = q.Pool(_n_para)
+                p.map(nullify_unw, range(len(ifgdates)))
+                p.close()
+            else:
+                print('with no parallel processing...', flush=True)
+                for ix, ifgd in enumerate(ifgdates):
+                    # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
+                    if not np.min(mask) and np.max(mask):
+                        nullify_unw(ix)
+
+            da = xr.DataArray(
+                data=a,
+                dims=[ "y", "x", "ifgd"],
+                coords=dict(y=np.arange(length),x=np.arange(width),ifgd=ifgdates))
+
+            print('\nRecalculating n_loop_err statistics')
+            ns_loop_err_null, da = loop_closure_4th([0, len(Aloop)], da)
+
+        if nullmask:
+            print('saving nullify mask - not parallel now')
+            print('ifgdir = {}'.format(ifgdir))
+            for ifgd in ifgdates:
+                mask = da.loc[:, :, ifgd].values
+                # this will use only unws with mask having both True and False, i.e. all points False = unw not used in any loop, to check
+                if not np.min(mask) and np.max(mask):
+                    nullify_mask(ifgd, mask)
+    else:
+        print('\n4th loop to compute statistics without nullifying pixels with loop errors...', flush=True)
+        print('with {} parallel processing...'.format(_n_para2), flush=True)
+
+        ### Parallel processing
+        p = q.Pool(_n_para2)
+        p = q.Pool(1)  # 2021-11-02: updated nullifying unw pixels with loop phase - to avoid multiple write, no parallelism
+        res = np.array(p.map(loop_closure_4th_wrapper, args), dtype=np.int16)
+        p.close()
+
+        print('Loop Closure 4th Complete')
+        ns_loop_err = np.sum(res[:, :, :,], axis=0)
 
     # generate loop pngs:
     if do_pngs:
