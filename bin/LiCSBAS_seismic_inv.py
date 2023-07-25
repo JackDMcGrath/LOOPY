@@ -119,7 +119,11 @@ def set_input_output():
     infodir = os.path.join(tsadir, 'info')
     resultdir = os.path.join(tsadir, 'results')
     outdir = os.path.join(resultdir, 'seismic_vels')
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
     metadir = os.path.join(outdir, 'results')
+    if not os.path.exists(metadir):
+        os.mkdir(metadir)
 
     # define h5 files
     h5file = os.path.join(tsadir, args.h5_file)
@@ -183,8 +187,6 @@ def load_data():
 
     if mask_final:
         mask = io_lib.read_img(maskfile, length, width)
-        if not os.path.exists(metadir):
-            os.mkdir(metadir)
         shutil.copy(maskfile, os.path.join(metadir, 'mask'))
         if args.apply_mask:
             print('Applying Mask to cum data')
@@ -857,8 +859,6 @@ def fit_pixel_velocities(ii):
     return truemodel, inverr
 
 def plot_timeseries(dates, disp, invvel, ii, x, y):
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
     plt.scatter(dates, disp, s=2, label='{}'.format(ii))
     plt.plot(dates, invvel, label='{}'.format(ii))
     plt.title('({},{})'.format(x,y))
