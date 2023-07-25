@@ -186,7 +186,7 @@ def calc_model(dph, imdates_ordinal, xvalues, model, eq_date=[], eq_params=[]):
         noNanPix = ~np.isnan(dph)
         dph = dph[noNanPix]
         G = G[noNanPix, :]
-        nonSingular = np.where((G != 0).any(axis=0))
+        nonSingular = np.where((G != 0).any(axis=0))[0]
         G = G[:, nonSingular]
 
         # Invert displacements to come up with velocity parameters
