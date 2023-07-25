@@ -421,8 +421,7 @@ if __name__ == "__main__":
         except:
             print("This doesn't look like an output from LiCSBAS_seismic_inv.py.\nContinuing only with linear LOS velocity")
             linear_vel = True
-            vstdfile = os.path.join(resultsdir, 'vstd')
-            resultsdir = os.path.join(cumdir, 'results')
+            eqparams = []
 
     try:
         gap = cumh5['gap']
