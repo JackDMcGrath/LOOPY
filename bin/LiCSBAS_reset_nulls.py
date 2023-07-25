@@ -82,6 +82,8 @@ def set_input_output():
     ### Read bad_ifg11 and 12
     if os.path.exists(bad_ifg11file):
         bad_ifg_list = io_lib.read_ifg_list(bad_ifg11file)
+    else:
+        bad_ifg_list = []
     
     # Set reset flags
     if args.reset_NoLoop and args.reset_LoopErr:
