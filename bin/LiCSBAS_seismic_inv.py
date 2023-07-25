@@ -25,7 +25,7 @@ Input files:
     eq_list.txt: Text file containing EQ dates, and optionally which parameters to fit to that earthquake ([C]oseismic displacement, logarithmic [R]elaxation, [P]ostseismic linear velocity, e[X]clude EQ)
                     e.g. 20161113 CRP 
     mask:        Mask file produced by LiCSBAS15_mask_ts.py
-    cum.h5:      Output from LiCSBAS13_sb_inv.py. Required as certain masking parameters (e.g. residual rms) are not regenerated    
+    cum.h5:      Output from LiCSBAS13_sb_inv.py
 
 #%% Change log
 
@@ -86,7 +86,7 @@ def init_args():
     parser.add_argument('--applymask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
     parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
     parser.add_argument('--replace_outliers', dest='replace_outliers', default=False, action='store_true', help='Replace outliers with filter value instead of nan')
-    parser.add_argument('--no_vcm', dest='use_weights', default=True, action='store_false', help="Don't calculate VCM for each date - estimate erros with identity matrix (faster)")
+    parser.add_argument('--no_vcm', dest='use_weights', default=True, action='store_false', help="Don't calculate VCM for each date - estimate errors with identity matrix (faster)")
 
     args = parser.parse_args()
 
@@ -106,7 +106,7 @@ def finish():
     sec = int(np.mod(elapsed_time,60))
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour,minite,sec))
     print("\n{} {} finished!".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
-    print('Output directory: {}\n'.format(os.path.relpath(outdir)))
+    print('Output file: {}\n'.format(os.path.relpath(outh5file)))
 
 def set_input_output():
     global tsadir, infodir, resultdir, outdir, ifgdir
