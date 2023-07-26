@@ -820,7 +820,7 @@ def fit_pixel_velocities(ii):
 
     # Calculate inversion parameter standard errors and root mean square error
     rms=np.dot(np.dot((invvel-disp).T, W),(invvel-disp))
-    inverr[invert_ix]=np.sqrt(np.diag(invVCM) * rms / n_im)
+    inverr[invert_ix]=np.sqrt(np.diag(invVCM) * rms / np.sum(noNanPix))
     rms=np.sqrt(rms / n_im)
 
     # Find standard deviations of the velocity residuals
