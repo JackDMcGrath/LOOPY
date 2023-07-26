@@ -371,7 +371,7 @@ def find_outliers_RANSAC():
     else:
         cum_lpt = np.zeros(cum.shape) * np.nan
         for ii in range(n_im):
-            cum_lpt[ii, :, :] = lpt_filter(filterdates)
+            cum_lpt[ii, :, :] = lpt_filter(ii)
 
     # Find STD
     diff = cum - cum_lpt  # Difference between data and filtered data
@@ -404,7 +404,9 @@ def find_outliers_RANSAC():
         cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
         p.close()
     else:
-        cum_lpt = lpt_filter(filterdates)
+        cum_lpt = np.zeros(cum.shape) * np.nan
+        for ii in range(n_im):
+            cum_lpt[ii, :, :] = lpt_filter(ii)
 
     # Reload the original data
     cum = np.array(data['cum']) - ref
@@ -511,7 +513,9 @@ def find_outliers():
         cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
         p.close()
     else:
-        lpt_filter(filterdates)
+        cum_lpt = np.zeros(cum.shape) * np.nan
+        for ii in range(n_im):
+            cum_lpt[ii, :, :] = lpt_filter(ii)
 
     # Find STD
     diff = cum - cum_lpt  # Difference between data and filtered data
