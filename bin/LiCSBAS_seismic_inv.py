@@ -763,8 +763,8 @@ def calc_epoch_semivariogram(ii):
         ax=fig.add_subplot(2,1,2)
         ax.scatter(bincenters, medians, c=sigma, label=ii)
         ax.plot(bincenters, model_semi, label='{} model'.format(ii))
-        ax.legend()
-        plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']))
+        plt.colorbar()
+        plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']/1000))
         plt.savefig(os.path.join(outdir, 'semivarigram{}.png'.format(ii)))
         plt.close()
 
