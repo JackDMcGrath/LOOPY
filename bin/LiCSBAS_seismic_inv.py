@@ -759,7 +759,6 @@ def calc_epoch_semivariogram(ii):
         fig=plt.figure(figsize=(12,24))
         ax=fig.add_subplot(2,1,1)
         ax.imshow(epoch_plot, vmin=-(55.6/2), vmax=55.6/2)
-        ax.colorbar()
         ax=fig.add_subplot(2,1,2)
         ax.scatter(bincenters, medians, label=ii)
         ax.plot(bincenters, model_semi, label='{} model'.format(ii))
