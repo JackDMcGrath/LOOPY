@@ -731,7 +731,7 @@ def calc_epoch_semivariogram(ii):
             mod.set_param_hint('p', value=np.percentile(medians, 95))  # guess maximum variance
             mod.set_param_hint('n', value=0)  # guess 0
             mod.set_param_hint('r', value=100000)  # guess 100 km
-            sigma = stds + np.power(bincenters / max(bincenters), 2)
+            sigma = stds + np.power((max(bincenters) - bincenters + 1) / max(bincenters), 2)
             result = mod.fit(medians, d=bincenters, weights=sigma)
         except:
             # Try smaller ranges
@@ -740,14 +740,14 @@ def calc_epoch_semivariogram(ii):
                 bincenters = bincenters[:int(n_bins * 3 / 4)]
                 stds = stds[:int(n_bins * 3 / 4)]
                 medians = medians[:int(n_bins * 3 / 4)]
-                sigma = stds + np.power(bincenters / max(bincenters), 3)
+                sigma = stds + np.power((max(bincenters) - bincenters + 1) / max(bincenters), 3)
                 result = mod.fit(medians, d=bincenters, weights=sigma)
             except:
                 try:
                     bincenters = bincenters[:int(n_bins / 2)]
                     stds = stds[:int(n_bins / 2)]
                     medians = medians[:int(n_bins / 2)]
-                    sigma = stds + np.power(bincenters / max(bincenters), 3)
+                    sigma = stds + np.power((max(bincenters) - bincenters + 1) / max(bincenters), 3)
                     result = mod.fit(medians, d=bincenters, weights=sigma)
                 except:
                     print('{} Failed to solve - setting sill to 1'.format(ii))
