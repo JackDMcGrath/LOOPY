@@ -735,17 +735,17 @@ def calc_epoch_semivariogram(ii):
             result = mod.fit(medians, d=bincenters, weights=sigma)
         except:
             # Try smaller ranges
-            length = len(bincenters)
+            n_bins = len(bincenters)
             try:
-                bincenters = bincenters[:int(length * 3 / 4)]
-                stds = stds[:int(length * 3 / 4)]
-                medians = medians[:int(length * 3 / 4)]
+                bincenters = bincenters[:int(n_bins * 3 / 4)]
+                stds = stds[:int(n_bins * 3 / 4)]
+                medians = medians[:int(n_bins * 3 / 4)]
                 sigma = stds + np.power(bincenters / max(bincenters), 3)
                 result = mod.fit(medians, d=bincenters, weights=sigma)
             except:
-                bincenters = bincenters[:int(length / 2)]
-                stds = stds[:int(length / 2)]
-                medians = medians[:int(length / 2)]
+                bincenters = bincenters[:int(n_bins / 2)]
+                stds = stds[:int(n_bins / 2)]
+                medians = medians[:int(n_bins / 2)]
                 sigma = stds + np.power(bincenters / max(bincenters), 3)
                 result = mod.fit(medians, d=bincenters, weights=sigma)
 
