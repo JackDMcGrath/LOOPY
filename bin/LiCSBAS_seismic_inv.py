@@ -869,7 +869,7 @@ def fit_pixel_velocities(ii):
     # Calculate VCM of inverted model parameters
     invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
 
-    model = np.matmul(invVCM, np.matmul(G.T, disp))
+    model = np.matmul(invVCM, np.matmul(np.matmul(G.T, W), disp))
 
     # Invert for modelled displacement
     invvel = np.matmul(G, model)
