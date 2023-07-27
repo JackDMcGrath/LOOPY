@@ -663,7 +663,9 @@ def calc_epoch_semivariogram(ii):
         begin_semi = time.time()
 
         # Find semivariogram of incremental displacements
-        epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
+        epoch_m1 = cum[ii - 1, :, :]
+        epoch_m1[np.isnan(epoch_m1)] = 0
+        epoch = (cum[ii, :, :] - epoch_m1).flatten()
         # Nan mask pixels
         epoch[mask_pix] = np.nan
         # Mask out any displacement of > lambda / 2, as coseismic or noise
