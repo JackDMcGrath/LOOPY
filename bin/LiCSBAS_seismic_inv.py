@@ -754,10 +754,16 @@ def calc_epoch_semivariogram(ii):
         
         model_semi = (result.best_values['n'] + sill * ((3 * bincenters)/ (2 * result.best_values['r']) - 0.5*((bincenters**3) / (result.best_values['r']**3))))
         model_semi[np.where(bincenters > result.best_values['r'])[0]] = result.best_values['n'] + sill
-        plt.scatter(bincenters, medians, label=ii)
-        plt.plot(bincenters, model_semi, label='{} model'.format(ii))
-        plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']))
-        plt.legend()
+        
+        fig=plt.figure(figsize=(12,24))
+        ax=fig.add_subplot(2,1,1)
+        ax.imshow(epoch, vmin=-(55.6/2), vmax=55.6/2)
+        ax.colorbar()
+        ax=fig.add_subplot(2,1,2)
+        ax.scatter(bincenters, medians, label=ii)
+        ax.plot(bincenters, model_semi, label='{} model'.format(ii))
+        ax.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']))
+        ax.legend()
         plt.savefig(os.path.join(outdir, 'semivarigram{}.png'.format(ii)))
         plt.close()
 
