@@ -732,7 +732,8 @@ def calc_epoch_semivariogram(ii):
             mod.set_param_hint('n', value=0)  # guess 0
             mod.set_param_hint('r', value=100000)  # guess 100 km
             sigma = stds + np.power(bincenters / max(bincenters), 2)
-            result = mod.fit(medians, d=bincenters, weights=1/sigma)
+            sigma = stds * (max(bincenters) / bincenters)
+            result = mod.fit(medians, d=bincenters, weights=sigma)
         except:
             # Try smaller ranges
             n_bins = len(bincenters)
@@ -741,14 +742,16 @@ def calc_epoch_semivariogram(ii):
                 stds = stds[:int(n_bins * 3 / 4)]
                 medians = medians[:int(n_bins * 3 / 4)]
                 sigma = stds + np.power(bincenters / max(bincenters), 3)
-                result = mod.fit(medians, d=bincenters, weights=1/sigma)
+                sigma = stds * (max(bincenters) / bincenters)
+                result = mod.fit(medians, d=bincenters, weights=sigma)
             except:
                 try:
                     bincenters = bincenters[:int(n_bins / 2)]
                     stds = stds[:int(n_bins / 2)]
                     medians = medians[:int(n_bins / 2)]
                     sigma = stds + np.power(bincenters / max(bincenters), 3)
-                    result = mod.fit(medians, d=bincenters, weights=1/sigma)
+                    sigma = stds * (max(bincenters) / bincenters)
+                    result = mod.fit(medians, d=bincenters, weights=sigma)
                 except:
                     print('{} Failed to solve - setting sill to 1'.format(ii))
 
@@ -767,7 +770,7 @@ def calc_epoch_semivariogram(ii):
         ax.imshow(epoch_plot, vmin=-(55.6/2), vmax=55.6/2)
         plt.title(dates[ii])
         ax=fig.add_subplot(2,1,2)
-        ax.scatter(bincenters, medians, c=1/sigma, label=ii)
+        ax.scatter(bincenters, medians, c=sigma, label=ii)
         ax.plot(bincenters, model_semi, label='{} model'.format(ii))
         try:
             plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']/1000))
