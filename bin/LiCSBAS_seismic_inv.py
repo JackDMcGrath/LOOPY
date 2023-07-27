@@ -233,7 +233,7 @@ def read_eq_list(eq_listfile):
     while line:
         if line[0].isnumeric():
             if len(line.split()) == 2:
-                if line.split()[1] == 'X':
+                if 'X' in line.split()[1].upper():
                     line = f.readline()
                 else:
                     eqdates.append(str(line.split()[0]))
