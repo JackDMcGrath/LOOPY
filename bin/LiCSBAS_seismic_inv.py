@@ -639,7 +639,7 @@ def calc_semivariogram():
     YY = YY.flatten()
 
     mask = io_lib.read_img(maskfile, length, width)
-    mask_pix = np.where(mask.flatten() == 0)
+    mask_pix = np.where(mask == 0)
 
     print('\nCalculating semi-variograms of epoch displacements')
     print('Using {} processing'.format(n_para))
@@ -663,15 +663,30 @@ def calc_epoch_semivariogram(ii):
         begin_semi = time.time()
 
         # Find semivariogram of incremental displacements
-        epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
+        epoch = (cum[ii, :, :] - cum[ii - 1, :, :])
         # Nan mask pixels
         epoch[mask_pix] = np.nan
+
+        # Deramp epoch
+        Xgrid, Ygrid = np.meshgrid(np.arange(width), np.arange(length))
+        Xgrid1 = Xgrid.ravel()
+        Ygrid1 = Ygrid.ravel()
+        G = np.stack((Xgrid1, Ygrid1)).T
+        G = np.hstack([np.ones((length*width, 1)), G])
+
+        mask = np.isnan(epoch.ravel())
+        m = np.linalg.lstsq(G[~mask, :], epoch.ravel()[~mask], rcond=None)[0]
+
+        ramp = ((np.matmul(G, m)).reshape((length, width))).astype(np.float32)
+        epoch = epoch - ramp
+
         # Mask out any displacement of > lambda / 2, as coseismic or noise
         epoch[abs(epoch) > (55.6 / 2)] = np.nan
 
         # Reference to it's own median
         epoch -= np.nanmedian(epoch)
-        epoch_plot=epoch.reshape(length, width)
+        epoch_plot = epoch.copy()
+        epoch = epoch.flatten()
 
         # Drop all nan data
         xdist = XX[~np.isnan(epoch)]
