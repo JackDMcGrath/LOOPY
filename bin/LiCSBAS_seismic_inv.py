@@ -751,6 +751,16 @@ def calc_epoch_semivariogram(ii):
         # Print Sill (ie variance)
         sill = result.best_values['p']
 
+        
+        model_semi = (result.best_values['n'] + sill * ((3 * bincenters)/ (2 * result.best_values['r']) - 0.5*((bincenters**3) / (result.best_values['r']**3))))
+        model_semi[np.where(bincenters > result.best_values['r'])[0]] = result.best_values['n'] + sill
+        plt.scatter(bincenters, medians, label=ii)
+        plt.scatter(bincenters, medians, label='{} model'.format(ii))
+        plt.title('{} Partial Sill: {:.2f}, Nugget: {:.2f}, Range: {:.2f}'.format(ii, sill, result.best_values['n'],result.best_values['r']))
+        plt.savefig(os.path.join(outdir, 'semivarigram{}.png'.format(ii)))
+        plt.close()
+
+
         if np.mod(ii + 1, 10) == 0:
             print('\t{}/{}\tSill: {:.2f} ({:.2e}\tpairs processed in {:.1f} seconds)'.format(ii + 1, n_im, sill, n_pix, time.time() - begin_semi))
 
