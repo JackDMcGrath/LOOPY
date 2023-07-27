@@ -743,19 +743,25 @@ def calc_epoch_semivariogram(ii):
                 sigma = stds + np.power(bincenters / max(bincenters), 3)
                 result = mod.fit(medians, d=bincenters, weights=sigma)
             except:
-                bincenters = bincenters[:int(n_bins / 2)]
-                stds = stds[:int(n_bins / 2)]
-                medians = medians[:int(n_bins / 2)]
-                sigma = stds + np.power(bincenters / max(bincenters), 3)
-                result = mod.fit(medians, d=bincenters, weights=sigma)
+                try:
+                    bincenters = bincenters[:int(n_bins / 2)]
+                    stds = stds[:int(n_bins / 2)]
+                    medians = medians[:int(n_bins / 2)]
+                    sigma = stds + np.power(bincenters / max(bincenters), 3)
+                    result = mod.fit(medians, d=bincenters, weights=sigma)
+                except:
+                    print('{} Failed to solve - setting sill to 1'.format(ii))
 
-        # Print Sill (ie variance)
-        sill = result.best_values['p']
+        try:
+            # Print Sill (ie variance)
+            sill = result.best_values['p']
+            model_semi = (result.best_values['n'] + sill * ((3 * bincenters)/ (2 * result.best_values['r']) - 0.5*((bincenters**3) / (result.best_values['r']**3))))
+            model_semi[np.where(bincenters > result.best_values['r'])[0]] = result.best_values['n'] + sill
+        except:
+            sill = 1
+            model_semi = np.zeros(bincenters.shape) * np.nan
 
-        
-        model_semi = (result.best_values['n'] + sill * ((3 * bincenters)/ (2 * result.best_values['r']) - 0.5*((bincenters**3) / (result.best_values['r']**3))))
-        model_semi[np.where(bincenters > result.best_values['r'])[0]] = result.best_values['n'] + sill
-        
+            
         fig=plt.figure(figsize=(12,24))
         ax=fig.add_subplot(2,1,1)
         ax.imshow(epoch_plot, vmin=-(55.6/2), vmax=55.6/2)
@@ -764,7 +770,10 @@ def calc_epoch_semivariogram(ii):
         ax.scatter(bincenters, medians, c=sigma, label=ii)
         ax.plot(bincenters, model_semi, label='{} model'.format(ii))
         plt.colorbar()
-        plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']/1000))
+        try:
+            plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']/1000))
+        except:
+            plt.title('{} Semivariogram Failed'.format(ii))
         plt.savefig(os.path.join(outdir, 'semivarigram{}.png'.format(ii)))
         plt.close()
 
