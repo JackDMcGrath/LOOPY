@@ -769,7 +769,7 @@ def calc_epoch_semivariogram(ii):
                     sigma = stds * (1 + (max(bincenters) / bincenters))
                     result = mod.fit(medians, d=bincenters, weights=sigma)
                 except:
-                    print('{} Failed to solve - setting sill to 1'.format(ii))
+                    print('{} Failed to solve - setting sill to 100'.format(ii))
 
         try:
             # Print Sill (ie variance)
@@ -777,7 +777,7 @@ def calc_epoch_semivariogram(ii):
             model_semi = (result.best_values['n'] + sill * ((3 * bincenters)/ (2 * result.best_values['r']) - 0.5*((bincenters**3) / (result.best_values['r']**3))))
             model_semi[np.where(bincenters > result.best_values['r'])[0]] = result.best_values['n'] + sill
         except:
-            sill = 1
+            sill = 100
             model_semi = np.zeros(bincenters.shape) * np.nan
 
             
