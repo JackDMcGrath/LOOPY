@@ -767,7 +767,9 @@ def calc_epoch_semivariogram(ii):
         ax.imshow(epoch_plot, vmin=-(55.6/2), vmax=55.6/2)
         plt.title(dates[ii])
         ax=fig.add_subplot(2,1,2)
+        ax.scatter(dists[:5000],vals[:5000], s=1)
         ax.scatter(bincenters, medians, c=sigma, label=ii)
+        plt.colorbar()
         ax.plot(bincenters, model_semi, label='{} model'.format(ii))
         try:
             plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']/1000))
