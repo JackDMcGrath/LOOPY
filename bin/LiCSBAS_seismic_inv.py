@@ -664,9 +664,10 @@ def calc_epoch_semivariogram(ii):
 
         # Find semivariogram of incremental displacements
         epoch = (cum[ii, :, :] - cum[ii - 1, :, :])
+        epoch_orig = epoch.copy()
         # Nan mask pixels
         epoch[mask_pix] = np.nan
-
+        epoch_nan = epoch.copy()
         # Deramp epoch
         Xgrid, Ygrid = np.meshgrid(np.arange(width), np.arange(length))
         Xgrid1 = Xgrid.ravel()
@@ -685,7 +686,7 @@ def calc_epoch_semivariogram(ii):
 
         # Reference to it's own median
         epoch -= np.nanmedian(epoch)
-        epoch_plot = epoch.copy()
+        epoch_deramp = epoch.copy()
         epoch = epoch.flatten()
 
         # Drop all nan data
@@ -781,10 +782,16 @@ def calc_epoch_semivariogram(ii):
 
             
         fig=plt.figure(figsize=(12,24))
-        ax=fig.add_subplot(2,1,1)
-        ax.imshow(epoch_plot, vmin=-(55.6/2), vmax=55.6/2)
-        plt.title(dates[ii])
-        ax=fig.add_subplot(2,1,2)
+        ax=fig.add_subplot(2,2,1)
+        ax.imshow(epoch_orig, vmin=-(55.6/2), vmax=55.6/2)
+        plt.title(dates[ii], 'Original')
+        ax=fig.add_subplot(2,2,2)
+        ax.imshow(epoch_nan, vmin=-(55.6/2), vmax=55.6/2)
+        plt.title(dates[ii], 'Nans')
+        ax=fig.add_subplot(2,2,3)
+        ax.imshow(epoch_deramp, vmin=-(55.6/2), vmax=55.6/2)
+        plt.title(dates[ii], 'Nans + deramp')
+        ax=fig.add_subplot(2,2,4)
         ax.scatter(bincenters, medians, c=sigma, label=ii)
         ax.plot(bincenters, model_semi, label='{} model'.format(ii))
         try:
