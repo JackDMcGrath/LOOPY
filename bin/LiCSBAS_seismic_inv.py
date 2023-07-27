@@ -667,6 +667,9 @@ def calc_epoch_semivariogram(ii):
         epoch_orig = epoch.copy()
         # Nan mask pixels
         epoch[mask_pix] = np.nan
+        # Mask out any displacement of > lambda / 2, as coseismic or noise
+        epoch[abs(epoch) > (55.6 / 2)] = np.nan
+        
         epoch_nan = epoch.copy()
         # Deramp epoch
         Xgrid, Ygrid = np.meshgrid(np.arange(width), np.arange(length))
@@ -680,9 +683,6 @@ def calc_epoch_semivariogram(ii):
 
         ramp = ((np.matmul(G, m)).reshape((length, width))).astype(np.float32)
         epoch = epoch - ramp
-
-        # Mask out any displacement of > lambda / 2, as coseismic or noise
-        epoch[abs(epoch) > (55.6 / 2)] = np.nan
 
         # Reference to it's own median
         epoch -= np.nanmedian(epoch)
@@ -784,13 +784,13 @@ def calc_epoch_semivariogram(ii):
         fig=plt.figure(figsize=(12,24))
         ax=fig.add_subplot(2,2,1)
         ax.imshow(epoch_orig, vmin=-(55.6/2), vmax=55.6/2)
-        plt.title(dates[ii], 'Original')
+        plt.title('Original {}'.format(dates[ii]))
         ax=fig.add_subplot(2,2,2)
         ax.imshow(epoch_nan, vmin=-(55.6/2), vmax=55.6/2)
-        plt.title(dates[ii], 'Nans')
+        plt.title('Nans {}'.format(dates[ii]))
         ax=fig.add_subplot(2,2,3)
         ax.imshow(epoch_deramp, vmin=-(55.6/2), vmax=55.6/2)
-        plt.title(dates[ii], 'Nans + deramp')
+        plt.title('Nans + deramp {}'.format(dates[ii]))
         ax=fig.add_subplot(2,2,4)
         ax.scatter(bincenters, medians, c=sigma, label=ii)
         ax.plot(bincenters, model_semi, label='{} model'.format(ii))
