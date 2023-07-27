@@ -666,8 +666,8 @@ def calc_epoch_semivariogram(ii):
         epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
         # Nan mask pixels
         epoch[mask_pix] = np.nan
-        # Mask out any displacement of > lambda, as coseismic or noise
-        epoch[abs(epoch) > 55.6] = np.nan
+        # Mask out any displacement of > lambda / 2, as coseismic or noise
+        epoch[abs(epoch) > (55.6 / 2)] = np.nan
 
         # Reference to it's own median
         epoch -= np.nanmedian(epoch)
@@ -727,9 +727,9 @@ def calc_epoch_semivariogram(ii):
         bincenters = (binedges[0:-1] + binedges[1:]) / 2
 
         try:
-            mod.set_param_hint('p', value=np.nanmax(medians))  # guess maximum variance
+            mod.set_param_hint('p', value=np.percentile(medians, 95))  # guess maximum variance
             mod.set_param_hint('n', value=0)  # guess 0
-            mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
+            mod.set_param_hint('r', value=100000)  # guess 100 km
             sigma = stds + np.power(bincenters / max(bincenters), 2)
             result = mod.fit(medians, d=bincenters, weights=sigma)
         except:
@@ -756,7 +756,7 @@ def calc_epoch_semivariogram(ii):
         model_semi[np.where(bincenters > result.best_values['r'])[0]] = result.best_values['n'] + sill
         plt.scatter(bincenters, medians, label=ii)
         plt.plot(bincenters, model_semi, label='{} model'.format(ii))
-        plt.title('{} Partial Sill: {:.2f}, Nugget: {:.2f}, Range: {:.2f}'.format(ii, sill, result.best_values['n'],result.best_values['r']))
+        plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']))
         plt.legend()
         plt.savefig(os.path.join(outdir, 'semivarigram{}.png'.format(ii)))
         plt.close()
