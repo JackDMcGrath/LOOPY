@@ -75,7 +75,7 @@ def init_args():
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
     parser.add_argument('-o', dest='out_dir', default='results/seismic_vels', help='folder in TSA dir outputs are written to')
-    parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
+    parser.add_argument('-r', dest='ref_file', default='13ref.txt', help='txt file containing reference area')
     parser.add_argument('-m', dest='mask_file', default='results/mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
