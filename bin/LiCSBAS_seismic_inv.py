@@ -82,11 +82,15 @@ def init_args():
     parser.add_argument('--n_para', dest='n_para', default=False, type=int, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
-    parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
-    parser.add_argument('--applymask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
+    parser.add_argument('--no_filter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
+    parser.add_argument('--apply_mask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
     parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
     parser.add_argument('--replace_outliers', dest='replace_outliers', default=False, action='store_true', help='Replace outliers with filter value instead of nan')
     parser.add_argument('--no_vcm', dest='use_weights', default=True, action='store_false', help="Don't calculate VCM for each date - estimate errors with identity matrix (faster)")
+    parser.add_argument('--no_deramp', dest='deramp_semi', default=True, action='store_false', help="Don't detrend epochs before creating semivariogram")
+    parser.add_argument('--semi_mask_thre', dest='semi_mask_thre', default=55.6/2, type=float, help='Displacement threshold for masking semivariogram')
+    parser.add_argument('--plot_semi', dest='plot_semi', default=False, action='store_true', help="Plot semivariograms from each epoch")
+    parser.add_argument('--sill', dest='sill', default=100, type=float, help="Default sill value if semivariogram fails")
 
     args = parser.parse_args()
 
@@ -667,25 +671,28 @@ def calc_epoch_semivariogram(ii):
         epoch_orig = epoch.copy()
         # Nan mask pixels
         epoch[mask_pix] = np.nan
-        # Mask out any displacement of > lambda / 2, as coseismic or noise
-        epoch[abs(epoch) > (55.6 / 2)] = np.nan
+        # Mask out any large displacements as coseismic or noise
+        epoch[abs(epoch) > (args.semi_mask_thre)] = np.nan
 
         epoch_nan = epoch.copy()
-        # Deramp epoch
-        Xgrid, Ygrid = np.meshgrid(np.arange(width), np.arange(length))
-        Xgrid1 = Xgrid.ravel()
-        Ygrid1 = Ygrid.ravel()
-        G = np.stack((Xgrid1, Ygrid1)).T
-        G = np.hstack([np.ones((length*width, 1)), G])
-
-        mask = np.isnan(epoch.ravel())
-        m = np.linalg.lstsq(G[~mask, :], epoch.ravel()[~mask], rcond=None)[0]
-
-        ramp = ((np.matmul(G, m)).reshape((length, width))).astype(np.float32)
-        epoch = epoch - ramp
 
         # Reference to it's own median
         epoch -= np.nanmedian(epoch)
+
+        # Deramp epoch (from LiCSBAS16_filt_ts.py)
+        if not args.deramp_semi:
+            Xgrid, Ygrid = np.meshgrid(np.arange(width), np.arange(length))
+            Xgrid1 = Xgrid.ravel()
+            Ygrid1 = Ygrid.ravel()
+            G = np.stack((Xgrid1, Ygrid1)).T
+            G = np.hstack([np.ones((length*width, 1)), G])
+
+            mask = np.isnan(epoch.ravel())
+            m = np.linalg.lstsq(G[~mask, :], epoch.ravel()[~mask], rcond=None)[0]
+
+            ramp = ((np.matmul(G, m)).reshape((length, width))).astype(np.float32)
+            epoch = epoch - ramp
+        
         epoch_deramp = epoch.copy()
         epoch = epoch.flatten()
 
@@ -769,7 +776,7 @@ def calc_epoch_semivariogram(ii):
                     sigma = stds * (1 + (max(bincenters) / bincenters))
                     result = mod.fit(medians, d=bincenters, weights=sigma)
                 except:
-                    print('{} Failed to solve - setting sill to 100'.format(ii))
+                    print('Epoch {} ({}) Failed to solve - setting sill to {}'.format(ii, dates[ii], args.sill))
 
         try:
             # Print Sill (ie variance)
@@ -777,29 +784,35 @@ def calc_epoch_semivariogram(ii):
             model_semi = (result.best_values['n'] + sill * ((3 * bincenters)/ (2 * result.best_values['r']) - 0.5*((bincenters**3) / (result.best_values['r']**3))))
             model_semi[np.where(bincenters > result.best_values['r'])[0]] = result.best_values['n'] + sill
         except:
-            sill = 100
+            sill = args.sill
             model_semi = np.zeros(bincenters.shape) * np.nan
 
-            
-        fig=plt.figure(figsize=(12,24))
-        ax=fig.add_subplot(2,2,1)
-        ax.imshow(epoch_orig, vmin=-(55.6/2), vmax=55.6/2)
-        plt.title('Original {}'.format(dates[ii]))
-        ax=fig.add_subplot(2,2,2)
-        ax.imshow(epoch_nan, vmin=-(55.6/2), vmax=55.6/2)
-        plt.title('Nans {}'.format(dates[ii]))
-        ax=fig.add_subplot(2,2,3)
-        ax.imshow(epoch_deramp, vmin=-(55.6/2), vmax=55.6/2)
-        plt.title('Nans + deramp {}'.format(dates[ii]))
-        ax=fig.add_subplot(2,2,4)
-        ax.scatter(bincenters, medians, c=sigma, label=ii)
-        ax.plot(bincenters, model_semi, label='{} model'.format(ii))
-        try:
-            plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']/1000))
-        except:
-            plt.title('{} Semivariogram Failed'.format(ii))
-        plt.savefig(os.path.join(outdir, 'semivarigram{}.png'.format(ii)))
-        plt.close()
+        if args.plot_semi:
+            if not os.path.exists(os.path.join(outdir, 'semivariograms')):
+                os.mkdir(os.path.join(outdir, 'semivariograms'))
+
+            fig=plt.figure(figsize=(12,24))
+            ax=fig.add_subplot(2,2,1)
+            ax.imshow(epoch_orig, vmin=-(55.6/2), vmax=55.6/2)
+            plt.title('Original {}'.format(dates[ii]))
+            ax=fig.add_subplot(2,2,2)
+            ax.imshow(epoch_nan, vmin=-(55.6/2), vmax=55.6/2)
+            plt.title('Nans {}'.format(dates[ii]))
+            ax=fig.add_subplot(2,2,3)
+            ax.imshow(epoch_deramp, vmin=-(55.6/2), vmax=55.6/2)
+            plt.title('Nans + deramp {}'.format(dates[ii]))
+            ax=fig.add_subplot(2,2,4)
+            ax.scatter(bincenters, medians, c=sigma, label=ii)
+            ax.plot(bincenters, model_semi, label='{} model'.format(ii))
+            try:
+                plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']/1000))
+            except:
+                plt.title('{} Semivariogram Failed'.format(ii))
+            if sill == args.sill:
+                plt.savefig(os.path.join(outdir, 'semivariograms', 'semivarigram{}X.png'.format(ii)))
+            else:
+                plt.savefig(os.path.join(outdir, 'semivariograms', 'semivarigram{}.png'.format(ii)))
+            plt.close()
 
         if np.mod(ii + 1, 10) == 0:
             print('\t{}/{}\tSill: {:.2f} ({:.2e}\tpairs processed in {:.1f} seconds)'.format(ii + 1, n_im, sill, n_pix, time.time() - begin_semi))
