@@ -462,7 +462,7 @@ def find_outliers_RANSAC():
     return cum, filt_std
 
 def run_RANSAC(ii):
-    if np.mod(ii, 5000) == 0:
+    if np.mod(ii, 10000) == 0:
         print('{}/{} RANSACed....'.format(ii, n_valid))
     # Find non-nan data
     disp = cum[:, valid[0][ii], valid[1][ii]]
