@@ -852,8 +852,8 @@ def fit_pixel_velocities(ii):
     noNanPix = ~np.isnan(disp)
     disp = disp[noNanPix]
     # Intercept (reference term), Pre-Seismic Velocity, [[C]oseismic-offset, log [R]elaxation, [P]ost-seismic linear velocity]
-    truemodel = np.zeros((2 + n_eq * 3))
-    inverr = np.zeros((2 + n_eq * 3))
+    truemodel = np.zeros((2 + n_eq * 3)) * np.nan
+    inverr = np.zeros((2 + n_eq * 3)) * np.nan
     invert_ix = [0, 1]
 
     for ix, param in enumerate(eq_params):
@@ -879,27 +879,23 @@ def fit_pixel_velocities(ii):
         G[eq_ix[ee]:eq_ix[ee + 1], 4 + ee * 3] = date_ord[eq_ix[ee]:eq_ix[ee + 1]] - ord_eq[ee]
         daily_rates.append(4 + ee * 3)
 
+    # Check that G is not singular, if all disps associated with 1 eq are dropped
     # G = G[np.ix_(noNanPix, invert_ix)]
     G = G[noNanPix, :]
-    singular = np.where((G == 0).all(axis=0))[0].tolist()
-    invert_ix = list(set(invert_ix) - set(singular))
+    singular0 = np.where((G == 0).all(axis=0))[0].tolist()
+    singular1 = np.where((G == 1).all(axis=0))[0].tolist()
+    invert_ix = 0 + list(set(invert_ix) - set(singular0) - set(singular1))
     G = G[:, invert_ix]
 
     # Weight matrix (inverse of VCM)
     # W = np.linalg.inv(Q) # Too slow. Faster to do 1/sill before this
     W = Q[np.ix_(noNanPix, noNanPix)].copy()
 
-    # Calculate VCM of inverted model parameters
-    try:
-        invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
-    except:
-        print('Singular Matrix Apparently')
-        print('Singular: ', singular)
-        return truemodel, truemodel
-
+    # Calculate VCM of inverted model parameters, and invert model
+    invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
     model = np.matmul(invVCM, np.matmul(np.matmul(G.T, W), disp))
 
-    # Invert for modelled displacement
+    # Forward Model Displacement
     invvel = np.matmul(G, model)
 
     # Calculate inversion parameter standard errors and root mean square error
