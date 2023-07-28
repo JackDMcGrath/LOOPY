@@ -672,6 +672,11 @@ def calc_epoch_semivariogram(ii):
         # Nan mask pixels
         epoch[mask_pix] = np.nan
 
+        # Mask out any large displacements as coseismic or incoherent noise
+        # Epoch is already referenced to a stable pixel, so this shouldn't get rid of pixels similar to the reference
+        epoch[abs(epoch) > (args.semi_mask_thre)] = np.nan
+        epoch_nan = epoch.copy()
+
         # Deramp epoch (from LiCSBAS16_filt_ts.py)
         if not args.deramp_semi:
             Xgrid, Ygrid = np.meshgrid(np.arange(width), np.arange(length))
@@ -688,12 +693,6 @@ def calc_epoch_semivariogram(ii):
         
         epoch_deramp = epoch.copy()
 
-        # Reference to it's own median
-        epoch -= np.nanmedian(epoch)
-
-        # Mask out any large displacements as coseismic or noise
-        epoch[abs(epoch) > (args.semi_mask_thre)] = np.nan
-        epoch_nan = epoch.copy()
 
         epoch = epoch.flatten()
 
