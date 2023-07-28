@@ -670,7 +670,6 @@ def main(argv=None):
 
         ### Parallel processing
         p = q.Pool(_n_para2)
-        p = q.Pool(1)  # 2021-11-02: updated nullifying unw pixels with loop phase - to avoid multiple write, no parallelism
         res = np.array(p.map(loop_closure_4th_wrapper, args), dtype=np.int16)
         p.close()
 
