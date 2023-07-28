@@ -75,18 +75,23 @@ def init_args():
     parser.add_argument('-d', dest='unw_dir', default='GEOCml10GACOS', help="folder containing unw ifg")
     parser.add_argument('-i', dest='h5_file', default='cum.h5', help='.h5 file containing results of LiCSBAS velocity inversion')
     parser.add_argument('-o', dest='out_dir', default='results/seismic_vels', help='folder in TSA dir outputs are written to')
-    parser.add_argument('-r', dest='ref_file', default='130ref.txt', help='txt file containing reference area')
+    parser.add_argument('-r', dest='ref_file', default='13ref.txt', help='txt file containing reference area')
     parser.add_argument('-m', dest='mask_file', default='results/mask', help='mask file to apply to velocities')
     parser.add_argument('-e', dest='eq_list', default=None, help='Text file containing the dates of the earthquakes to be fitted')
     parser.add_argument('-s', dest='outlier_thre', default=3, type=float, help='StdDev threshold used to remove outliers')
     parser.add_argument('--n_para', dest='n_para', default=False, type=int, help='number of parallel processing')
     parser.add_argument('--tau', dest='tau', default=6, help='Post-seismic relaxation time (days)')
     parser.add_argument('--max_its', dest='max_its', default=5, type=int, help='Maximum number of iterations for temporal filter')
-    parser.add_argument('--nofilter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
-    parser.add_argument('--applymask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
+    parser.add_argument('--no_filter', dest='deoutlier', default=True, action='store_false', help="Don't do any temporal filtering")
+    parser.add_argument('--apply_mask', dest='apply_mask', default=False, action='store_true', help="Apply mask to cum data before processing")
     parser.add_argument('--RANSAC', dest='ransac', default=False, action='store_true', help="Deoutlier with RANSAC algorithm")
     parser.add_argument('--replace_outliers', dest='replace_outliers', default=False, action='store_true', help='Replace outliers with filter value instead of nan')
     parser.add_argument('--no_vcm', dest='use_weights', default=True, action='store_false', help="Don't calculate VCM for each date - estimate errors with identity matrix (faster)")
+    parser.add_argument('--no_deramp', dest='deramp_semi', default=True, action='store_false', help="Don't detrend epochs before creating semivariogram")
+    parser.add_argument('--semi_mask_thre', dest='semi_mask_thre', default=55.6, type=float, help='Displacement threshold for masking semivariogram')
+    parser.add_argument('--plot_semi', dest='plot_semi', default=False, action='store_true', help="Plot semivariograms from each epoch")
+    parser.add_argument('--sill', dest='sill', default=100, type=float, help="Default sill value if semivariogram fails")
+    parser.add_argument('--max_lag', dest='max_lag', default=225, type=float, help="Maximum lag distance in semivariogram (km)")
 
     args = parser.parse_args()
 
@@ -119,7 +124,11 @@ def set_input_output():
     infodir = os.path.join(tsadir, 'info')
     resultdir = os.path.join(tsadir, 'results')
     outdir = os.path.join(resultdir, 'seismic_vels')
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
     metadir = os.path.join(outdir, 'results')
+    if not os.path.exists(metadir):
+        os.mkdir(metadir)
 
     # define h5 files
     h5file = os.path.join(tsadir, args.h5_file)
@@ -183,8 +192,6 @@ def load_data():
 
     if mask_final:
         mask = io_lib.read_img(maskfile, length, width)
-        if not os.path.exists(metadir):
-            os.mkdir(metadir)
         shutil.copy(maskfile, os.path.join(metadir, 'mask'))
         if args.apply_mask:
             print('Applying Mask to cum data')
@@ -231,7 +238,7 @@ def read_eq_list(eq_listfile):
     while line:
         if line[0].isnumeric():
             if len(line.split()) == 2:
-                if line.split()[1] == 'X':
+                if 'X' in line.split()[1].upper():
                     line = f.readline()
                 else:
                     eqdates.append(str(line.split()[0]))
@@ -367,7 +374,9 @@ def find_outliers_RANSAC():
         cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
         p.close()
     else:
-        cum_lpt = lpt_filter(filterdates)
+        cum_lpt = np.zeros(cum.shape) * np.nan
+        for ii in range(n_im):
+            cum_lpt[ii, :, :] = lpt_filter(ii)
 
     # Find STD
     diff = cum - cum_lpt  # Difference between data and filtered data
@@ -400,7 +409,9 @@ def find_outliers_RANSAC():
         cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
         p.close()
     else:
-        cum_lpt = lpt_filter(filterdates)
+        cum_lpt = np.zeros(cum.shape) * np.nan
+        for ii in range(n_im):
+            cum_lpt[ii, :, :] = lpt_filter(ii)
 
     # Reload the original data
     cum = np.array(data['cum']) - ref
@@ -507,7 +518,9 @@ def find_outliers():
         cum_lpt = np.array(p.map(lpt_filter, range(n_im)), dtype=np.float32)
         p.close()
     else:
-        lpt_filter(filterdates)
+        cum_lpt = np.zeros(cum.shape) * np.nan
+        for ii in range(n_im):
+            cum_lpt[ii, :, :] = lpt_filter(ii)
 
     # Find STD
     diff = cum - cum_lpt  # Difference between data and filtered data
@@ -631,7 +644,7 @@ def calc_semivariogram():
     YY = YY.flatten()
 
     mask = io_lib.read_img(maskfile, length, width)
-    mask_pix = np.where(mask.flatten() == 0)
+    mask_pix = np.where(mask == 0)
 
     print('\nCalculating semi-variograms of epoch displacements')
     print('Using {} processing'.format(n_para))
@@ -655,14 +668,34 @@ def calc_epoch_semivariogram(ii):
         begin_semi = time.time()
 
         # Find semivariogram of incremental displacements
-        epoch = (cum[ii, :, :] - cum[ii - 1, :, :]).flatten()
+        epoch = (cum[ii, :, :] - cum[ii - 1, :, :])
         # Nan mask pixels
         epoch[mask_pix] = np.nan
-        # Mask out any displacement of > lambda, as coseismic or noise
-        epoch[abs(epoch) > 55.6] = np.nan
+        epoch_orig = epoch.copy()
 
-        # Reference to it's own median
-        epoch -= np.nanmedian(epoch)
+        # Mask out any large displacements as coseismic or incoherent noise
+        # Epoch is already referenced to a stable pixel, so this shouldn't get rid of pixels similar to the reference
+        epoch[abs(epoch) > (args.semi_mask_thre)] = np.nan
+        epoch_nan = epoch.copy()
+
+        # Deramp epoch (from LiCSBAS16_filt_ts.py)
+        if not args.deramp_semi:
+            Xgrid, Ygrid = np.meshgrid(np.arange(width), np.arange(length))
+            Xgrid1 = Xgrid.ravel()
+            Ygrid1 = Ygrid.ravel()
+            G = np.stack((Xgrid1, Ygrid1)).T
+            G = np.hstack([np.ones((length*width, 1)), G])
+
+            mask = np.isnan(epoch.ravel())
+            m = np.linalg.lstsq(G[~mask, :], epoch.ravel()[~mask], rcond=None)[0]
+
+            ramp = ((np.matmul(G, m)).reshape((length, width))).astype(np.float32)
+            epoch = epoch - ramp
+        
+        epoch_deramp = epoch.copy()
+
+
+        epoch = epoch.flatten()
 
         # Drop all nan data
         xdist = XX[~np.isnan(epoch)]
@@ -693,13 +726,18 @@ def calc_epoch_semivariogram(ii):
 
             # Find where the same pixel is selected twice
             duplicate = np.where(pix_1 == pix_2)[0]
-            np.delete(pix_1, duplicate)
-            np.delete(pix_2, duplicate)
+            pix_1 = np.delete(pix_1, duplicate)
+            pix_2 = np.delete(pix_2, duplicate)
 
             # Drop duplicate pairings
             unique_pix = np.unique(np.vstack([pix_1, pix_2]).T, axis=0)
-            pix_1 = unique_pix[:, 0]
-            pix_2 = unique_pix[:, 1]
+            pix_1 = unique_pix[:, 0].astype('int')
+            pix_2 = unique_pix[:, 1].astype('int')
+
+            # Remove pixels with a seperation of more than 225 km 
+            dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
+            pix_1 = np.delete(pix_1, np.where(dists > (args.max_lag * 1000))[0])
+            pix_2 = np.delete(pix_2, np.where(dists > (args.max_lag * 1000))[0])
 
         # In case of early ending
         if n_pix > len(pix_1):
@@ -719,29 +757,72 @@ def calc_epoch_semivariogram(ii):
         bincenters = (binedges[0:-1] + binedges[1:]) / 2
 
         try:
-            mod.set_param_hint('p', value=np.nanmax(medians))  # guess maximum variance
+            mod.set_param_hint('p', value=np.percentile(medians, 95))  # guess maximum variance
             mod.set_param_hint('n', value=0)  # guess 0
-            mod.set_param_hint('r', value=bincenters[len(bincenters)//2])  # guess mid point distance
+            mod.set_param_hint('r', value=100000)  # guess 100 km
             sigma = stds + np.power(bincenters / max(bincenters), 2)
+            sigma = stds * (1 + (max(bincenters) / bincenters))
             result = mod.fit(medians, d=bincenters, weights=sigma)
         except:
             # Try smaller ranges
-            length = len(bincenters)
+            n_bins = len(bincenters)
             try:
-                bincenters = bincenters[:int(length * 3 / 4)]
-                stds = stds[:int(length * 3 / 4)]
-                medians = medians[:int(length * 3 / 4)]
+                bincenters = bincenters[:int(n_bins * 3 / 4)]
+                stds = stds[:int(n_bins * 3 / 4)]
+                medians = medians[:int(n_bins * 3 / 4)]
                 sigma = stds + np.power(bincenters / max(bincenters), 3)
+                sigma = stds * (1 + (max(bincenters) / bincenters))
                 result = mod.fit(medians, d=bincenters, weights=sigma)
             except:
-                bincenters = bincenters[:int(length / 2)]
-                stds = stds[:int(length / 2)]
-                medians = medians[:int(length / 2)]
-                sigma = stds + np.power(bincenters / max(bincenters), 3)
-                result = mod.fit(medians, d=bincenters, weights=sigma)
+                try:
+                    bincenters = bincenters[:int(n_bins / 2)]
+                    stds = stds[:int(n_bins / 2)]
+                    medians = medians[:int(n_bins / 2)]
+                    sigma = stds + np.power(bincenters / max(bincenters), 3)
+                    sigma = stds * (1 + (max(bincenters) / bincenters))
+                    result = mod.fit(medians, d=bincenters, weights=sigma)
+                except:
+                    print('Epoch {} ({}) Failed to solve - setting sill to {}'.format(ii, dates[ii], args.sill))
 
-        # Print Sill (ie variance)
-        sill = result.best_values['p']
+        try:
+            # Print Sill (ie variance)
+            sill = result.best_values['p']
+            model_semi = (result.best_values['n'] + sill * ((3 * bincenters)/ (2 * result.best_values['r']) - 0.5*((bincenters**3) / (result.best_values['r']**3))))
+            model_semi[np.where(bincenters > result.best_values['r'])[0]] = result.best_values['n'] + sill
+        except:
+            sill = args.sill
+            model_semi = np.zeros(bincenters.shape) * np.nan
+
+        if args.plot_semi:
+            if not os.path.exists(os.path.join(outdir, 'semivariograms')):
+                os.mkdir(os.path.join(outdir, 'semivariograms'))
+
+            fig=plt.figure(figsize=(12,12))
+            ax=fig.add_subplot(2,2,1)
+            im = ax.imshow(epoch_orig, vmin=-args.semi_mask_thre * 2, vmax=args.semi_mask_thre * 2)
+            plt.title('Original {}'.format(dates[ii]))
+            fig.colorbar(im, ax=ax)
+            ax=fig.add_subplot(2,2,2)
+            im = ax.imshow(epoch_nan, vmin=-args.semi_mask_thre, vmax=args.semi_mask_thre)
+            plt.title('NaN {}'.format(dates[ii]))
+            fig.colorbar(im, ax=ax)
+            ax=fig.add_subplot(2,2,3)
+            im = ax.imshow(epoch_deramp, vmin=-args.semi_mask_thre, vmax=args.semi_mask_thre)
+            plt.title('NaN + Deramp {}'.format(dates[ii]))
+            fig.colorbar(im, ax=ax)
+            ax=fig.add_subplot(2,2,4)
+            im = ax.scatter(bincenters, medians, c=sigma, label=ii)
+            ax.plot(bincenters, model_semi, label='{} model'.format(ii))
+            fig.colorbar(im, ax=ax)
+            try:
+                plt.title('Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(sill, result.best_values['n'],result.best_values['r']/1000))
+            except:
+                plt.title('Semivariogram Failed')
+            if sill == args.sill:
+                plt.savefig(os.path.join(outdir, 'semivariograms', 'semivarigram{}X.png'.format(ii)))
+            else:
+                plt.savefig(os.path.join(outdir, 'semivariograms', 'semivarigram{}.png'.format(ii)))
+            plt.close()
 
         if np.mod(ii + 1, 10) == 0:
             print('\t{}/{}\tSill: {:.2f} ({:.2e}\tpairs processed in {:.1f} seconds)'.format(ii + 1, n_im, sill, n_pix, time.time() - begin_semi))
@@ -811,14 +892,14 @@ def fit_pixel_velocities(ii):
     # Calculate VCM of inverted model parameters
     invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
 
-    model = np.matmul(invVCM, np.matmul(G.T, disp))
+    model = np.matmul(invVCM, np.matmul(np.matmul(G.T, W), disp))
 
     # Invert for modelled displacement
     invvel = np.matmul(G, model)
 
     # Calculate inversion parameter standard errors and root mean square error
     rms=np.dot(np.dot((invvel-disp).T, W),(invvel-disp))
-    inverr[invert_ix]=np.sqrt(np.diag(invVCM) * rms / n_im)
+    inverr[invert_ix]=np.sqrt(np.diag(invVCM) * rms / np.sum(noNanPix))
     rms=np.sqrt(rms / n_im)
 
     # Find standard deviations of the velocity residuals
@@ -857,8 +938,6 @@ def fit_pixel_velocities(ii):
     return truemodel, inverr
 
 def plot_timeseries(dates, disp, invvel, ii, x, y):
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
     plt.scatter(dates, disp, s=2, label='{}'.format(ii))
     plt.plot(dates, invvel, label='{}'.format(ii))
     plt.title('({},{})'.format(x,y))
