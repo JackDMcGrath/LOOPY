@@ -895,6 +895,7 @@ def fit_pixel_velocities(ii):
     except:
         print('Singular Matrix Apparently')
         print('Singular: ', singular)
+        return truemodel, truemodel
 
     model = np.matmul(invVCM, np.matmul(np.matmul(G.T, W), disp))
 
