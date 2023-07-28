@@ -671,13 +671,6 @@ def calc_epoch_semivariogram(ii):
         epoch_orig = epoch.copy()
         # Nan mask pixels
         epoch[mask_pix] = np.nan
-        # Mask out any large displacements as coseismic or noise
-        epoch[abs(epoch) > (args.semi_mask_thre)] = np.nan
-
-        epoch_nan = epoch.copy()
-
-        # Reference to it's own median
-        epoch -= np.nanmedian(epoch)
 
         # Deramp epoch (from LiCSBAS16_filt_ts.py)
         if not args.deramp_semi:
@@ -694,6 +687,14 @@ def calc_epoch_semivariogram(ii):
             epoch = epoch - ramp
         
         epoch_deramp = epoch.copy()
+
+        # Reference to it's own median
+        epoch -= np.nanmedian(epoch)
+
+        # Mask out any large displacements as coseismic or noise
+        epoch[abs(epoch) > (args.semi_mask_thre)] = np.nan
+        epoch_nan = epoch.copy()
+
         epoch = epoch.flatten()
 
         # Drop all nan data
@@ -796,11 +797,11 @@ def calc_epoch_semivariogram(ii):
             ax.imshow(epoch_orig, vmin=-(55.6/2), vmax=55.6/2)
             plt.title('Original {}'.format(dates[ii]))
             ax=fig.add_subplot(2,2,2)
-            ax.imshow(epoch_nan, vmin=-(55.6/2), vmax=55.6/2)
-            plt.title('Nans {}'.format(dates[ii]))
-            ax=fig.add_subplot(2,2,3)
             ax.imshow(epoch_deramp, vmin=-(55.6/2), vmax=55.6/2)
-            plt.title('Nans + deramp {}'.format(dates[ii]))
+            plt.title('Deramp {}'.format(dates[ii]))
+            ax=fig.add_subplot(2,2,3)
+            ax.imshow(epoch_nan, vmin=-(55.6/2), vmax=55.6/2)
+            plt.title('Deramp + Nans {}'.format(dates[ii]))
             ax=fig.add_subplot(2,2,4)
             ax.scatter(bincenters, medians, c=sigma, label=ii)
             ax.plot(bincenters, model_semi, label='{} model'.format(ii))
