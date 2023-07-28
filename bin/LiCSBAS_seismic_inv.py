@@ -729,15 +729,19 @@ def calc_epoch_semivariogram(ii):
             np.delete(pix_1, duplicate)
             np.delete(pix_2, duplicate)
 
-            # Remove pixels with a seperation of more than 225 km 
-            dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
-            np.delete(pix_1, np.where(dists > 225000)[0])
-            np.delete(pix_2, np.where(dists > 225000)[0])
-
             # Drop duplicate pairings
             unique_pix = np.unique(np.vstack([pix_1, pix_2]).T, axis=0)
-            pix_1 = unique_pix[:, 0]
-            pix_2 = unique_pix[:, 1]
+            pix_1 = unique_pix[:, 0].astype('int')
+            pix_2 = unique_pix[:, 1].astype('int')
+
+            # Remove pixels with a seperation of more than 225 km 
+            dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
+            print(its)
+            print(np.unique((dists/5000).round()*1000, return_counts=True))
+            np.delete(pix_1, np.where(dists > 225000)[0])
+            np.delete(pix_2, np.where(dists > 225000)[0])
+            dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
+            print(np.unique((dists/5000).round()*1000, return_counts=True))
 
         # In case of early ending
         if n_pix > len(pix_1):
