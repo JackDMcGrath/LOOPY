@@ -88,9 +88,10 @@ def init_args():
     parser.add_argument('--replace_outliers', dest='replace_outliers', default=False, action='store_true', help='Replace outliers with filter value instead of nan')
     parser.add_argument('--no_vcm', dest='use_weights', default=True, action='store_false', help="Don't calculate VCM for each date - estimate errors with identity matrix (faster)")
     parser.add_argument('--no_deramp', dest='deramp_semi', default=True, action='store_false', help="Don't detrend epochs before creating semivariogram")
-    parser.add_argument('--semi_mask_thre', dest='semi_mask_thre', default=55.6/2, type=float, help='Displacement threshold for masking semivariogram')
+    parser.add_argument('--semi_mask_thre', dest='semi_mask_thre', default=55.6, type=float, help='Displacement threshold for masking semivariogram')
     parser.add_argument('--plot_semi', dest='plot_semi', default=False, action='store_true', help="Plot semivariograms from each epoch")
     parser.add_argument('--sill', dest='sill', default=100, type=float, help="Default sill value if semivariogram fails")
+    parser.add_argument('--max_lag', dest='max_lag', default=225, type=float, help="Maximum lag distance in semivariogram (km)")
 
     args = parser.parse_args()
 
@@ -668,9 +669,9 @@ def calc_epoch_semivariogram(ii):
 
         # Find semivariogram of incremental displacements
         epoch = (cum[ii, :, :] - cum[ii - 1, :, :])
-        epoch_orig = epoch.copy()
         # Nan mask pixels
         epoch[mask_pix] = np.nan
+        epoch_orig = epoch.copy()
 
         # Mask out any large displacements as coseismic or incoherent noise
         # Epoch is already referenced to a stable pixel, so this shouldn't get rid of pixels similar to the reference
@@ -735,8 +736,8 @@ def calc_epoch_semivariogram(ii):
 
             # Remove pixels with a seperation of more than 225 km 
             dists = np.sqrt(((xdist[pix_1] - xdist[pix_2]) ** 2) + ((ydist[pix_1] - ydist[pix_2]) ** 2))
-            pix_1 = np.delete(pix_1, np.where(dists > 225000)[0])
-            pix_2 = np.delete(pix_2, np.where(dists > 225000)[0])
+            pix_1 = np.delete(pix_1, np.where(dists > (args.max_lag * 1000))[0])
+            pix_2 = np.delete(pix_2, np.where(dists > (args.max_lag * 1000))[0])
 
         # In case of early ending
         if n_pix > len(pix_1):
@@ -796,7 +797,7 @@ def calc_epoch_semivariogram(ii):
             if not os.path.exists(os.path.join(outdir, 'semivariograms')):
                 os.mkdir(os.path.join(outdir, 'semivariograms'))
 
-            fig=plt.figure(figsize=(12,24))
+            fig=plt.figure(figsize=(12,12))
             ax=fig.add_subplot(2,2,1)
             im = ax.imshow(epoch_orig, vmin=-args.semi_mask_thre * 2, vmax=args.semi_mask_thre * 2)
             plt.title('Original {}'.format(dates[ii]))
