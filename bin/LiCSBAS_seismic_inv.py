@@ -890,7 +890,11 @@ def fit_pixel_velocities(ii):
     W = Q[np.ix_(noNanPix, noNanPix)].copy()
 
     # Calculate VCM of inverted model parameters
-    invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
+    try:
+        invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
+    except:
+        print('Singular Matrix Apparently')
+        print('Singular: ', singular)
 
     model = np.matmul(invVCM, np.matmul(np.matmul(G.T, W), disp))
 
