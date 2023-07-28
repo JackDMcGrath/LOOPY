@@ -654,7 +654,14 @@ def main(argv=None):
                 coords=dict(y=np.arange(length),x=np.arange(width),ifgd=ifgdates))
 
             print('\nRecalculating n_loop_err statistics')
-            ns_loop_err_null, da = loop_closure_4th([0, len(Aloop)], da)
+            # ns_loop_err_null, da = loop_closure_4th([0, len(Aloop)], da)
+            ### Parallel processing given we're only calculating stats
+            p = q.Pool(_n_para)
+            res = np.array(p.map(loop_closure_4th_wrapper, args), dtype=np.int16)
+            p.close()
+
+            ns_loop_err_null = np.sum(res[:, :, :,], axis=0)
+            print('n_loop_err counted')
 
         if nullmask:
             print('saving nullify mask - not parallel now')
