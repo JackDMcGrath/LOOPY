@@ -884,7 +884,7 @@ def fit_pixel_velocities(ii):
     G = G[noNanPix, :]
     singular0 = np.where((G == 0).all(axis=0))[0].tolist()
     singular1 = np.where((G == 1).all(axis=0))[0].tolist()
-    invert_ix = 0 + list(set(invert_ix) - set(singular0) - set(singular1))
+    invert_ix = [0] + list(set(invert_ix) - set(singular0) - set(singular1))
     G = G[:, invert_ix]
 
     # Weight matrix (inverse of VCM)
