@@ -798,21 +798,25 @@ def calc_epoch_semivariogram(ii):
 
             fig=plt.figure(figsize=(12,24))
             ax=fig.add_subplot(2,2,1)
-            ax.imshow(epoch_orig, vmin=-(55.6/2), vmax=55.6/2)
+            im = ax.imshow(epoch_orig, vmin=-args.semi_mask_thre * 2, vmax=args.semi_mask_thre * 2)
             plt.title('Original {}'.format(dates[ii]))
+            fig.colorbar(im, ax=ax)
             ax=fig.add_subplot(2,2,2)
-            ax.imshow(epoch_nan, vmin=-(55.6/2), vmax=55.6/2)
+            im = ax.imshow(epoch_nan, vmin=-args.semi_mask_thre, vmax=args.semi_mask_thre)
             plt.title('NaN {}'.format(dates[ii]))
+            fig.colorbar(im, ax=ax)
             ax=fig.add_subplot(2,2,3)
-            ax.imshow(epoch_deramp, vmin=-(55.6/2), vmax=55.6/2)
+            im = ax.imshow(epoch_deramp, vmin=-args.semi_mask_thre, vmax=args.semi_mask_thre)
             plt.title('NaN + Deramp {}'.format(dates[ii]))
+            fig.colorbar(im, ax=ax)
             ax=fig.add_subplot(2,2,4)
-            ax.scatter(bincenters, medians, c=sigma, label=ii)
+            im = ax.scatter(bincenters, medians, c=sigma, label=ii)
             ax.plot(bincenters, model_semi, label='{} model'.format(ii))
+            fig.colorbar(im, ax=ax)
             try:
-                plt.title('{} Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(ii, sill, result.best_values['n'],result.best_values['r']/1000))
+                plt.title('Partial Sill: {:.0f}, Nugget: {:.0f}, Range: {:.0f} km'.format(sill, result.best_values['n'],result.best_values['r']/1000))
             except:
-                plt.title('{} Semivariogram Failed'.format(ii))
+                plt.title('Semivariogram Failed')
             if sill == args.sill:
                 plt.savefig(os.path.join(outdir, 'semivariograms', 'semivarigram{}X.png'.format(ii)))
             else:
