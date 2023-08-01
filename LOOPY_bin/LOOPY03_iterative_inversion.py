@@ -496,14 +496,17 @@ def read_agg(i):
     if ((i + 1) / 10) == 0:
         print('{:.0f}/{:.0f}'.format(i + 1, len(ifgdates)))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '_agg.unw')
-    # Read unw data (radians) at patch area
-    unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
-    unw1[unw1 == 0] = np.nan  # Fill 0 with nan
-    buff = 0  # Buffer to increase reference area until a value is found
-    while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
-        buff += 1
-    ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
-    unw1 = unw1 - ref_unw
+    try:
+        # Read unw data (radians) at patch area
+        unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
+        unw1[unw1 == 0] = np.nan  # Fill 0 with nan
+        buff = 0  # Buffer to increase reference area until a value is found
+        while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
+            buff += 1
+        ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
+        unw1 = unw1 - ref_unw
+    except:
+        unw1 = np.zeros((length, width)) * np.nan
 
     return unw1
 
@@ -511,14 +514,17 @@ def read_con(i):
     if ((i + 1) / 10) == 0:
         print('{:.0f}/{:.0f}'.format(i + 1, len(ifgdates)))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '_con.unw')
-    # Read unw data (radians) at patch area
-    unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
-    unw1[unw1 == 0] = np.nan  # Fill 0 with nan
-    buff = 0  # Buffer to increase reference area until a value is found
-    while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
-        buff += 1
-    ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
-    unw1 = unw1 - ref_unw
+    try:
+        # Read unw data (radians) at patch area
+        unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
+        unw1[unw1 == 0] = np.nan  # Fill 0 with nan
+        buff = 0  # Buffer to increase reference area until a value is found
+        while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
+            buff += 1
+        ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
+        unw1 = unw1 - ref_unw
+    except:
+        unw1 = np.zeros((length, width)) * np.nan
 
     return unw1
 
