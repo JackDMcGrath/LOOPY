@@ -84,6 +84,7 @@ from scipy.ndimage import binary_opening, binary_closing, binary_dilation
 from scipy.interpolate import NearestNDInterpolator
 from scipy.spatial import ConvexHull
 from skimage import feature
+import matplotlib.pyplot as plt
 
 
 class Usage(Exception):
@@ -111,7 +112,7 @@ def main(argv=None):
     global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con
+        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con, begin, n_para, plotdir
 
     # %% Set default
     ifgdir = []
@@ -208,6 +209,7 @@ def main(argv=None):
 
     if not corrdir:
         corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'L1')
+        plotdir = os.path.join(corrdir, 'plots')
 
     if not os.path.isdir(tsadir):
         print('\nNo {} exists!'.format(tsadir), file=sys.stderr)
@@ -215,6 +217,9 @@ def main(argv=None):
 
     if not os.path.exists(corrdir):
         os.mkdir(corrdir)
+
+    if not os.path.exists(plotdir):
+        os.mkdir(plotdir)
 
     if reset:
         print('Removing Previous Masks')
@@ -550,8 +555,7 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
 
 
 def unw_loop_corr(ii):
-    #if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
-    #    print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
+
     commence=time.time()
     disp_all = unw_all[ii, :]
     corr = np.zeros(disp_all.shape)
@@ -586,6 +590,16 @@ def unw_loop_corr(ii):
     while n_good < ifg_tot:
         n_it += 1
         n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
+
+
+        if np.mod(ii, n_para) == 0:
+            nonNan = np.where(~np.isnan(disp_all))[0]
+            nanDat = np.where(np.isnan(disp_all))[0]
+            nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
+            G_all = Aloop[nonNanLoop, :][:, nonNan]
+            closure_orig = (np.dot(G_all, disp[nonNan]) / wrap).round() # Closure in integer 2pi
+            plt.scatter(np.arange(G_all.shape[0]), closure_orig ,label='{} Iteration {}'.format(ii, n_it))
+
         disp = disp_all[solve_order[:n_invert]]
 
         # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
@@ -599,10 +613,9 @@ def unw_loop_corr(ii):
         G = G_all[complete_loops, :]
         NLoop=G.shape[0]
         if NLoop > 10:
-            closure = (np.dot(G, disp[nonNan]) / wrap).round() # Closure in interger 2pi
+            closure = (np.dot(G, disp[nonNan]) / wrap).round() # Closure in integer 2pi
             G = matrix(G)
             d = matrix(closure)
-            # commence=time.time()
             correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
             disp_all[solve_order[:n_invert][nonNan]] -= correction * wrap
             corr[solve_order[:n_invert][nonNan]] += correction
@@ -611,10 +624,20 @@ def unw_loop_corr(ii):
         
         n_good = n_invert
 
-    cease=time.time()
-    
-    if np.mod(ii, 1) == 0:
-        print('{}/{}\tTime Elapsed: {:.2f} seconds for {} iterations'.format(ii, n_pt_unnan, cease - commence, n_it))
+    if np.mod(ii, n_para) == 0:
+        nonNan = np.where(~np.isnan(disp_all))[0]
+        nanDat = np.where(np.isnan(disp_all))[0]
+        nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
+        G_all = Aloop[nonNanLoop, :][:, nonNan]
+        closure_orig = (np.dot(G_all, disp[nonNan]) / wrap).round() # Closure in integer 2pi
+        plt.scatter(np.arange(G_all.shape[0]), closure_orig ,label='{} Iteration {}'.format(ii, n_it))
+        plt.legend()
+        plt.savefig(os.path.join(plotdir, '{}.png'.format(ii)))
+        plt.close()
+
+    if np.mod(ii, n_pt_unnan / 20) == 0:
+        print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
+        # print('{}/{}\tTime Elapsed: {:.2f} seconds for {} iterations'.format(ii, n_pt_unnan, time.time() - commence, n_it))
 
     return corr
 
