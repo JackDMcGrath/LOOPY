@@ -171,7 +171,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:l:",
-                                       ["help", "multi_prime", "nullify", "nullmask", "skip_pngs", "treat_as_bad", "null_both"
+                                       ["help", "multi_prime", "nullify", "nullmask", "skip_pngs", "treat_as_bad", "null_both",
                                         "rm_ifg_list=", "n_para=", "ref_approx="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -717,7 +717,7 @@ def main(argv=None):
         ns_loop_err = np.sum(res[:, :, :,], axis=0)
 
     # generate loop pngs:
-    if do_pngs:
+    if do_pngs and not null_both:
         ### Parallel processing
         p = q.Pool(_n_para)
         p.map(generate_pngs, range(n_loop))
@@ -1262,13 +1262,13 @@ def loop_closure_4th_both(args, aggro, conserve):
         ## Count number of loops with suspected unwrap error (>pi)
         loop_ph[np.isnan(loop_ph)] = 0 #to avoid warning
         is_ok = np.abs(loop_ph)<nullify_threshold
-        aggro.loc[:,:,ifgd12] = np.logical_and(da.loc[:,:,ifgd12],is_ok)
-        aggro.loc[:,:,ifgd23] = np.logical_and(da.loc[:,:,ifgd23],is_ok)
-        aggro.loc[:,:,ifgd13] = np.logical_and(da.loc[:,:,ifgd13],is_ok)
+        aggro.loc[:,:,ifgd12] = np.logical_and(aggro.loc[:,:,ifgd12],is_ok)
+        aggro.loc[:,:,ifgd23] = np.logical_and(aggro.loc[:,:,ifgd23],is_ok)
+        aggro.loc[:,:,ifgd13] = np.logical_and(aggro.loc[:,:,ifgd13],is_ok)
 
-        conserve.loc[:,:,ifgd12] = np.logical_or(da.loc[:,:,ifgd12],is_ok)
-        conserve.loc[:,:,ifgd23] = np.logical_or(da.loc[:,:,ifgd23],is_ok)
-        conserve.loc[:,:,ifgd13] = np.logical_or(da.loc[:,:,ifgd13],is_ok)
+        conserve.loc[:,:,ifgd12] = np.logical_or(conserve.loc[:,:,ifgd12],is_ok)
+        conserve.loc[:,:,ifgd23] = np.logical_or(conserve.loc[:,:,ifgd23],is_ok)
+        conserve.loc[:,:,ifgd13] = np.logical_or(conserve.loc[:,:,ifgd13],is_ok)
         ns_loop_err1 = ns_loop_err1 + ~is_ok #suspected unw error
     ns_loop_err1 = np.array(ns_loop_err1, dtype=np.int16)
 

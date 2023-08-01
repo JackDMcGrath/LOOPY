@@ -193,7 +193,7 @@ def main():
 
     # Reset IFG dates list
     ifgdates_all = ifgdates
-    ifgdate = list(set(ifgdates) - set(no_loop_ifg)).sort()
+    ifgdates = list(set(ifgdates) - set(no_loop_ifg)).sort()
 
     imdates = tools_lib.ifgdates2imdates(ifgdates)
     n_ifg = len(ifgdates)
