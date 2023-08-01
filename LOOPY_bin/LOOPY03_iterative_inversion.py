@@ -478,7 +478,11 @@ def read_unw(i):
         print('{:.0f}/{:.0f}'.format(i + 1, len(ifgdates)))
     unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.unw')
     # Read unw data (radians) at patch area
-    unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
+    try:
+        unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
+    except:
+        unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '_orig.unw')
+        unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
     unw1[unw1 == 0] = np.nan  # Fill 0 with nan
     buff = 0  # Buffer to increase reference area until a value is found
     while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
