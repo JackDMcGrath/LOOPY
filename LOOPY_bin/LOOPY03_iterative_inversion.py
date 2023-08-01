@@ -630,8 +630,12 @@ def unw_loop_corr(ii):
         nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
         G_all = Aloop[nonNanLoop, :][:, nonNan]
         closure_final = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
-        plt.scatter(closure_orig, closure_final ,label='{} Iteration {}'.format(ii, n_it))
+        # plt.scatter(closure_orig, closure_final ,label='{} Iteration {}'.format(ii, n_it))
+        plt.hexbin(closure_orig, closure_final, gridsize=(int(max(closure_orig) - min(closure_orig)) * 2, int(max(closure_final) - min(closure_final)) * 2), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
         plt.legend()
+        plt.colorbar()
+        plt.xlabel('Input')
+        plt.ylabel('Corrected')
         plt.savefig(os.path.join(plotdir, '{}.png'.format(ii)))
         plt.close()
         print('Plotted {}'.format(os.path.join(plotdir, '{}.png'.format(ii))))
