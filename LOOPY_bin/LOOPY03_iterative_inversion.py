@@ -394,9 +394,9 @@ def main(argv=None):
     n_para_tmp = n_para
     n_para = 1 # Trust me, I've done the tests. 1 is faster
 
+    begin = time.time()
     if n_para_tmp == 1:
         print('with no parallel processing...', flush=True)
-        begin = time.time()
         for ii in range(n_pt_unnan):
             correction[ii, :] = unw_loop_corr(ii)
             if np.mod(ii,10) == 0:
@@ -553,7 +553,6 @@ def unw_loop_corr(ii):
     #if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
     #    print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
     commence=time.time()
-    a1=time.time()
     disp_all = unw_all[ii, :]
     corr = np.zeros(disp_all.shape)
     
@@ -565,7 +564,6 @@ def unw_loop_corr(ii):
     ifg_cand = list(set(ifg_cand) - set(ifg_good))
     ifg_bad = list(set(ifg_bad) - set(ifg_cand) - set(ifg_good))
 
-    a1 = time.time()
     good_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_good])
     cand_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_cand])
     bad_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_bad])
@@ -599,7 +597,6 @@ def unw_loop_corr(ii):
         # Now remove any incomplete loops
         complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
         G = G_all[complete_loops, :]
-        G2 = G.copy()
         NLoop=G.shape[0]
         if NLoop > 10:
             closure = (np.dot(G, disp[nonNan]) / wrap).round() # Closure in interger 2pi
