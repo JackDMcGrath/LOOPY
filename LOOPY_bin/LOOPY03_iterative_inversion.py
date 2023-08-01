@@ -593,13 +593,12 @@ def unw_loop_corr(ii):
         n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
 
 
-        if np.mod(ii, n_para) == 0:
+        if np.mod(ii, n_para) == 0 and n_it == 1:
             nonNan = np.where(~np.isnan(disp_all))[0]
             nanDat = np.where(np.isnan(disp_all))[0]
             nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
             G_all = Aloop[nonNanLoop, :][:, nonNan]
             closure_orig = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
-            plt.scatter(np.arange(G_all.shape[0]), closure_orig ,label='{} Iteration {}'.format(ii, n_it))
 
         disp = disp_all[solve_order[:n_invert]]
 
@@ -630,8 +629,8 @@ def unw_loop_corr(ii):
         nanDat = np.where(np.isnan(disp_all))[0]
         nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
         G_all = Aloop[nonNanLoop, :][:, nonNan]
-        closure_orig = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
-        plt.scatter(np.arange(G_all.shape[0]), closure_orig ,label='{} Iteration {}'.format(ii, n_it))
+        closure_final = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
+        plt.scatter(closure_orig, closure_final ,label='{} Iteration {}'.format(ii, n_it))
         plt.legend()
         plt.savefig(os.path.join(plotdir, '{}.png'.format(ii)))
         plt.close()
