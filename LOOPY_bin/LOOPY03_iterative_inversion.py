@@ -218,8 +218,6 @@ def main(argv=None):
     if not os.path.exists(corrdir):
         os.mkdir(corrdir)
 
-    if not os.path.exists(plotdir):
-        os.mkdir(plotdir)
 
     if reset:
         print('Removing Previous Masks')
@@ -230,6 +228,9 @@ def main(argv=None):
 
     if not os.path.exists(corrdir):
         loopy_lib.prepOutdir(corrdir, ifgdir)
+
+    if not os.path.exists(plotdir):
+            os.mkdir(plotdir)
 
     if nanUncorr:
         print('**********\nCAUTION: ANY PIXEL NOT AVAILIABLE TO BE INVERTED WILL BE NANNED\nYOU BETTE BE CONFIDENT COS IM NOT SAVING AN UNNANNED VERSION\n*********')
