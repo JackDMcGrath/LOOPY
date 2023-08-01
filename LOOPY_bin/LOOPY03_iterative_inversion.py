@@ -394,13 +394,18 @@ def main(argv=None):
     n_para_tmp = n_para
     n_para = 1 # Trust me, I've done the tests. 1 is faster
 
-    print('with no parallel processing...', flush=True)
-    begin = time.time()
-    for ii in range(n_pt_unnan):
-        correction[ii, :] = unw_loop_corr(ii)
-        if np.mod(ii,10) == 0:
-            elapse = time.time() - begin
-            print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / (ii + 1)) * n_pt_unnan))
+    if n_para_tmp == 1:
+        print('with no parallel processing...', flush=True)
+        begin = time.time()
+        for ii in range(n_pt_unnan):
+            correction[ii, :] = unw_loop_corr(ii)
+            if np.mod(ii,10) == 0:
+                elapse = time.time() - begin
+                print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / (ii + 1)) * n_pt_unnan))
+    else:
+        p = q.Pool(_n_para)
+        correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
+        p.close()
 
     n_para = n_para_tmp
 
