@@ -634,6 +634,7 @@ def unw_loop_corr(ii):
         plt.legend()
         plt.savefig(os.path.join(plotdir, '{}.png'.format(ii)))
         plt.close()
+        print('Plotted {}'.format(os.path.join(plotdir, '{}.png'.format(ii))))
 
     if np.mod(ii, n_pt_unnan / 20) == 0:
         print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
