@@ -397,10 +397,10 @@ def main(argv=None):
     print('with no parallel processing...', flush=True)
     begin = time.time()
     for ii in range(n_pt_unnan):
-        if (ii + 1) % 1000 == 0:
-            elapse = time.time() - begin
-            print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / ii) * n_pt_unnan))
         correction[ii, :] = unw_loop_corr(ii)
+        if np.mod(ii,10) == 0:
+            elapse = time.time() - begin
+            print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / (ii + 1)) * n_pt_unnan))
 
     n_para = n_para_tmp
 
@@ -548,39 +548,41 @@ def unw_loop_corr(ii):
     #if (i + 1) % np.floor(n_pt_unnan / 100) == 0:
     #    print('{:.0f} / {:.0f}'.format(i + 1, n_pt_unnan))
     commence=time.time()
+    a1=time.time()
     disp_all = unw_all[ii, :]
     corr = np.zeros(disp_all.shape)
-
-    n_ifg = np.sum(np.isnan(unw_all[ii,:]))
-    n_good = np.sum(np.isnan(unw_agg[ii,:]))
-    ifg_good = ifgdates[np.isnan(unw_agg[ii,:])]
-    ifg_cand = ifgdates[np.isnan(unw_con[ii,:])]
-    ifg_bad = ifgdates[np.isnan(unw_all[ii,:])]
+    
+    ifg_tot = int(np.sum(~np.isnan(unw_all[ii,:])))
+    ifg_good = np.array(ifgdates)[~np.isnan(unw_agg[ii,:])]
+    ifg_cand = np.array(ifgdates)[~np.isnan(unw_con[ii,:])]
+    ifg_bad = np.array(ifgdates)[~np.isnan(unw_all[ii,:])]
+    ifg_good = list(set(ifg_good))
     ifg_cand = list(set(ifg_cand) - set(ifg_good))
     ifg_bad = list(set(ifg_bad) - set(ifg_cand) - set(ifg_good))
 
-    good_ix = [ix for ix, date in enumerate(ifgdates) if date in ifg_good]
-    cand_ix = [ix for ix, date in enumerate(ifgdates) if date in ifg_cand]
-    bad_ix = [ix for ix, date in enumerate(ifgdates) if date in ifg_bad]
-    n_cand = length(ifg_cand)
-    n_bad = length(ifg_bad)
+    a1 = time.time()
+    good_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_good])
+    cand_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_cand])
+    bad_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_bad])
 
+    n_good = len(ifg_good)
+    n_cand = len(ifg_cand)
+    n_bad = len(ifg_bad)
 
-    solve_order = good_ix + cand_ix[np.random.permutation(n_cand)] + bad_ix[np.random.permutation(n_bad)]
+    solve_order = np.concatenate((good_ix, cand_ix[np.random.permutation(n_cand)], bad_ix[np.random.permutation(n_bad)])).astype('int')
 
-    if n_good < (n_ifg / 4):
-        if (n_good + n_cand) < (n_ifg / 3):
+    if n_good < (ifg_tot / 4):
+        if (n_good + n_cand) < (ifg_tot / 3):
             # If theres not enough that survived any nulling, don't try inverting
             # (Increased threshold to reflect potentially lower quality data)
             return corr
         else:
-            n_good = (4 * n_ifg / 5).round()
+            n_good = int(ifg_tot / 5)
 
     n_it = 0
-    while n_good < n_ifg:
+    while n_good < ifg_tot:
         n_it += 1
-        n_invert = (n_good * 1.25).round()
-        n_invert = n_invert if n_invert < n_ifg else n_ifg
+        n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
         disp = disp_all[solve_order[:n_invert]]
 
         # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
@@ -588,9 +590,11 @@ def unw_loop_corr(ii):
         nanDat = np.where(np.isnan(disp))[0]
         nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
         G_all = Aloop[nonNanLoop, :][:, nonNan]
+
         # Now remove any incomplete loops
-        complete_loops = np.where(np.sum((Aloop != 0), axis=1) == 3)[0]
+        complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
         G = G_all[complete_loops, :]
+        G2 = G.copy()
         NLoop=G.shape[0]
         if NLoop > 10:
             closure = (np.dot(G, disp[nonNan]) / wrap).round() # Closure in interger 2pi
@@ -607,7 +611,7 @@ def unw_loop_corr(ii):
 
     cease=time.time()
     
-    if np.mod(ii, 100) == 0:
+    if np.mod(ii, 1) == 0:
         print('{}/{}\tTime Elapsed: {:.2f} seconds for {} iterations'.format(ii, n_pt_unnan, cease - commence, n_it))
 
     return corr
