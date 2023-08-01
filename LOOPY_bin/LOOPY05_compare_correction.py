@@ -79,11 +79,14 @@ def set_input_output():
     global origdir, corrdir, compdir, TSorig, TScorr, comp_dates, uncorr_dates, noorig_dates, compCorr, compTS
 
     origdir = os.path.join(args.frame_dir, args.orig_dir)
+    if origdir[-1] == '/': origdir=origdir[:-1]
     corrdir = os.path.join(args.frame_dir, args.corr_dir)
+    if corrdir[-1] == '/': corrdir=corrdir[:-1]
     compdir = os.path.join(args.frame_dir, args.comp_dir)
-
-    TSorig = os.path.join(args.frame_dir, 'TS_' + args.orig_dir, 'results')
-    TScorr = os.path.join(args.frame_dir, 'TS_' + args.corr_dir, 'results')
+    if compdir[-1] == '/': compdir=compdir[:-1]
+    
+    TSorig = os.path.join(os.path.dirname(origdir), 'TS_' + os.path.basename(origdir), 'results')
+    TScorr = os.path.join(os.path.dirname(corrdir), 'TS_' + os.path.basename(corrdir), 'results')
 
     compCorr = True
     compTS = True
@@ -206,7 +209,7 @@ def compare_corrections():
                 else:
                     plot_comparison(file, data1, data2, pngfile, 'viridis', ifg=False)
             else:
-                print('\t\t{} exists in uncorrected but not in TS_{}'.format(file, args.corr_dir))
+                print('\t\t{} exists in uncorrected but not in '.format(file, TScorr))
 
 
 
