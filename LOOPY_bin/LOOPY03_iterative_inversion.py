@@ -633,11 +633,18 @@ def unw_loop_corr(ii):
         print(G_all.shape, 'G_all')
         print(n_invert, 'n_invert')
 
-        # Now remove any incomplete loops
+        # Now remove any incomplete loops from the matrix
         complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
         G = G_all[complete_loops, :]
+
+        # Some interferograms will now have no loops. Remove these
+        loopIfg = np.where((G != 0).any(axis=0))[0]
+        G = G[:, loopIfg]
         print(G.shape, 'Dropped G')
-        NLoop=G.shape[0]
+        invIfg_ix = np.arange(n_invert)
+        invIfg_ix = invIfg_ix[loopIfg]
+        NLoop, invertIFG = G.shape
+        disp = disp[loopIfg]
         if NLoop > 10:
             closure = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
             print(disp)
@@ -646,45 +653,38 @@ def unw_loop_corr(ii):
             G = matrix(G)
             d = matrix(closure)
             correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
-            disp_all[:n_invert] -= correction * wrap
-            corr[:n_invert] += correction   #SORT THIS LATER TO ORDER SEQUENTIALLY
+            disp_all[invIfg_ix] -= correction * wrap
+            corr[solve_order[invIfg_ix]] += correction
         else:
             return corr
         
         n_good = n_invert
         n_good = ifg_tot + 1
 
-    if np.mod(ii, n_para) == 0:
-        try:
-            nonNan = np.where(~np.isnan(disp_all))[0]
-            #nanDat = np.where(np.isnan(disp_all))[0]
-            nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
-            G_all = solveLoop[nonNanLoop, :][:, nonNan]
-            closure_final = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
-            grdx = int(max(closure_orig) - min(closure_orig)) * 1 
-            grdy = int(max(closure_final) - min(closure_final)) * 1
-            grdx = grdx if grdx != 0 else 1
-            grdy = grdy if grdy != 0 else 1
-            plt.hexbin(closure_orig, closure_final, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
-            plt.colorbar()
-            plt.xlabel('Input')
-            plt.ylabel('Corrected')
-            plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
-            plt.close()
-            print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
-        except:
-            print('Error in plotting {}_all'.format(ii))
+    # if np.mod(ii, n_para) == 0:
+    #     try:
+    #         nonNan = np.where(~np.isnan(disp_all))[0]
+    #         #nanDat = np.where(np.isnan(disp_all))[0]
+    #         nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
+    #         G_all = solveLoop[nonNanLoop, :][:, nonNan]
+    #         closure_final = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
+    #         grdx = int(max(closure_orig) - min(closure_orig)) * 1 
+    #         grdy = int(max(closure_final) - min(closure_final)) * 1
+    #         grdx = grdx if grdx != 0 else 1
+    #         grdy = grdy if grdy != 0 else 1
+    #         plt.hexbin(closure_orig, closure_final, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
+    #         plt.colorbar()
+    #         plt.xlabel('Input')
+    #         plt.ylabel('Corrected')
+    #         plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
+    #         plt.close()
+    #         print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
+    #     except:
+    #         print('Error in plotting {}_all'.format(ii))
 
         try:
-            disp = disp_all[:n_invert]
-            nonNan = np.where(~np.isnan(disp))[0]
-            #nanDat = np.where(np.isnan(disp))[0]
-            nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
-            G_all = solveLoop[nonNanLoop, :][:, nonNan]
-            # Now remove any incomplete loops
-            complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
-            G = G_all[complete_loops, :]
-            closure_it1 = (np.dot(G, disp[nonNan]) / wrap).round() # Closure in integer 2pi
+            disp = disp_all[:n_invert][loopIfg]
+            closure_it1 = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
             
             for id in range(10):
               print(G[id,:10])
