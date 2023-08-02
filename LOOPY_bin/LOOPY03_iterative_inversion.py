@@ -612,7 +612,7 @@ def unw_loop_corr(ii):
         disp = disp[loopIfg]
         if NLoop > 10:
             closure = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
-            if (closure != 0).all():
+            if (closure != 0).any():
                 G = matrix(G)
                 d = matrix(closure)
                 correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
