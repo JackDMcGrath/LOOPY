@@ -653,7 +653,7 @@ def unw_loop_corr(ii):
             G_all = Aloop[nonNanLoop, :][:, nonNan]
             closure_it1 = (np.dot(G_all, disp[nonNan]) / wrap).round() # Closure in integer 2pi
             # plt.scatter(closure_orig, closure_final ,label='{} Iteration {}'.format(ii, n_it))
-            plt.hexbin(closure, closure_it1, gridsize=(int(max(closure) - min(closure_it1)) * 1, int(max(closure) - min(closure_it1)) * 1), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
+            plt.hexbin(closure, closure_it1, gridsize=(int(max(closure) - min(closure)) * 1, int(max(closure_it1) - min(closure_it1)) * 1), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
             # plt.legend()
             plt.colorbar()
             plt.xlabel('Input')
@@ -662,7 +662,7 @@ def unw_loop_corr(ii):
             plt.close()
             print('Plotted only corrected {}'.format(os.path.join(plotdir, '{}_it1.png'.format(ii))))
         except:
-            print('Error in plotting {}_it1'.format(ii))
+            print('Error in plotting {}_it1\tclosure max {} min{}\tit1 max {} min {}'.format(ii, max(closure), min(closure), max(closure_it1), min(closure_it1)))
 
     if np.mod(ii, n_pt_unnan / 20) == 0:
         print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
