@@ -579,7 +579,7 @@ def unw_loop_corr(ii):
     n_bad = len(ifg_bad)
 
     solve_order = np.concatenate((good_ix, cand_ix[np.random.permutation(n_cand)], bad_ix[np.random.permutation(n_bad)])).astype('int')
-
+    print(ifg_tot, n_good, n_cand, n_bad)
     if n_good < (ifg_tot / 4):
         if (n_good + n_cand) < (ifg_tot / 3):
             # If theres not enough that survived any nulling, don't try inverting
@@ -615,6 +615,10 @@ def unw_loop_corr(ii):
         NLoop=G.shape[0]
         if NLoop > 10:
             closure = (np.dot(G, disp[nonNan]) / wrap).round() # Closure in integer 2pi
+            print(G[:10,:8])
+            print(disp[nonNan])
+            print(np.dot(G, disp[nonNan]))
+            print(closure)
             G = matrix(G)
             d = matrix(closure)
             correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
@@ -657,6 +661,14 @@ def unw_loop_corr(ii):
             complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
             G = G_all[complete_loops, :]
             closure_it1 = (np.dot(G, disp[nonNan]) / wrap).round() # Closure in integer 2pi
+            
+            for id in range(10):
+              print(G[id,:10])
+            print('Orig', unw_all[ii, solve_order[:n_invert]])
+            print(closure)
+            print('Disp', disp)
+            print(closure_it1)
+            
             grdx = int(max(closure) - min(closure)) * 1 
             grdy = int(max(closure_it1) - min(closure_it1)) * 1
             grdx = grdx if grdx != 0 else 1
