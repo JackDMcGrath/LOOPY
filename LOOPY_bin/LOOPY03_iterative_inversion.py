@@ -580,6 +580,10 @@ def unw_loop_corr(ii):
 
     solve_order = np.concatenate((good_ix, cand_ix[np.random.permutation(n_cand)], bad_ix[np.random.permutation(n_bad)])).astype('int')
     print(ifg_tot, n_good, n_cand, n_bad)
+
+    # Change loop matrix to reflect solve order
+    solveLoop = Aloop[:, solve_order]
+
     if n_good < (ifg_tot / 4):
         if (n_good + n_cand) < (ifg_tot / 3):
             # If theres not enough that survived any nulling, don't try inverting
@@ -597,8 +601,8 @@ def unw_loop_corr(ii):
         if np.mod(ii, n_para) == 0 and n_it == 1:
             nonNan = np.where(~np.isnan(disp_all))[0]
             nanDat = np.where(np.isnan(disp_all))[0]
-            nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
-            G_all = Aloop[nonNanLoop, :][:, nonNan]
+            nonNanLoop = np.where((solveLoop[:, nanDat] == 0).all(axis=1))[0]
+            G_all = solveLoop[nonNanLoop, :][:, nonNan]
             closure_orig = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
 
         disp = disp_all[solve_order[:n_invert]]
@@ -606,8 +610,8 @@ def unw_loop_corr(ii):
         # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
         nonNan = np.where(~np.isnan(disp))[0]
         nanDat = np.where(np.isnan(disp))[0]
-        nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
-        G_all = Aloop[nonNanLoop, :][:, nonNan]
+        nonNanLoop = np.where((solveLoop[:, nanDat] == 0).all(axis=1))[0]
+        G_all = solveLoop[nonNanLoop, :][:, nonNan]
 
         # Now remove any incomplete loops
         complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
@@ -634,8 +638,8 @@ def unw_loop_corr(ii):
         try:
             nonNan = np.where(~np.isnan(disp_all))[0]
             nanDat = np.where(np.isnan(disp_all))[0]
-            nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
-            G_all = Aloop[nonNanLoop, :][:, nonNan]
+            nonNanLoop = np.where((solveLoop[:, nanDat] == 0).all(axis=1))[0]
+            G_all = solveLoop[nonNanLoop, :][:, nonNan]
             closure_final = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
             grdx = int(max(closure_orig) - min(closure_orig)) * 1 
             grdy = int(max(closure_final) - min(closure_final)) * 1
@@ -655,8 +659,8 @@ def unw_loop_corr(ii):
             disp = disp_all[solve_order[:n_invert]]
             nonNan = np.where(~np.isnan(disp))[0]
             nanDat = np.where(np.isnan(disp))[0]
-            nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
-            G_all = Aloop[nonNanLoop, :][:, nonNan]
+            nonNanLoop = np.where((solveLoop[:, nanDat] == 0).all(axis=1))[0]
+            G_all = solveLoop[nonNanLoop, :][:, nonNan]
             # Now remove any incomplete loops
             complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
             G = G_all[complete_loops, :]
