@@ -87,7 +87,7 @@ def make_loop_matrix(ifgdates):
 
 
 #%%
-def read_unw_loop_ph(Aloop1, ifgdates, ifgdir, length, width, bad_ifg=[]):
+def read_unw_loop_ph(Aloop1, ifgdates, ifgdir, length, width, null_type=None):
     ### Find index of ifg
     ix_ifg12, ix_ifg23 = np.where(Aloop1 == 1)[0]
     ix_ifg13 = np.where(Aloop1 == -1)[0][0]
@@ -95,14 +95,21 @@ def read_unw_loop_ph(Aloop1, ifgdates, ifgdir, length, width, bad_ifg=[]):
     ifgd23 = ifgdates[ix_ifg23]
     ifgd13 = ifgdates[ix_ifg13]
 
+    if null_type == 'cgg':
+        fileend = '_agg.unw'
+    elif null_type == 'con':
+        fileend = '_con.unw'
+    else:
+        fileend = '.unw'
+
     ### Read unw data
-    unw12file = os.path.join(ifgdir, ifgd12, ifgd12+'.unw')
+    unw12file = os.path.join(ifgdir, ifgd12, ifgd12 + fileend)
     unw12 = io_lib.read_img(unw12file, length, width)
     unw12[unw12 == 0] = np.nan # Fill 0 with nan
-    unw23file = os.path.join(ifgdir, ifgd23, ifgd23+'.unw')
+    unw23file = os.path.join(ifgdir, ifgd23, ifgd23 + fileend)
     unw23 = io_lib.read_img(unw23file, length, width)
     unw23[unw23 == 0] = np.nan # Fill 0 with nan
-    unw13file = os.path.join(ifgdir, ifgd13, ifgd13+'.unw')
+    unw13file = os.path.join(ifgdir, ifgd13, ifgd13 + fileend)
     unw13 = io_lib.read_img(unw13file, length, width)
     unw13[unw13 == 0] = np.nan # Fill 0 with n
 
