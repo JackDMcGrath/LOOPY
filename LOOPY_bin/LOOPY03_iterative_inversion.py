@@ -557,7 +557,7 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
 
 
 def unw_loop_corr(ii):
-
+    print('\nnew pix', ii)
     commence=time.time()
     disp_all = unw_all[ii, :]
     corr = np.zeros(disp_all.shape)
@@ -575,15 +575,24 @@ def unw_loop_corr(ii):
     bad_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_bad])
 
     n_good = len(ifg_good)
+    n_GOOD = len(ifg_good)
     n_cand = len(ifg_cand)
     n_bad = len(ifg_bad)
 
     solve_order = np.concatenate((good_ix, cand_ix[np.random.permutation(n_cand)], bad_ix[np.random.permutation(n_bad)])).astype('int')
-    print(ifg_tot, n_good, n_cand, n_bad)
+    print(solve_order.shape)
+    print(disp_all.shape, ifg_tot, n_good, n_cand, n_bad)
 
     # Change loop matrix to reflect solve order
     solveLoop = Aloop[:, solve_order]
+    print(Aloop.shape)
+    print(solve_order.shape)
+    print(solveLoop.shape)
     disp_all = disp_all[solve_order]
+    if np.isnan(disp_all).any():
+      print('Why is there a nan?')
+    else:
+      print('No Nans here')      
 
     if n_good < (ifg_tot / 4):
         if (n_good + n_cand) < (ifg_tot / 3):
@@ -592,43 +601,53 @@ def unw_loop_corr(ii):
             return corr
         else:
             n_good = int(ifg_tot / 5)
+            return corr
 
     n_it = 0
+    print(disp_all.shape, ifg_tot, n_good, '({})'.format(n_GOOD), n_cand, n_bad)
     while n_good < ifg_tot:
         n_it += 1
         n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
-        n_invert = n_good
+        n_invert = n_GOOD
 
         if np.mod(ii, n_para) == 0 and n_it == 1:
-            nonNan = np.where(~np.isnan(disp_all))[0]
-            nanDat = np.where(np.isnan(disp_all))[0]
-            nonNanLoop = np.where((solveLoop[:, nanDat] == 0).all(axis=1))[0]
-            G_all = solveLoop[nonNanLoop, :][:, nonNan]
-            closure_orig = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
+            #nonNan = np.where(~np.isnan(disp_all))[0]
+            #nanDat = np.where(np.isnan(disp_all))[0]
+            #nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
+            G_all = solveLoop
+            print(G_all.shape, 'check shape')
+            closure_orig = (np.dot(G_all, disp_all) / wrap).round() # Closure in integer 2pi
 
         disp = disp_all[:n_invert]
-
+        print('check a')
         # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
-        nonNan = np.where(~np.isnan(disp))[0]
-        nanDat = np.where(np.isnan(disp))[0]
-        nonNanLoop = np.where((solveLoop[:, nanDat] == 0).all(axis=1))[0]
-        G_all = solveLoop[nonNanLoop, :][:, nonNan]
+        #nonNan = np.where(~np.isnan(disp))[0]
+        #nanDat = np.where(np.isnan(disp))[0]
+        #print(nonNan)
+        #print(nanDat)
+        #G_trim = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
+        #nonNanLoop = np.where(np.sum(solveLoop == 0, axis=1) == 3)[0] # Bad Loops to be removed
+        #G_all = solveLoop[nonNanLoop, :][:, nonNan]
+        print(solveLoop.shape, 'solveloop')
+        G_all = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
+        print(G_all.shape, 'G_all')
+        print(n_invert, 'n_invert')
 
         # Now remove any incomplete loops
         complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
         G = G_all[complete_loops, :]
+        print(G.shape, 'Dropped G')
         NLoop=G.shape[0]
         if NLoop > 10:
-            closure = (np.dot(G, disp[nonNan]) / wrap).round() # Closure in integer 2pi
-            print(G[:10,:8])
-            print(disp[nonNan])
-            print(np.dot(G, disp[nonNan]))
+            closure = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
+            print(disp)
+            print(np.dot(G, disp))
             print(closure)
             G = matrix(G)
             d = matrix(closure)
             correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
-            disp_all[nonNan] -= correction * wrap
-            corr[nonNan] += correction
+            disp_all[:n_invert] -= correction * wrap
+            corr[:n_invert] += correction   #SORT THIS LATER TO ORDER SEQUENTIALLY
         else:
             return corr
         
@@ -638,8 +657,8 @@ def unw_loop_corr(ii):
     if np.mod(ii, n_para) == 0:
         try:
             nonNan = np.where(~np.isnan(disp_all))[0]
-            nanDat = np.where(np.isnan(disp_all))[0]
-            nonNanLoop = np.where((solveLoop[:, nanDat] == 0).all(axis=1))[0]
+            #nanDat = np.where(np.isnan(disp_all))[0]
+            nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
             G_all = solveLoop[nonNanLoop, :][:, nonNan]
             closure_final = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
             grdx = int(max(closure_orig) - min(closure_orig)) * 1 
@@ -659,8 +678,8 @@ def unw_loop_corr(ii):
         try:
             disp = disp_all[:n_invert]
             nonNan = np.where(~np.isnan(disp))[0]
-            nanDat = np.where(np.isnan(disp))[0]
-            nonNanLoop = np.where((solveLoop[:, nanDat] == 0).all(axis=1))[0]
+            #nanDat = np.where(np.isnan(disp))[0]
+            nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
             G_all = solveLoop[nonNanLoop, :][:, nonNan]
             # Now remove any incomplete loops
             complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
@@ -687,7 +706,7 @@ def unw_loop_corr(ii):
             print('Plotted only corrected {}'.format(os.path.join(plotdir, '{}_it1.png'.format(ii))))
         except:
             print('Error in plotting {}_it1\tclosure max {} min{}\tit1 max {} min {}'.format(ii, max(closure), min(closure), max(closure_it1), min(closure_it1)))
-        time.sleep(5)
+    time.sleep(5)
     if np.mod(ii, n_pt_unnan / 20) == 0:
         print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
         # print('{}/{}\tTime Elapsed: {:.2f} seconds for {} iterations'.format(ii, n_pt_unnan, time.time() - commence, n_it))
