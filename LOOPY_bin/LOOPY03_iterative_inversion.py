@@ -85,6 +85,7 @@ from scipy.interpolate import NearestNDInterpolator
 from scipy.spatial import ConvexHull
 from skimage import feature
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 
 
 class Usage(Exception):
@@ -623,6 +624,7 @@ def unw_loop_corr(ii):
             return corr
         
         n_good = n_invert
+        n_good = ifg_tot + 1
 
     if np.mod(ii, n_para) == 0:
         nonNan = np.where(~np.isnan(disp_all))[0]
@@ -631,14 +633,30 @@ def unw_loop_corr(ii):
         G_all = Aloop[nonNanLoop, :][:, nonNan]
         closure_final = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
         # plt.scatter(closure_orig, closure_final ,label='{} Iteration {}'.format(ii, n_it))
-        plt.hexbin(closure_orig, closure_final, gridsize=(int(max(closure_orig) - min(closure_orig)) * 2, int(max(closure_final) - min(closure_final)) * 2), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
-        plt.legend()
+        plt.hexbin(closure_orig, closure_final, gridsize=(int(max(closure_orig) - min(closure_orig)) * 1, int(max(closure_final) - min(closure_final)) * 1), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
+        # plt.legend()
         plt.colorbar()
         plt.xlabel('Input')
         plt.ylabel('Corrected')
         plt.savefig(os.path.join(plotdir, '{}.png'.format(ii)))
         plt.close()
-        print('Plotted {}'.format(os.path.join(plotdir, '{}.png'.format(ii))))
+        print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
+
+        disp = disp_all[solve_order[:n_invert]]
+        nonNan = np.where(~np.isnan(disp))[0]
+        nanDat = np.where(np.isnan(disp))[0]
+        nonNanLoop = np.where((Aloop[:, nanDat] == 0).all(axis=1))[0]
+        G_all = Aloop[nonNanLoop, :][:, nonNan]
+        closure_it1 = (np.dot(G_all, disp[nonNan]) / wrap).round() # Closure in integer 2pi
+        # plt.scatter(closure_orig, closure_final ,label='{} Iteration {}'.format(ii, n_it))
+        plt.hexbin(closure, closure_it1, gridsize=(int(max(closure) - min(closure_it1)) * 1, int(max(closure) - min(closure_it1)) * 1), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
+        # plt.legend()
+        plt.colorbar()
+        plt.xlabel('Input')
+        plt.ylabel('Corrected')
+        plt.savefig(os.path.join(plotdir, '{}.png'.format(ii)))
+        plt.close()
+        print('Plotted only corrected {}'.format(os.path.join(plotdir, '{}_it1.png'.format(ii))))
 
     if np.mod(ii, n_pt_unnan / 20) == 0:
         print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
