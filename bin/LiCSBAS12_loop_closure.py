@@ -1352,7 +1352,7 @@ def nullify_both(ix):
         unwconfile = os.path.join(ifgdir, ifgd, ifgd+'_con.unw')
         # Read in preserved data, nullify, and write to .unw file
         unw = io_lib.read_img(origfile, length, width) # Read in preserved un-looperr-nullified data
-        ref_unw = np.nanmean(unwagg[refy1:refy2, refx1:refx2])
+        ref_unw = np.nanmean(unw[refy1:refy2, refx1:refx2])
         unw = unw - ref_unw
         #unw[mask==False]=0  # should be ok but it appears as 0 in preview...
         unwagg = unw.copy()
@@ -1360,7 +1360,7 @@ def nullify_both(ix):
         unwagg[maskagg == False] = np.nan
         unwcon[maskcon == False] = np.nan
 
-        unw.tofile(origfile)
+        unw.tofile(unwfile)
         unwagg.tofile(unwaggfile)
         unwcon.tofile(unwconfile)
 
