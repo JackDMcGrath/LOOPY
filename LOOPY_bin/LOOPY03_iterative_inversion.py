@@ -639,10 +639,13 @@ def unw_loop_corr(ii):
             plt.colorbar()
             plt.xlabel('Input')
             plt.ylabel('Corrected')
-            plt.savefig(os.path.join(plotdir, '{}.png'.format(ii)))
+            plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
             plt.close()
             print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
+        except:
+            print('Error in plotting {}_all'.format(ii))
 
+        try:
             disp = disp_all[solve_order[:n_invert]]
             nonNan = np.where(~np.isnan(disp))[0]
             nanDat = np.where(np.isnan(disp))[0]
@@ -655,11 +658,11 @@ def unw_loop_corr(ii):
             plt.colorbar()
             plt.xlabel('Input')
             plt.ylabel('Corrected')
-            plt.savefig(os.path.join(plotdir, '{}.png'.format(ii)))
+            plt.savefig(os.path.join(plotdir, '{}_it1.png'.format(ii)))
             plt.close()
             print('Plotted only corrected {}'.format(os.path.join(plotdir, '{}_it1.png'.format(ii))))
         except:
-            print('Error in plotting {}'.format(ii))
+            print('Error in plotting {}_it1'.format(ii))
 
     if np.mod(ii, n_pt_unnan / 20) == 0:
         print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
