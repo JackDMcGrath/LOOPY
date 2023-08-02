@@ -500,7 +500,7 @@ def read_unw(i):
     # while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
     #     buff += 1
     # ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
-    unw1 = unw1 - ref_unw
+    # unw1 = unw1 - ref_unw
 
     return unw1
 
