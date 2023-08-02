@@ -113,7 +113,8 @@ def main(argv=None):
     global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con, begin, n_para, plotdir, png_plot
+        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con, begin, n_para, plotdir, png_plot, \
+        pix_output
 
     # %% Set default
     ifgdir = []
@@ -127,6 +128,7 @@ def main(argv=None):
     merge = False
     iterative = True
     png_plot = True
+    pix_output = 100
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -553,6 +555,7 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
 
 def unw_loop_corr(ii):
 
+    commence = time.time()
     disp_all = unw_all[ii, :]
     corr = np.zeros(disp_all.shape)
     
@@ -592,7 +595,7 @@ def unw_loop_corr(ii):
         n_it += 1
         n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
 
-        if np.mod(ii, n_para) == 0 and n_it == 1:
+        if np.mod(ii, pix_output) == 0 and n_it == 1:
             closure_orig = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
 
         disp = disp_all[:n_invert]
@@ -621,7 +624,7 @@ def unw_loop_corr(ii):
         
         n_good = n_invert
 
-    if png_plot and np.mod(ii, n_para) == 0:
+    if png_plot and np.mod(ii, 500) == 0:
         try:
             closure_final = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
             grdx = int(max(closure_orig) - min(closure_orig)) * 1 
@@ -651,8 +654,8 @@ def unw_loop_corr(ii):
         except:
             print('Error in plotting {}_all'.format(ii))
 
-    if np.mod(ii, n_pt_unnan / 100) == 0:
-        print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
+    if np.mod(ii, pix_output) == 0:
+        print('{}/{} {} iterations in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan,n_it, time.time() - commence, time.time() - begin))
 
     return corr
 
