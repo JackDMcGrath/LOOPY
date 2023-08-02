@@ -575,13 +575,10 @@ def unw_loop_corr(ii):
     bad_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_bad])
 
     n_good = len(ifg_good)
-    n_GOOD = len(ifg_good)
     n_cand = len(ifg_cand)
     n_bad = len(ifg_bad)
 
     solve_order = np.concatenate((good_ix, cand_ix[np.random.permutation(n_cand)], bad_ix[np.random.permutation(n_bad)])).astype('int')
-    print(solve_order.shape)
-    print(disp_all.shape, ifg_tot, n_good, n_cand, n_bad)
 
     # Change loop matrix to reflect solve order
     solveLoop = Aloop[:, solve_order]
@@ -589,10 +586,6 @@ def unw_loop_corr(ii):
     print(solve_order.shape)
     print(solveLoop.shape)
     disp_all = disp_all[solve_order]
-    if np.isnan(disp_all).any():
-      print('Why is there a nan?')
-    else:
-      print('No Nans here')      
 
     if n_good < (ifg_tot / 4):
         if (n_good + n_cand) < (ifg_tot / 3):
@@ -604,22 +597,20 @@ def unw_loop_corr(ii):
             return corr
 
     n_it = 0
-    print(disp_all.shape, ifg_tot, n_good, '({})'.format(n_GOOD), n_cand, n_bad)
+    print(disp_all.shape, ifg_tot, n_good,  n_cand, n_bad)
     while n_good < ifg_tot:
         n_it += 1
         n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
-        n_invert = n_GOOD
 
         if np.mod(ii, n_para) == 0 and n_it == 1:
             #nonNan = np.where(~np.isnan(disp_all))[0]
             #nanDat = np.where(np.isnan(disp_all))[0]
             #nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
-            G_all = solveLoop
-            print(G_all.shape, 'check shape')
-            closure_orig = (np.dot(G_all, disp_all) / wrap).round() # Closure in integer 2pi
+            print(solveLoop.shape, 'check shape')
+            closure_orig = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
 
         disp = disp_all[:n_invert]
-        print('check a')
+
         # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
         #nonNan = np.where(~np.isnan(disp))[0]
         #nanDat = np.where(np.isnan(disp))[0]
@@ -628,7 +619,7 @@ def unw_loop_corr(ii):
         #G_trim = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
         #nonNanLoop = np.where(np.sum(solveLoop == 0, axis=1) == 3)[0] # Bad Loops to be removed
         #G_all = solveLoop[nonNanLoop, :][:, nonNan]
-        print(solveLoop.shape, 'solveloop')
+
         G_all = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
         print(G_all.shape, 'G_all')
         print(n_invert, 'n_invert')
@@ -659,53 +650,52 @@ def unw_loop_corr(ii):
             return corr
         
         n_good = n_invert
-        n_good = ifg_tot + 1
 
-    # if np.mod(ii, n_para) == 0:
-    #     try:
-    #         nonNan = np.where(~np.isnan(disp_all))[0]
-    #         #nanDat = np.where(np.isnan(disp_all))[0]
-    #         nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
-    #         G_all = solveLoop[nonNanLoop, :][:, nonNan]
-    #         closure_final = (np.dot(G_all, disp_all[nonNan]) / wrap).round() # Closure in integer 2pi
-    #         grdx = int(max(closure_orig) - min(closure_orig)) * 1 
-    #         grdy = int(max(closure_final) - min(closure_final)) * 1
-    #         grdx = grdx if grdx != 0 else 1
-    #         grdy = grdy if grdy != 0 else 1
-    #         plt.hexbin(closure_orig, closure_final, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
-    #         plt.colorbar()
-    #         plt.xlabel('Input')
-    #         plt.ylabel('Corrected')
-    #         plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
-    #         plt.close()
-    #         print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
-    #     except:
-    #         print('Error in plotting {}_all'.format(ii))
-
+    if np.mod(ii, n_para) == 0:
         try:
-            disp = disp_all[:n_invert][loopIfg]
-            closure_it1 = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
-            
-            for id in range(10):
-              print(G[id,:10])
-            print('Orig', unw_all[ii, solve_order[:n_invert]])
-            print(closure)
-            print('Disp', disp)
-            print(closure_it1)
-            
-            grdx = int(max(closure) - min(closure)) * 1 
-            grdy = int(max(closure_it1) - min(closure_it1)) * 1
+            # nonNan = np.where(~np.isnan(disp_all))[0]
+            # #nanDat = np.where(np.isnan(disp_all))[0]
+            # nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
+            # G_all = solveLoop[nonNanLoop, :][:, nonNan]
+            closure_final = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
+            grdx = int(max(closure_orig) - min(closure_orig)) * 1 
+            grdy = int(max(closure_final) - min(closure_final)) * 1
             grdx = grdx if grdx != 0 else 1
             grdy = grdy if grdy != 0 else 1
-            plt.hexbin(closure, closure_it1, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
+            plt.hexbin(closure_orig, closure_final, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
             plt.colorbar()
             plt.xlabel('Input')
             plt.ylabel('Corrected')
-            plt.savefig(os.path.join(plotdir, '{}_it1.png'.format(ii)))
+            plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
             plt.close()
-            print('Plotted only corrected {}'.format(os.path.join(plotdir, '{}_it1.png'.format(ii))))
+            print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
         except:
-            print('Error in plotting {}_it1\tclosure max {} min{}\tit1 max {} min {}'.format(ii, max(closure), min(closure), max(closure_it1), min(closure_it1)))
+            print('Error in plotting {}_all'.format(ii))
+
+        # try:
+        #     disp = disp_all[:n_invert][loopIfg]
+        #     closure_it1 = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
+            
+        #     for id in range(10):
+        #       print(G[id,:10])
+        #     print('Orig', unw_all[ii, solve_order[:n_invert]])
+        #     print(closure)
+        #     print('Disp', disp)
+        #     print(closure_it1)
+            
+        #     grdx = int(max(closure) - min(closure)) * 1 
+        #     grdy = int(max(closure_it1) - min(closure_it1)) * 1
+        #     grdx = grdx if grdx != 0 else 1
+        #     grdy = grdy if grdy != 0 else 1
+        #     plt.hexbin(closure, closure_it1, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
+        #     plt.colorbar()
+        #     plt.xlabel('Input')
+        #     plt.ylabel('Corrected')
+        #     plt.savefig(os.path.join(plotdir, '{}_it1.png'.format(ii)))
+        #     plt.close()
+        #     print('Plotted only corrected {}'.format(os.path.join(plotdir, '{}_it1.png'.format(ii))))
+        # except:
+        #     print('Error in plotting {}_it1\tclosure max {} min{}\tit1 max {} min {}'.format(ii, max(closure), min(closure), max(closure_it1), min(closure_it1)))
     time.sleep(5)
     if np.mod(ii, n_pt_unnan / 20) == 0:
         print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
