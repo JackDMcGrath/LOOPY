@@ -354,8 +354,8 @@ def main(argv=None):
 
     # Allocate memory
     unw_all = np.zeros((n_ifg, length, width), dtype=np.float32)
-    unw_agg = np.zeros((n_ifg, length, width), dtype=np.float32)
-    unw_con = np.zeros((n_ifg, length, width), dtype=np.float32)
+    unw_agg = np.zeros((n_ifg, length, width), dtype=bool)
+    unw_con = np.zeros((n_ifg, length, width), dtype=bool)
 
     if n_para == 1:
         print('with no parallel processing...', flush=True)
@@ -609,11 +609,10 @@ def unw_loop_corr(ii):
         # Some interferograms will now have no loops. Remove these
         loopIfg = np.where((G != 0).any(axis=0))[0]
         G = G[:, loopIfg]
-        invIfg_ix = np.arange(n_invert)
-        invIfg_ix = invIfg_ix[loopIfg]
-        NLoop, invertIFG = G.shape
-        disp = disp[loopIfg]
-        if NLoop > 10:
+        if G.shape[0] > 10:
+            invIfg_ix = np.arange(n_invert)
+            invIfg_ix = invIfg_ix[loopIfg]
+            disp = disp[loopIfg]
             closure = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
             if (closure != 0).any():
                 G = matrix(G)
@@ -623,21 +622,22 @@ def unw_loop_corr(ii):
                 corr[solve_order[invIfg_ix]] += correction
         
         n_good = n_invert
+        time.sleep(0.2)
 
-    if png_plot and np.mod(ii, 500) == 0:
+    if png_plot and np.mod(ii, pix_output) == 0:
         try:
             closure_final = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
-            grdx = int(max(closure_orig) - min(closure_orig)) * 1 
-            grdy = int(max(closure_final) - min(closure_final)) * 1
-            grdx = grdx if grdx != 0 else 1
-            grdy = grdy if grdy != 0 else 1
-            plt.hexbin(closure_orig, closure_final, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
-            plt.colorbar()
-            plt.xlabel('Input')
-            plt.ylabel('Corrected')
-            plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
-            plt.close()
-            print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
+            # grdx = int(max(closure_orig) - min(closure_orig)) * 1 
+            # grdy = int(max(closure_final) - min(closure_final)) * 1
+            # grdx = grdx if grdx != 0 else 1
+            # grdy = grdy if grdy != 0 else 1
+            # plt.hexbin(closure_orig, closure_final, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
+            # plt.colorbar()
+            # plt.xlabel('Input')
+            # plt.ylabel('Corrected')
+            # plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
+            # plt.close()
+            # print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
             
             grdx = int(max(abs(closure_orig)) - min(abs(closure_orig))) * 1 
             grdy = int(max(abs(closure_final)) - min(abs(closure_final))) * 1
@@ -654,7 +654,7 @@ def unw_loop_corr(ii):
         except:
             print('Error in plotting {}_all'.format(ii))
 
-    if np.mod(ii, pix_output) == 0:
+    if np.mod(ii, pix_output) == 0 or n_para == 1:
         print('{}/{} {} iterations in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan,n_it, time.time() - commence, time.time() - begin))
 
     return corr
