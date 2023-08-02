@@ -557,8 +557,8 @@ def unw_loop_corr(ii):
     corr = np.zeros(disp_all.shape)
     
     ifg_tot = int(np.sum(~np.isnan(unw_all[ii,:])))
-    ifg_good = np.array(ifgdates)[~np.isnan(unw_agg[ii,:])]
-    ifg_cand = np.array(ifgdates)[~np.isnan(unw_con[ii,:])]
+    ifg_good = np.array(ifgdates)[np.where(unw_agg[ii,:])[0]]
+    ifg_cand = np.array(ifgdates)[np.where(unw_con[ii,:])[0]]
     ifg_bad = np.array(ifgdates)[~np.isnan(unw_all[ii,:])]
     ifg_good = list(set(ifg_good))
     ifg_cand = list(set(ifg_cand) - set(ifg_good))
