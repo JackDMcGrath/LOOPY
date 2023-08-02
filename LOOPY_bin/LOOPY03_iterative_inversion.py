@@ -594,7 +594,6 @@ def unw_loop_corr(ii):
             return corr
         else:
             n_good = int(ifg_tot / 5)
-            return corr
 
     n_it = 0
     print(disp_all.shape, ifg_tot, n_good,  n_cand, n_bad)
@@ -606,7 +605,7 @@ def unw_loop_corr(ii):
             #nonNan = np.where(~np.isnan(disp_all))[0]
             #nanDat = np.where(np.isnan(disp_all))[0]
             #nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
-            print(solveLoop.shape, 'check shape')
+            #print(solveLoop.shape, 'check shape')
             closure_orig = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
 
         disp = disp_all[:n_invert]
@@ -621,8 +620,8 @@ def unw_loop_corr(ii):
         #G_all = solveLoop[nonNanLoop, :][:, nonNan]
 
         G_all = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
-        print(G_all.shape, 'G_all')
-        print(n_invert, 'n_invert')
+        #print(G_all.shape, 'G_all')
+        #print(n_invert, 'n_invert')
 
         # Now remove any incomplete loops from the matrix
         complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
@@ -631,22 +630,25 @@ def unw_loop_corr(ii):
         # Some interferograms will now have no loops. Remove these
         loopIfg = np.where((G != 0).any(axis=0))[0]
         G = G[:, loopIfg]
-        print(G.shape, 'Dropped G')
+        #print(G.shape, 'Dropped G')
         invIfg_ix = np.arange(n_invert)
         invIfg_ix = invIfg_ix[loopIfg]
         NLoop, invertIFG = G.shape
         disp = disp[loopIfg]
         if NLoop > 10:
             closure = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
-            print(disp)
-            print(np.dot(G, disp))
-            print(closure)
+            #print(disp)
+            #print(np.dot(G, disp))
+            #print(closure)
             G = matrix(G)
             d = matrix(closure)
             correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
             disp_all[invIfg_ix] -= correction * wrap
             corr[solve_order[invIfg_ix]] += correction
         else:
+            print('Not Enough Loops')
+            print(G.shape)
+            time.sleep(5)
             return corr
         
         n_good = n_invert
@@ -669,6 +671,22 @@ def unw_loop_corr(ii):
             plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
             plt.close()
             print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
+            
+            grdx = int(max(abs(closure_orig)) - min(abs(closure_orig))) * 1 
+            grdy = int(max(abs(closure_final)) - min(abs(closure_final))) * 1
+            grdx = grdx if grdx != 0 else 1
+            grdy = grdy if grdy != 0 else 1
+            plt.hexbin(abs(closure_orig), abs(closure_final), gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
+            plt.plot([0,max([max(abs(closure_orig)), max(abs(closure_final))])],[0,max([max(abs(closure_orig)), max(abs(closure_final))])]) 
+            plt.colorbar()
+            plt.xlabel('Input')
+            plt.ylabel('Corrected')
+            plt.savefig(os.path.join(plotdir, '{}_all2.png'.format(ii)))
+            plt.close()
+            print('Plotted {}'.format(os.path.join(plotdir, '{}_all2.png'.format(ii))))
+            
+            
+            
         except:
             print('Error in plotting {}_all'.format(ii))
 
