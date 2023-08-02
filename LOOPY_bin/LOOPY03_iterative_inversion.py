@@ -113,7 +113,7 @@ def main(argv=None):
     global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con, begin, n_para, plotdir
+        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con, begin, n_para, plotdir, png_plot
 
     # %% Set default
     ifgdir = []
@@ -126,6 +126,7 @@ def main(argv=None):
     nrandpix = 0
     merge = False
     iterative = True
+    png_plot = True
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -146,7 +147,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:c:",
-                                       ["help", "noreset", "nanUncorr", "gamma=", "coast",
+                                       ["help", "noreset", "nanUncorr", "gamma=", "coast", "no_pngs"
                                         "dilation=", "randpix=", "n_unw_r_thre=", "n_para=", "merge="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -180,6 +181,8 @@ def main(argv=None):
                 nrandpix = int(a)
             elif o == '--iterate':
                 iterative = True
+            elif o == '--no_pngs':
+                png_plot = False
 
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
@@ -582,9 +585,6 @@ def unw_loop_corr(ii):
 
     # Change loop matrix to reflect solve order
     solveLoop = Aloop[:, solve_order]
-    print(Aloop.shape)
-    print(solve_order.shape)
-    print(solveLoop.shape)
     disp_all = disp_all[solve_order]
 
     if n_good < (ifg_tot / 4):
@@ -596,32 +596,17 @@ def unw_loop_corr(ii):
             n_good = int(ifg_tot / 5)
 
     n_it = 0
-    print(disp_all.shape, ifg_tot, n_good,  n_cand, n_bad)
+
     while n_good < ifg_tot:
         n_it += 1
         n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
 
         if np.mod(ii, n_para) == 0 and n_it == 1:
-            #nonNan = np.where(~np.isnan(disp_all))[0]
-            #nanDat = np.where(np.isnan(disp_all))[0]
-            #nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
-            #print(solveLoop.shape, 'check shape')
             closure_orig = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
 
         disp = disp_all[:n_invert]
 
-        # Remove nan-Ifg pixels from the inversion (drop from disp and the corresponding loops)
-        #nonNan = np.where(~np.isnan(disp))[0]
-        #nanDat = np.where(np.isnan(disp))[0]
-        #print(nonNan)
-        #print(nanDat)
-        #G_trim = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
-        #nonNanLoop = np.where(np.sum(solveLoop == 0, axis=1) == 3)[0] # Bad Loops to be removed
-        #G_all = solveLoop[nonNanLoop, :][:, nonNan]
-
         G_all = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
-        #print(G_all.shape, 'G_all')
-        #print(n_invert, 'n_invert')
 
         # Now remove any incomplete loops from the matrix
         complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
@@ -630,35 +615,23 @@ def unw_loop_corr(ii):
         # Some interferograms will now have no loops. Remove these
         loopIfg = np.where((G != 0).any(axis=0))[0]
         G = G[:, loopIfg]
-        #print(G.shape, 'Dropped G')
         invIfg_ix = np.arange(n_invert)
         invIfg_ix = invIfg_ix[loopIfg]
         NLoop, invertIFG = G.shape
         disp = disp[loopIfg]
         if NLoop > 10:
             closure = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
-            #print(disp)
-            #print(np.dot(G, disp))
-            #print(closure)
-            G = matrix(G)
-            d = matrix(closure)
-            correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
-            disp_all[invIfg_ix] -= correction * wrap
-            corr[solve_order[invIfg_ix]] += correction
-        else:
-            print('Not Enough Loops')
-            print(G.shape)
-            time.sleep(5)
-            return corr
+            if (closure != 0).all():
+                G = matrix(G)
+                d = matrix(closure)
+                correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+                disp_all[invIfg_ix] -= correction * wrap
+                corr[solve_order[invIfg_ix]] += correction
         
         n_good = n_invert
 
-    if np.mod(ii, n_para) == 0:
+    if png_plot and np.mod(ii, n_para) == 0:
         try:
-            # nonNan = np.where(~np.isnan(disp_all))[0]
-            # #nanDat = np.where(np.isnan(disp_all))[0]
-            # nonNanLoop = np.where((solveLoop == 0).all(axis=1))[0]
-            # G_all = solveLoop[nonNanLoop, :][:, nonNan]
             closure_final = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
             grdx = int(max(closure_orig) - min(closure_orig)) * 1 
             grdy = int(max(closure_final) - min(closure_final)) * 1
@@ -683,38 +656,10 @@ def unw_loop_corr(ii):
             plt.ylabel('Corrected')
             plt.savefig(os.path.join(plotdir, '{}_all2.png'.format(ii)))
             plt.close()
-            print('Plotted {}'.format(os.path.join(plotdir, '{}_all2.png'.format(ii))))
-            
-            
-            
+            print('Plotted {}'.format(os.path.join(plotdir, '{}_all2.png'.format(ii))))      
         except:
             print('Error in plotting {}_all'.format(ii))
 
-        # try:
-        #     disp = disp_all[:n_invert][loopIfg]
-        #     closure_it1 = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
-            
-        #     for id in range(10):
-        #       print(G[id,:10])
-        #     print('Orig', unw_all[ii, solve_order[:n_invert]])
-        #     print(closure)
-        #     print('Disp', disp)
-        #     print(closure_it1)
-            
-        #     grdx = int(max(closure) - min(closure)) * 1 
-        #     grdy = int(max(closure_it1) - min(closure_it1)) * 1
-        #     grdx = grdx if grdx != 0 else 1
-        #     grdy = grdy if grdy != 0 else 1
-        #     plt.hexbin(closure, closure_it1, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
-        #     plt.colorbar()
-        #     plt.xlabel('Input')
-        #     plt.ylabel('Corrected')
-        #     plt.savefig(os.path.join(plotdir, '{}_it1.png'.format(ii)))
-        #     plt.close()
-        #     print('Plotted only corrected {}'.format(os.path.join(plotdir, '{}_it1.png'.format(ii))))
-        # except:
-        #     print('Error in plotting {}_it1\tclosure max {} min{}\tit1 max {} min {}'.format(ii, max(closure), min(closure), max(closure_it1), min(closure_it1)))
-    time.sleep(5)
     if np.mod(ii, n_pt_unnan / 20) == 0:
         print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
         # print('{}/{}\tTime Elapsed: {:.2f} seconds for {} iterations'.format(ii, n_pt_unnan, time.time() - commence, n_it))
