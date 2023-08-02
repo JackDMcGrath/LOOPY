@@ -559,7 +559,6 @@ def unw_loop_corr(ii):
     disp_all = unw_all[ii, :]
     corr = np.zeros(disp_all.shape)
     
-    ifg_tot = int(np.sum(~np.isnan(unw_all[ii,:])))
     ifg_good = np.array(ifgdates)[np.where(unw_agg[ii,:])[0]]
     ifg_cand = np.array(ifgdates)[np.where(unw_con[ii,:])[0]]
     ifg_bad = np.array(ifgdates)[~np.isnan(unw_all[ii,:])]
@@ -579,7 +578,10 @@ def unw_loop_corr(ii):
 
     # Change loop matrix to reflect solve order
     solveLoop = Aloop[:, solve_order]
+    complete_loops = np.where(np.sum((solveLoop != 0), axis=1) == 3)[0]
+    solveLoop = solveLoop[complete_loops, :]
     disp_all = disp_all[solve_order]
+    nLoops, ifg_tot = solveLoop.shape
 
     if n_good < (ifg_tot / 4):
         if (n_good + n_cand) < (ifg_tot / 3):
@@ -638,7 +640,6 @@ def unw_loop_corr(ii):
             # plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
             # plt.close()
             # print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
-            nLoops = solveLoop.shape[0]
             improve = 100 * sum(abs(closure_final) < abs(closure_orig)) / nLoops
             unchange = 100 * sum(closure_final == closure_orig) / nLoops
             worsen = 100 * sum(abs(closure_final) > abs(closure_orig)) / nLoops
@@ -649,7 +650,7 @@ def unw_loop_corr(ii):
             plt.hexbin(abs(closure_orig), abs(closure_final), gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
             plt.plot([0,max([max(abs(closure_orig)), max(abs(closure_final))])],[0,max([max(abs(closure_orig)), max(abs(closure_final))])]) 
             plt.colorbar()
-            plt.title('N_loops: {}\nImproved: {:.0f}% Same: {:.0f}% Worse: {:.0f}%'.format(nLoops, improve, unchange, worsen))
+            plt.title('{} ifgs in {} loops\nImproved: {:.0f}% Same: {:.0f}% Worse: {:.0f}%'.format(ifg_tot, nLoops, improve, unchange, worsen))
             plt.xlabel('Input')
             plt.ylabel('Corrected')
             plt.savefig(os.path.join(plotdir, '{}_all2.png'.format(ii)))
