@@ -147,7 +147,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:c:",
-                                       ["help", "noreset", "nanUncorr", "gamma=", "coast", "no_pngs"
+                                       ["help", "noreset", "nanUncorr", "gamma=", "coast", "no_pngs",
                                         "dilation=", "randpix=", "n_unw_r_thre=", "n_para=", "merge="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -515,14 +515,10 @@ def read_agg(i):
         # Read unw data (radians) at patch area
         unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
         unw1[unw1 == 0] = np.nan  # Fill 0 with nan
-        # buff = 0  # Buffer to increase reference area until a value is found
-        # while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
-        #     buff += 1
-        # ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
-        # unw1 = unw1 - ref_unw
     except:
         unw1 = np.zeros((length, width)) * np.nan
 
+    unw1 = ~np.isnan(unw1)
     return unw1
 
 def read_con(i):
@@ -533,14 +529,10 @@ def read_con(i):
         # Read unw data (radians) at patch area
         unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
         unw1[unw1 == 0] = np.nan  # Fill 0 with nan
-        # buff = 0  # Buffer to increase reference area until a value is found
-        # while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
-        #     buff += 1
-        # ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
-        # unw1 = unw1 - ref_unw
     except:
         unw1 = np.zeros((length, width)) * np.nan
 
+    unw1 = ~np.isnan(unw1)
     return unw1
 
 
@@ -560,8 +552,7 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
 
 
 def unw_loop_corr(ii):
-    print('\nnew pix', ii)
-    commence=time.time()
+
     disp_all = unw_all[ii, :]
     corr = np.zeros(disp_all.shape)
     
@@ -660,9 +651,8 @@ def unw_loop_corr(ii):
         except:
             print('Error in plotting {}_all'.format(ii))
 
-    if np.mod(ii, n_pt_unnan / 20) == 0:
+    if np.mod(ii, n_pt_unnan / 100) == 0:
         print('{}/{} Elapsed: {:.2f} seconds'.format(ii, n_pt_unnan, time.time() - begin))
-        # print('{}/{}\tTime Elapsed: {:.2f} seconds for {} iterations'.format(ii, n_pt_unnan, time.time() - commence, n_it))
 
     return corr
 
@@ -709,51 +699,9 @@ def apply_correction(i):
     unw1 = unw[i, :, :]
     npi = (unw1 / np.pi).round()
 
-    # Options for filtering the corrections
-    filtType = 'noFilt'  # noFilt, median, binary
-    filtWidth = 5 # Width of kernels
-    if filtType == 'noFilt':
-        correction = corrFull[i, :, :] * wrap
-
-    elif filtType == 'median':
-        kernel = disk(radius=np.ceil(filtWidth / 2))  # Circular kernel, convert filtWidth to radius
-        correction = corrFull[i, :, :] + 1 - np.nanmin(corrFull[i, :, :]) # Add offset to ensure all values are > 0 (converting to uint8 makes -1 = 255, np.nan=0)
-        correction = filters.rank.median(correction.astype('uint8'), kernel).astype(np.float32) # Run median filter, return to float32
-        correction[np.where(correction == 0)] = np.nan # Return 0's to nan
-        correction = correction - 1 + np.nanmin(corrFull[i, :, :]) # Remove offset
-        correction[np.where(np.isnan(corrFull[i, :, :]))] = np.nan # Make all original NaN's nans
-        correction =  correction * wrap # Convert from npi to rads
-
-    elif filtType == 'binary': # Method using binary opening and binary
-        grid = np.zeros((length,width))
-        corrorig = corrFull[i, :, :] # Original Correction
-        corrorig.tofile(corrfile)
-        grid[np.where(abs(corrFull[i, :, :]) > 0)] = 1 # Find all areas that have a correction
-#        grid = binary_opening(grid, structure=disk(radius=np.ceil(filtWidth / 2))).astype('int') # Remove wild spikes
-        grid = binary_closing(grid, structure=disk(radius=np.ceil(filtWidth / 2))).astype('int') # Fill in any holes
-        grid = binary_opening(grid, structure=disk(radius=np.ceil(filtWidth / 2))).astype('int') # Remove wild spikes
-        correction = corrFull[i, :, :].copy() # Inverted Correction
-        correction[np.where(grid == 0)] = 0 # Remove wild spikes from inverted Correction
-        grid = grid + (np.abs(correction) > 0).astype('int')  # Make grid where 0  = no correction, 1 = need interpolating, 2 = Inverted Correction
-        mask = np.where(grid == 2)
-        interp = NearestNDInterpolator(np.transpose(mask), correction[mask]) # Create interpolator
-        interp_to = np.where(grid == 1) # Find where to interpolate to
-        nearest_data = interp(*interp_to)  # Interpolate
-        correction[interp_to] = nearest_data  # Apply corrected data
-        correction = correction * wrap # convert from npi to rads
-        correction[np.where(np.isnan(corrFull[i, :, :]))] = np.nan
-
-    else:
-        raise Usage('Not defined the filter type! (Currently a hard code)')
-
+    correction = corrFull[i, :, :] * wrap
 
     corr_unw = unw[i, :, :] - correction
-    # print('UNW1 data type: {}'.format(unw1.dtype))
-    # print('UNW1 length: {0}, Width: {1}'.format(unw1.shape[0], unw1.shape[1]))
-    # print('correction data type: {}'.format(correction.dtype))
-    # print('correction length: {0}, Width: {1}'.format(correction.shape[0], correction.shape[1]))
-    # print('corr_unw data type: {}'.format(corr_unw.dtype))
-    # print('corr_unw length: {0}, Width: {1}'.format(corr_unw.shape[0], corr_unw.shape[1]))
     corr_unw.tofile(unwfile)
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     titles4 = ['Uncorrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(unw1.flatten() ** 2))),
@@ -766,17 +714,6 @@ def apply_correction(i):
         corr =  corrFull[i, :, :]
         corr[np.where(land != 3)] = np.nan
         loopy_lib.make_compare_png(unw1, corr_unw, npi, corr, corrcomppng, titles4, 3)
-
-    if filtType != 'noFilt':
-        if filtType == 'median':
-            titles4 = ['{} Uncorrected'.format(ifgdates[i]), '{} Corrected'.format(ifgdates[i]), 'UnFiltered', 'Med Filtered']
-        else:
-            titles4 = ['{} Uncorrected'.format(ifgdates[i]),
-                      '{} Corrected'.format(ifgdates[i]),
-                      'UnFiltered',
-                      'Binary Closed']
-
-        loopy_lib.make_filt_png(unw1, corr_unw, corrFull[i, :, :], correction / wrap, corrfiltpng, titles4, 3)
 
     plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
