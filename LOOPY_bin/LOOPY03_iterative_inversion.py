@@ -638,7 +638,10 @@ def unw_loop_corr(ii):
             # plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
             # plt.close()
             # print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
-            
+            nLoops = solveLoop.shape[0]
+            improve = 100 * sum(abs(closure_final) < abs(closure_orig)) / nLoops
+            unchange = 100 * sum(closure_final == closure_orig) / nLoops
+            worsen = 100 * sum(abs(closure_final) > abs(closure_orig)) / nLoops
             grdx = int(max(abs(closure_orig)) - min(abs(closure_orig))) * 1 
             grdy = int(max(abs(closure_final)) - min(abs(closure_final))) * 1
             grdx = grdx if grdx != 0 else 1
@@ -646,7 +649,7 @@ def unw_loop_corr(ii):
             plt.hexbin(abs(closure_orig), abs(closure_final), gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
             plt.plot([0,max([max(abs(closure_orig)), max(abs(closure_final))])],[0,max([max(abs(closure_orig)), max(abs(closure_final))])]) 
             plt.colorbar()
-            plt.title('Improved: {:.0f}% Same: {:.0f}% Worse: {:.0f}%'.format(sum(abs(closure_final) < abs(closure_orig)), sum(closure_final == closure_orig), sum(abs(closure_final) > abs(closure_orig)) ))
+            plt.title('N_loops: {}\nImproved: {:.0f}% Same: {:.0f}% Worse: {:.0f}%'.format(nLoops, improve, unchange, worsen))
             plt.xlabel('Input')
             plt.ylabel('Corrected')
             plt.savefig(os.path.join(plotdir, '{}_all2.png'.format(ii)))
