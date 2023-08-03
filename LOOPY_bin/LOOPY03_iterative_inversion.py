@@ -413,8 +413,7 @@ def main(argv=None):
                 print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / (ii + 1)) * n_pt_unnan))
     else:
         if progress_bar:
-            chunksize = 100
-            correction = np.array(process_map(unw_loop_corr, range(n_pt_unnan), max_workers=_n_para, chunksize=chunksize))
+            correction = np.array(process_map(unw_loop_corr, range(n_pt_unnan), max_workers=_n_para, chunksize=1))
         else:
             p = q.Pool(_n_para)
             correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
@@ -660,7 +659,8 @@ def unw_loop_corr(ii):
         except:
             print('Error in plotting {}_all'.format(ii))
 
-    if np.mod(ii, pix_output) == 0 or n_para == 1 and not progress_bar:
+    if not progress_bar:
+      if np.mod(ii, pix_output) == 0 or n_para == 1:
         print('{}/{} {} iterations in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan,n_it, time.time() - commence, time.time() - begin))
 
     return corr
