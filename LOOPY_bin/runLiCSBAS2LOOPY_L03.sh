@@ -137,6 +137,7 @@ if [ -z $splitdate ]; then
     echo end_step 12 >> params.txt
     echo p12_nullify n >> params.txt
     echo p12_null_both y >> params.txt
+    echo p12_find_reference n >> params.txt 
 
     edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
 
@@ -150,12 +151,12 @@ if [ -z $splitdate ]; then
 
     echo ' '
     echo '#####################'
-    echo '#### Running LOOPY03_iteritive_inversion.py for '$splitdir
+    echo '#### Running LOOPY03_iterative_inversion.py for '$splitdir
     echo '#####################'
     echo ' '
 
     corrdir=${splitdir}L03
-    LOOPY03_iteritive_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para}
+    LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para}
 
     echo ' '
     echo '#####################'
@@ -196,6 +197,7 @@ else
     echo start_step 11 >> params.txt
     echo end_step 12 >> params.txt
     echo p12_null_both y >> params.txt
+    echo p12_find_reference n >> params.txt
 
     edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
 
@@ -209,12 +211,12 @@ else
 
     echo ' '
     echo '#####################'
-    echo '#### Running LOOPY03_iteritive_inversion.py for '$L01dir
+    echo '#### Running LOOPY03_iterative_inversion.py for '$L01dir
     echo '#####################'
     echo ' '
 
     corrdir=${L01dir}L03
-    LOOPY03_iteritive_inversion.py -d $L01dir -c ${corrdir} --n_para ${n_para}
+    LOOPY03_iterative_inversion.py -d $L01dir -c ${corrdir} --n_para ${n_para}
 
     echo ' '
     echo '#####################'
@@ -246,6 +248,7 @@ echo GEOCmldir $GEOCdir > params.txt
 echo start_step 11 >> params.txt
 echo end_step 15 >> params.txt
 echo p12_nullify n >> params.txt
+echo p12_find_reference y >> params.txt
 
 edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
 
