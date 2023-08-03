@@ -149,8 +149,8 @@ def main(argv=None):
             raise Usage('No input directory given, -i is not optional!')
         if not out_dir:
             raise Usage('No output directory given, -o is not optional!')
-        if not coh_thre and not ex_range_str and not ex_range_file and not poly_file:
-            raise Usage('Neither -r, -f, nor -p option is given!')
+        if not coh_thre and not ex_range_str and not ex_range_file and not poly_file and not cc_ifg_thre:
+            raise Usage('Neither -r, -f, -p nor -s option is given!')
         elif not os.path.isdir(in_dir):
             raise Usage('No {} dir exists!'.format(in_dir))
         elif not os.path.exists(os.path.join(in_dir, 'slc.mli.par')):
