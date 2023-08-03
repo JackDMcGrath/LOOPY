@@ -66,7 +66,7 @@ def make_im_png(data, pngfile, cmap, title, vmin=None, vmax=None, cbar=True, ref
     plt.tight_layout()
     
     if logscale:
-        im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=cmap, interpolation=interp, norm=colors.LogNorm(vmin=0.001))
+        im = ax.imshow(data, cmap=cmap, interpolation=interp, norm=colors.LogNorm(vmin=vmin, vmax=vmax))
     else:
         im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=cmap, interpolation=interp)
 
