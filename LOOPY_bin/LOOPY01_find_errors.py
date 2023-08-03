@@ -935,10 +935,10 @@ def mask_unw_errors(i):
     loopy_lib.make_compare_png(unw, corr_unw, npi, correction / (2 * np.pi), corrcomppng, titles4, 3)
 
     title = 'Error Map'
-    if coh_thresh:
-        errs_found = errors.copy()
-        errors[np.where(cc < coh_thresh)] = 0.5
-        errors[np.where(errs_found)] = 1
+    #if coh_thresh:
+    #    errs_found = errors.copy()
+    #    errors[np.where(cc < coh_thresh)] = 0.5
+    #    errors[np.where(errs_found)] = 1
 
     plot_lib.make_im_png(errors, os.path.join(corrdir, date, date + '.errormap.png'), 'viridis', title, vmin=0, vmax=1, cbar=False)
 
