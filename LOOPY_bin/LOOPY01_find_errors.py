@@ -638,9 +638,9 @@ def main(argv=None):
         print('Multilooking the metadata')
 
         for file in ['E.geo', 'N.geo', 'U.geo', 'slc.mli', 'hgt']:
-            data = io_lib.read_img(os.path.join(tsdir, file), length, width)
+            data = io_lib.read_img(os.path.join(tsadir, file), length, width)
             data = tools_lib.multilook(data, ml_factor, ml_factor)
-            outfile = os.path.join(tsdir, file)
+            outfile = os.path.join(tsadir, file)
             data.tofile(outfile)
             print('  {} multilooked'.format(file), flush=True)
 
