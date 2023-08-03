@@ -34,7 +34,7 @@ error_locations=/nfs/a285/homes/eejdm/coastlines/gshhg/NZCoastRiver.txt
 n_para=40
 n_looks=10
 
-GEOCdir=GEOCml${nlooks}
+GEOCdir=GEOCml${n_looks}
 
 ####################
 ## Set Variables
