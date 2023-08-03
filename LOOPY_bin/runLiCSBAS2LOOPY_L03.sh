@@ -26,7 +26,7 @@
 ## Set User Toggles
 ###################
 
-splitdate="20161113" # date of major earthquake to split pre- and post- seismic networks across. Leave blank for no split
+splitdate=$1 # date of major earthquake to split pre- and post- seismic networks across. Leave blank for no split
 
 LiCSBAS_start="03" # LiCSBAS script to start processing from
 coh_thresh="0.04" # Going to mask all pixels lower than this
