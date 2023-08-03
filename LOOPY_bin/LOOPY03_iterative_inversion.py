@@ -109,7 +109,7 @@ def main(argv=None):
     global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
         coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con, begin, n_para, plotdir, png_plot, \
+        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con, begin, n_para, plotdir, pix_plot, \
         pix_output
 
     # %% Set default
@@ -123,8 +123,8 @@ def main(argv=None):
     nrandpix = 0
     merge = False
     iterative = True
-    png_plot = True
-    pix_output = 100
+    pix_plot = False
+    pix_output = 1000
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -141,7 +141,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:c:",
-                                       ["help", "noreset", "nanUncorr", "gamma=", "coast", "no_pngs",
+                                       ["help", "noreset", "nanUncorr", "gamma=", "coast", "pix_pngs",
                                         "dilation=", "randpix=", "n_unw_r_thre=", "n_para=", "merge="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -175,8 +175,8 @@ def main(argv=None):
                 nrandpix = int(a)
             elif o == '--iterate':
                 iterative = True
-            elif o == '--no_pngs':
-                png_plot = False
+            elif o == '--pix_pngs':
+                pix_plot = False
 
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
@@ -618,7 +618,7 @@ def unw_loop_corr(ii):
         n_good = n_invert
         time.sleep(0.2)
 
-    if png_plot and np.mod(ii, pix_output) == 0:
+    if pix_plot and np.mod(ii, pix_output) == 0:
         try:
             closure_final = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
             # grdx = int(max(closure_orig) - min(closure_orig)) * 1 
