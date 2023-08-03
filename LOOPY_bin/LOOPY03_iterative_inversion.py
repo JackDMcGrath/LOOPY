@@ -365,9 +365,9 @@ def main(argv=None):
                 print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / (ii + 1)) * n_pt_unnan))
     else:
         print('with {} parallel processing...'.format(_n_para), flush=True)
-        #p = q.Pool(_n_para)
-        #correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
-        #p.close()
+        p = q.Pool(_n_para)
+        correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
+        p.close()
 
     elapsed_time = time.time() - start
     hour = int(elapsed_time / 3600)
@@ -541,7 +541,7 @@ def unw_loop_corr(ii):
         n_it += 1
         n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
 
-        if np.mod(ii, pix_output) == 0 and n_it == 1:
+        if np.mod(ii, pix_output) == 0 and n_it == 1 and pix_plot:
             closure_orig = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
 
         disp = disp_all[:n_invert]
