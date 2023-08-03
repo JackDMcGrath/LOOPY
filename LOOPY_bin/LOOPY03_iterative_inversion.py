@@ -96,7 +96,6 @@ class Usage(Exception):
     def __init__(self, msg):
         self.msg = msg
 
-
 # %% Main
 def main(argv=None):
 
@@ -414,7 +413,8 @@ def main(argv=None):
                 print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / (ii + 1)) * n_pt_unnan))
     else:
         if progress_bar:
-            correction = np.array(process_map(unw_loop_corr, range(n_pt_unnan), max_workers=_n_para))
+            chunksize = 100
+            correction = np.array(process_map(unw_loop_corr, range(n_pt_unnan), max_workers=_n_para, chunksize=chunksize))
         else:
             p = q.Pool(_n_para)
             correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
