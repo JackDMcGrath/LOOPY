@@ -34,7 +34,7 @@ Outputs in GEOCml*/ (downsampled if indicated):
 =====
 Usage
 =====
-LiCSBAS02_ml_prep.py -i GEOCdir [-o GEOCmldir] [-n nlook] [--freq float] [--n_para int]
+LiCSBAS02_ml_prep.py -i GEOCdir [-o GEOCmldir] [-n nlook] [--freq float] [--n_para int] [--plot_cc]
 
  -i  Path to the input GEOC dir containing stack of geotiff data
  -o  Path to the output GEOCml dir (Default: GEOCml[nlook])
@@ -42,10 +42,13 @@ LiCSBAS02_ml_prep.py -i GEOCdir [-o GEOCmldir] [-n nlook] [--freq float] [--n_pa
  --freq    Radar frequency in Hz (Default: 5.405e9 for Sentinel-1)
            (e.g., 1.27e9 for ALOS, 1.2575e9 for ALOS-2/U, 1.2365e9 for ALOS-2/{F,W})
  --n_para  Number of parallel processing (Default: # of usable CPU)
-
+ --plot_cc Plot coherence png image
+ 
 """
 #%% Change log
 '''
+v1.7.5  20230803 Jack McGrath, Uni Leeds
+ - Add cc png option
 v1.7.4b 20211111 Milan Lazecky, UniLeeds
  - fix for rerunning
 v1.7.4 20201119 Yu Morishita, GSI
@@ -116,13 +119,14 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     ### For parallel processing
-    global ifgdates2, geocdir, outdir, nlook, n_valid_thre, cycle, cmap_wrap
+    global ifgdates2, geocdir, outdir, nlook, n_valid_thre, cycle, cmap_wrap, plot_cc, cmap_cc
 
 
     #%% Set default
     geocdir = []
     outdir = []
     nlook = 1
+    plot_cc = False
     radar_freq = 5.405e9
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -130,6 +134,7 @@ def main(argv=None):
         n_para = multi.cpu_count()
 
     cmap_wrap = SCM.romaO
+    cmap_cc = SCM.batlow
     cycle = 3
     n_valid_thre = 0.5
     q = multi.get_context('fork')
@@ -138,7 +143,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hi:o:n:", ["help", "freq=", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hi:o:n:", ["help", "plot_cc", "freq=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -155,6 +160,8 @@ def main(argv=None):
                 radar_freq = float(a)
             elif o == '--n_para':
                 n_para = int(a)
+            elif o == '--plot_cc':
+                plot_cc = True
 
         if not geocdir:
             raise Usage('No GEOC directory given, -d is not optional!')
@@ -457,6 +464,11 @@ def convert_wrapper(i):
     cc.tofile(ccfile)
 
     ### Make png
+    if plot_cc:
+        ccpngfile = os.path.join(ifgdir1, ifgd+'.cc.png')
+        cc = cc.astype(np.float32)
+        cc[np.where(np.isnan(unw))] = np.nan
+        plot_lib.make_im_png(cc / 255, ccpngfile, cmap_cc, ifgd+'.cc', vmin=0.03, vmax=1, cbar=True, logscale=True)
     unwpngfile = os.path.join(ifgdir1, ifgd+'.unw.png')
     plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), unwpngfile, cmap_wrap, ifgd+'.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 

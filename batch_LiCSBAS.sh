@@ -34,7 +34,8 @@ order_op03_05="03 04 05"	# can change order e.g., 05 03 04
 do03op_GACOS="y"	# y/n
 do04op_mask="n"	# y/n
 do05op_clip="n"	# y/n
-p04_mask_coh_thre=""	# e.g. 0.2
+p04_mask_coh_thre=""	# e.g. 0.2 Mask based off average coherence
+p04_mask_ifg_coh_thre="" #e.g 0.01 Mask based of IFG coherence
 p04_mask_range=""	# e.g. 10:100/20:200 (ix start from 0)
 p04_mask_range_file=""	# Name of file containing range list
 p04_poly_mask_file="" # Name of file containing polymask (x1,y1,x2,y2,x3,y3....)
@@ -82,6 +83,7 @@ p02_GEOCdir=""	# default: GEOC
 p02_GEOCmldir=""	# default: GEOCml$nlook
 p02_freq=""	# default: 5.405e9 Hz
 p02_n_para=""   # default: # of usable CPU
+p02_cc_pngs="y"  # y/n default: 'n'
 p03_inGEOCmldir=""	# default: $GEOCmldir
 p03_outGEOCmldir_suffix="" # default: GACOS
 p03_fillhole="y"	# y/n. default: n
@@ -153,6 +155,7 @@ if [ $start_step -le 02 -a $end_step -ge 02 ];then
   if [ ! -z $p02_freq ];then p02_op="$p02_op --freq $p02_freq"; fi
   if [ ! -z $p02_n_para ];then p02_op="$p02_op --n_para $p02_n_para";
   elif [ ! -z $n_para ];then p02_op="$p02_op --n_para $n_para";fi
+  if [ $p02_cc_pngs == "y" ]; then p02_op="$p02_op --plot_cc"; fi
 
   if [ $check_only == "y" ];then
     echo "LiCSBAS02_ml_prep.py $p02_op"
@@ -200,6 +203,7 @@ if [ $step -eq 04 -a $start_step -le 04 -a $end_step -ge 04 ];then
       else outGEOCmldir="${inGEOCmldir}mask"; fi
     p04_op="$p04_op -o $outGEOCmldir"
     if [ ! -z $p04_mask_coh_thre ];then p04_op="$p04_op -c $p04_mask_coh_thre"; fi
+    if [ ! -z $p04_mask_ifg_coh_thre ]; then p04_op="$p04_op -s $p04_mask_ifg_coh_thre"; fi
     if [ ! -z $p04_mask_range ];then p04_op="$p04_op -r $p04_mask_range"; fi
     if [ ! -z $p04_mask_range_file ];then p04_op="$p04_op -f $p04_mask_range_file"; fi
     if [ ! -z $p04_poly_mask_file ];then p04_op="$p04_op -p $p04_poly_mask_file"; fi
