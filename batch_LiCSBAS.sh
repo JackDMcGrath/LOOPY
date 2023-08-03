@@ -19,7 +19,6 @@
 start_step="1"	# 01-05, 11-16
 end_step="5"	# 01-05, 11-16
 
-cometdev="0" # '0' no nullify, '1' nullify, '2' nullify and no resid pngs
 nlook="10"	# multilook factor, used in step02
 GEOCmldir="GEOCml${nlook}"	# If start from 11 or later after doing 03-05, use e.g., GEOCml${nlook}GACOSmaskclip
 n_para="5" # Number of parallel processing in step 02-05,12,13,16. default: number of usable CPU
