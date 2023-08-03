@@ -43,8 +43,12 @@ GEOCdir=GEOCml${n_looks}
 curdir=`pwd`
 FRAME=`echo "${curdir##*/}" | awk '{print substr($0, 1, 17)}'`
 
-if [ -f splitdates.dates ]; then
-  rm -f splitdates.dates
+if [ -f splitdates.txt ]; then
+  rm -f splitdates.txt
+fi
+
+if [ -f splitdirs.txt ]; then
+  rm -f splitdirs.txt
 fi
 
 echo 20141001 > splitdates.txt
