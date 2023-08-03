@@ -116,13 +116,14 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     ### For parallel processing
-    global ifgdates2, geocdir, outdir, nlook, n_valid_thre, cycle, cmap_wrap
+    global ifgdates2, geocdir, outdir, nlook, n_valid_thre, cycle, cmap_wrap, plot_cc
 
 
     #%% Set default
     geocdir = []
     outdir = []
     nlook = 1
+    plot_cc = False
     radar_freq = 5.405e9
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -138,7 +139,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hi:o:n:", ["help", "freq=", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hi:o:n:", ["help", "plot_cc", "freq=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -155,6 +156,8 @@ def main(argv=None):
                 radar_freq = float(a)
             elif o == '--n_para':
                 n_para = int(a)
+            elif o == 'plot_cc':
+                plot_cc = True
 
         if not geocdir:
             raise Usage('No GEOC directory given, -d is not optional!')
@@ -457,6 +460,9 @@ def convert_wrapper(i):
     cc.tofile(ccfile)
 
     ### Make png
+    if plot_cc:
+        ccpngfile = os.path.join(ifgdir1, ifgd+'.cc.png')
+        plot_lib.make_im_png(cc / 255, ccpngfile, 'Greys_r', ifgd+'.cc', vmin=0, vmax=1, cbar=False)
     unwpngfile = os.path.join(ifgdir1, ifgd+'.unw.png')
     plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), unwpngfile, cmap_wrap, ifgd+'.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
