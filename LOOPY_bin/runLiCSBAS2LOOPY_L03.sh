@@ -117,7 +117,7 @@ L01dir=${GEOCdir}L01
 
 LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --reset --n_para ${n_para}
 
-if [ -z $splitdate ]; then
+if [ ! -z $splitdate ]; then
   echo ' '
   echo '############################'
   echo '#### Splitting Timeseries around '${splitdate}
