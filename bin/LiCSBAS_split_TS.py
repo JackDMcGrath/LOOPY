@@ -15,7 +15,6 @@ import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_loop_lib as loop_lib
 import LiCSBAS_plot_lib as plot_lib
 
-
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
     Use a multiple inheritance approach to use features of both classes.
@@ -24,6 +23,11 @@ class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescri
     '''
     pass
 
+class Usage(Exception):
+    """Usage context manager"""
+    def __init__(self, msg):
+        self.msg = msg
+
 def start():
     global start_time
     # intialise and print info on screen
@@ -31,7 +35,6 @@ def start():
     ver="1.0"; date=20230601; author="Jack McGrath"
     print("\n{} ver{} {} {}".format(os.path.basename(sys.argv[0]), ver, date, author), flush=True)
     print("{} {}".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
-
 
 def init_args():
     global args, mergeflag
@@ -228,7 +231,6 @@ def merge_split_dir():
         for i in unassigned:
             print('{}'.format(i), file=f)
 
-
 def merge_kaikoura_dir():
     print('Merging Timeseries into pre- and post- kaikoura')
     unassigned = ifgdates.copy()
@@ -374,7 +376,7 @@ def merge_coseismic_dir():
                 pair = os.path.basename(ifg)
 
                 split_ifg.append(pair)
-                if np.mod(ix + 1, 10) == 0:
+                if np.mod(ix + 1, 50) == 0:
                     print('{} / {}'.format(ix + 1, len(ifgfiles)))
                 ifgdir = os.path.join(splitdir, pair)
                 ifgmerge = os.path.join(mergedir, pair)
