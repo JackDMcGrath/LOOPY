@@ -116,7 +116,7 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     ### For parallel processing
-    global ifgdates2, geocdir, outdir, nlook, n_valid_thre, cycle, cmap_wrap, plot_cc
+    global ifgdates2, geocdir, outdir, nlook, n_valid_thre, cycle, cmap_wrap, plot_cc, cmap_cc
 
 
     #%% Set default
@@ -131,6 +131,7 @@ def main(argv=None):
         n_para = multi.cpu_count()
 
     cmap_wrap = SCM.romaO
+    cmap_cc = SCM.batlow
     cycle = 3
     n_valid_thre = 0.5
     q = multi.get_context('fork')
@@ -462,7 +463,7 @@ def convert_wrapper(i):
     ### Make png
     if plot_cc:
         ccpngfile = os.path.join(ifgdir1, ifgd+'.cc.png')
-        plot_lib.make_im_png(cc / 255, ccpngfile, 'Greys_r', ifgd+'.cc', vmin=0.01, vmax=1, cbar=True, logscale=True)
+        plot_lib.make_im_png(cc / 255, ccpngfile, cmap_cc, ifgd+'.cc', vmin=0.01, vmax=1, cbar=True, logscale=True)
     unwpngfile = os.path.join(ifgdir1, ifgd+'.unw.png')
     plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), unwpngfile, cmap_wrap, ifgd+'.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
