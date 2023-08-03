@@ -428,7 +428,7 @@ def main(argv=None):
 def download_wrapper(args):
     i, ifgd, n_dl, url_data, path_data = args
     dir_data = os.path.dirname(path_data)
-    print('  Donwnloading {} ({}/{})...'.format(ifgd, i+1, n_dl), flush=True)
+    print('  Downloading {} ({}/{})...'.format(ifgd, i+1, n_dl), flush=True)
     if not os.path.exists(dir_data): os.mkdir(dir_data)
     tools_lib.download_data(url_data, path_data)
     return
