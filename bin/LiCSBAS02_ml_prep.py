@@ -34,7 +34,7 @@ Outputs in GEOCml*/ (downsampled if indicated):
 =====
 Usage
 =====
-LiCSBAS02_ml_prep.py -i GEOCdir [-o GEOCmldir] [-n nlook] [--freq float] [--n_para int]
+LiCSBAS02_ml_prep.py -i GEOCdir [-o GEOCmldir] [-n nlook] [--freq float] [--n_para int] [--plot_cc]
 
  -i  Path to the input GEOC dir containing stack of geotiff data
  -o  Path to the output GEOCml dir (Default: GEOCml[nlook])
@@ -42,10 +42,13 @@ LiCSBAS02_ml_prep.py -i GEOCdir [-o GEOCmldir] [-n nlook] [--freq float] [--n_pa
  --freq    Radar frequency in Hz (Default: 5.405e9 for Sentinel-1)
            (e.g., 1.27e9 for ALOS, 1.2575e9 for ALOS-2/U, 1.2365e9 for ALOS-2/{F,W})
  --n_para  Number of parallel processing (Default: # of usable CPU)
-
+ --plot_cc Plot coherence png image
+ 
 """
 #%% Change log
 '''
+v1.7.5  20230803 Jack McGrath, Uni Leeds
+ - Add cc png option
 v1.7.4b 20211111 Milan Lazecky, UniLeeds
  - fix for rerunning
 v1.7.4 20201119 Yu Morishita, GSI
