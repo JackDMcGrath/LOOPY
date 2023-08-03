@@ -155,6 +155,8 @@ def main(argv=None):
             raise Usage('No {} dir exists!'.format(in_dir))
         elif not os.path.exists(os.path.join(in_dir, 'slc.mli.par')):
             raise Usage('No slc.mli.par file exists in {}!'.format(in_dir))
+        if coh_thre and cc_ifg_thre:
+            print('Masking based of average then individual coherence. May be better to run seperately...')
 
     except Usage as err:
         print("\nERROR:", file=sys.stderr, end='')
