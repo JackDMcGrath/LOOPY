@@ -298,6 +298,7 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
   if [ ! -z $p12_rm_ifg_list ];then p12_op="$p12_op --rm_ifg_list $p12_rm_ifg_list"; fi
   if [ ! -z $p12_n_para ];then p12_op="$p12_op --n_para $p12_n_para";
   elif [ ! -z $n_para ];then p12_op="$p12_op --n_para $n_para";fi
+  if [ $p12_ignore_comp == "y" ]; then p120_op="$p120_op --ignore_comp"; fi
 
 	if [ ! -z $p12_TSdir ];then
     p12_op="$p12_op -t $p12_TSdir"
@@ -305,13 +306,6 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
   else
     p120_op="$p120_op -t TS_$GEOCmldir";
   fi
-
-	if [ ! -z $p12_loop_thre ];then p12_op="$p12_op -l $p12_loop_thre"; fi
-	if [ $p12_multi_prime == "y" ];then p12_op="$p12_op --multi_prime"; fi
-	if [ ! -z $p12_rm_ifg_list ];then p12_op="$p12_op --rm_ifg_list $p12_rm_ifg_list"; fi
-	if [ ! -z $p12_n_para ];then p12_op="$p12_op --n_para $p12_n_para";
-  if [ $p12_ignore_comp == "y" ]; then p120_op="$p120_op --ignore_comp";
-	elif [ ! -z $n_para ];then p12_op="$p12_op --n_para $n_para";fi
 
 	if [ $check_only == "y" ];then
     if [ $p12_null_noloop == "y" ]; then
