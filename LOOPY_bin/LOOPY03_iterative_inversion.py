@@ -364,9 +364,10 @@ def main(argv=None):
                 elapse = time.time() - begin
                 print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / (ii + 1)) * n_pt_unnan))
     else:
-        p = q.Pool(_n_para)
-        correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
-        p.close()
+        print('with {} parallel processing...'.format(_n_para), flush=True)
+        #p = q.Pool(_n_para)
+        #correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
+        #p.close()
 
     elapsed_time = time.time() - start
     hour = int(elapsed_time / 3600)
