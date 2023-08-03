@@ -50,7 +50,8 @@ LiCSBAS_plot_ts.py [-i cum[_filt].h5] [--i2 cum*.h5] [-m yyyymmdd] [-d results_d
               (Default: 99 %)
  --ylen       Y Length of time series plot in mm (Default: auto)
  --ts_png     Output png file of time series plot (not display interactive viewers)
- --seismic    flag to read in seismic velocities
+ --seismic    Flag to read in seismic velocities. Requires LiCSBAS_seismic_inv.py to 
+              have been run first
 
 """
 #%% Change log
