@@ -269,23 +269,12 @@ def main(argv=None):
             ml_outFactor = ml_factor * ml_inFactor
             corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMaskml{}'.format(ml_outFactor))
 
-    if not os.path.exists(tsadir):
-        os.mkdir(tsadir)
-
     if not os.path.exists(corrdir):
         os.mkdir(corrdir)
 
-    netdir = os.path.join(tsadir, 'network')
-    if not os.path.exists(netdir):
-        os.mkdir(netdir)
-
     infodir = os.path.join(tsadir, 'info')
-    if not os.path.exists(infodir):
-        os.mkdir(infodir)
 
     resultsdir = os.path.join(tsadir, 'results')
-    if not os.path.exists(resultsdir):
-        os.mkdir(resultsdir)
 
     if reset:
         print('Removing Previous Masks')
@@ -554,6 +543,9 @@ def main(argv=None):
 
     # %% Create new EQA and mli_par files if multilooking
     if not fullres and ml_factor != 1:
+        if not os.path.exists(tsadir):
+          os.mkdir(tsadir)
+
         mlipar = os.path.join(corrdir, 'slc.mli.par')
         dempar = os.path.join(corrdir, 'EQA.dem_par')
         eqapar = os.path.join(ifgdir, 'EQA.dem_par')
