@@ -49,7 +49,12 @@ while read line
 do
   param=$(echo $line | awk '{print $1}')
   value=$(echo $line | awk '{print $2}')
-
+  if [[ $param == order_op03_05 ]]; then
+    value1=$(echo $line | awk '{print $2}')
+    value2=$(echo $line | awk '{print $3}')
+    value3=$(echo $line | awk '{print $4}')
+    value="$value1 $value2 $value3"
+  fi
   ### Comment line
   if [[ $param == \#* ]];then
     echo "$param $value is comment"
