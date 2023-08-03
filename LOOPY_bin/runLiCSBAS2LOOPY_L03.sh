@@ -95,7 +95,7 @@ edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
 
 echo ' '
 echo '############################'
-echo '#### Running LiCSBAS with LOOPY Correction for '${FRAME}
+echo '#### Running LiCSBAS with LOOPY Correction for '${FRAME}', splitting at '${splitdate}
 echo '############################'
 echo ' '
 
@@ -192,7 +192,7 @@ if [ -z $splitdate ]; then
 
 else
 
-    echo GEOCmldir L01dir > params.txt
+    echo GEOCmldir $L01dir > params.txt
     echo start_step 11 >> params.txt
     echo end_step 12 >> params.txt
     echo p12_null_both y >> params.txt
