@@ -109,6 +109,7 @@ p13_gamma=""	# default: 0.0001
 p13_n_para=""	# default: # of usable CPU
 p13_n_unw_r_thre=""	# defualt: 1
 p13_keep_incfile="y"	# y/n. default: n
+p13_no_pngs="n" # y/n default: n
 p14_TSdir=""    # default: TS_$GEOCmldir
 p14_mem_size="" # default: 4000 (MB)
 p15_TSdir=""    # default: TS_$GEOCmldir
@@ -444,3 +445,4 @@ if [ $check_only == "y" ];then
   echo "Above commands will run when you change check_only to \"n\""
   echo ""
 fi
+
