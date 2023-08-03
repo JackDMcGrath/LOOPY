@@ -81,7 +81,7 @@ if [ -f $FRAME.mask ]; then
   echo p04_mask_range_file $FRAME.mask >> params.txt
 fi
 
-if [ $start_step -le 03 ]; then
+if [ $LiCSBAS_start -le 03 ]; then
   GEOCdir=${GEOCdir}GACOS
 fi
 
