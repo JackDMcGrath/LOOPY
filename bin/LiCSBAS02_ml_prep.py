@@ -156,7 +156,7 @@ def main(argv=None):
                 radar_freq = float(a)
             elif o == '--n_para':
                 n_para = int(a)
-            elif o == 'plot_cc':
+            elif o == '--plot_cc':
                 plot_cc = True
 
         if not geocdir:
