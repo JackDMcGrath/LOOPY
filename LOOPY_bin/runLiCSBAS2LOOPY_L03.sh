@@ -45,12 +45,11 @@ FRAME=`echo "${curdir##*/}" | awk '{print substr($0, 1, 17)}'`
 
 if [ -f splitdates.dates ]; then
   rm -f splitdates.dates
-  touch splitdates.dates
 fi
 
 echo 20141001 > splitdates.txt
-echo $splitdate >> split_dates.txt
-echo 20230101 >> split_dates.txt
+echo $splitdate >> splitdates.txt
+echo 20230101 >> splitdates.txt
 
 ####################
 ## Prep batch_LiCSBAS
@@ -98,7 +97,7 @@ echo ' '
 
 echo ' '
 echo '############################'
-echo '#### Clipping, masking, and correcting data'
+echo '#### Clipping, masking, and correcting data to '${GEOCdir}
 echo '############################'
 echo ' '
 
@@ -106,7 +105,7 @@ echo ' '
 
 echo ' '
 echo '############################'
-echo '#### Running LOOPY01 to identify hard errors'
+echo '#### Running LOOPY01 to identify hard errors in '${GEOCdir}
 echo '############################'
 echo ' '
 
@@ -121,7 +120,7 @@ if [ -z $splitdate ]; then
   echo '############################'
   echo ' '
 
-  LiCSBAS_split_TS.py -d $L01dir -s split_dates.txt -k # Split data into smaller, more manageable chunks, labelled base dof Earthquake
+  LiCSBAS_split_TS.py -d $L01dir -s splitdates.txt -k # Split data into smaller, more manageable chunks, labelled base dof Earthquake
 
   n_split=$((`wc -l splitdirs.txt | awk '{print $1}'` - 1))
 
@@ -132,13 +131,14 @@ if [ -z $splitdate ]; then
     echo GEOCmldir $splitdir > params.txt
     echo start_step 11 >> params.txt
     echo end_step 12 >> params.txt
+    echo p12_nullify n >> params.txt
     echo p12_null_both y >> params.txt
 
     edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
 
     echo ' '
     echo '#####################'
-    echo '#### Running all nullification for '$splitdir
+    echo '#### Running null_both for '$splitdir
     echo '#####################'
     echo ' '
 
@@ -244,6 +244,8 @@ echo end_step 15 >> params.txt
 echo p12_nullify n >> params.txt
 
 edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
+
+./batch_LiCSBAS.sh
 
 echo ' '
 echo '#####################'
