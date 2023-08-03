@@ -24,11 +24,12 @@ Outputs in GEOCml*mask/
 =====
 Usage
 =====
-LiCSBAS04op_mask_unw.py -i in_dir -o out_dir [-c coh_thre] [-r x1:x2/y1:y2] [-f txtfile] [--n_para int]
+LiCSBAS04op_mask_unw.py -i in_dir -o out_dir [-c coh_thre] [-s cc_ifg_thre] [-r x1:x2/y1:y2] [-f txtfile] [--n_para int]
 
  -i  Path to the GEOCml* dir containing stack of unw data.
  -o  Path to the output dir.
  -c  Threshold for average coherence (e.g., 0.2)
+ -s  Threshold to individual coherence (e.g., 0.1)
  -r  Range to be masked. Index starts from 0.
      0 for x2/y2 means all. (i.e., 0:0/0:0 means whole area).
  -f  Text file of a list of ranges to be masked (format is x1:x2/y1:y2)
@@ -40,6 +41,8 @@ LiCSBAS04op_mask_unw.py -i in_dir -o out_dir [-c coh_thre] [-r x1:x2/y1:y2] [-f 
 """
 #%% Change log
 '''
+20230803 Jack McGrath
+ - add option to individually mask IFGs based on coh
 20220121 Andrew Watson
  - added option to mask polygons
 v1.3.5 20210105 Yu Morishita, GSI
@@ -94,13 +97,14 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     ### For parallel processing
-    global ifgdates2, in_dir, out_dir, length, width, bool_mask, cycle, cmap_wrap
+    global ifgdates2, in_dir, out_dir, length, width, bool_mask, cycle, cmap_wrap, cc_ifg_thre
 
 
     #%% Set default
     in_dir = []
     out_dir = []
     coh_thre = []
+    cc_ifg_thre = []
     ex_range_str = []
     ex_range_file = []
     poly_file = []
@@ -130,6 +134,8 @@ def main(argv=None):
                 out_dir = a
             elif o == '-c':
                 coh_thre = float(a)
+            elif o == '-s':
+                cc_ifg_thre = float(a)
             elif o == '-r':
                 ex_range_str = a
             elif o == '-f':
@@ -329,6 +335,16 @@ def mask_wrapper(ifgix):
         
     ### Mask
     unw[bool_mask] = np.nan
+
+    if cc_ifg_thre:
+        ccfile = os.path.join(in_dir, ifgd, ifgd+'.cc')
+        if os.path.getsize(ccfile) == length*width:
+            coh = io_lib.read_img(ccfile, length, width, np.uint8)
+            coh = coh.astype(np.float32)/255
+        else:
+            coh = io_lib.read_img(ccfile, length, width)
+            coh[np.isnan(coh)] = 0 # Fill nan with 0
+        unw[np.where(coh < cc_ifg_thre)] = np.nan
 
     ### Output
     out_dir1 = os.path.join(out_dir, ifgd)
