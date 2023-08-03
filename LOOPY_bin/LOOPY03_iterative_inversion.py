@@ -37,7 +37,7 @@ Outputs in GEOCml*LoopMask/:
 =====
 Usage
 =====
-LOOPY03_correction_inversion.py -d ifgdir [-t tsadir] [-c corrdir] [--gamma float] [--n_para int] [--n_unw_r_thre float] [--nanUncorr] [--coast] [--dilation] [--randpix] [--mask]
+LOOPY03_iteration_inversion.py -d ifgdir [-t tsadir] [-c corrdir] [--gamma float] [--n_para int] [--n_unw_r_thre float]
 
 -d             Path to the GEOCml* dir containing stack of unw data
 -t             Path to the output TS_GEOCml* dir
@@ -48,12 +48,6 @@ LOOPY03_correction_inversion.py -d ifgdir [-t tsadir] [-c corrdir] [--gamma floa
                is ratio to the number of images; i.e., 1.5*n_im) Larger number
                (e.g. 2.5) makes processing faster but result sparser.
                (Default: 1 and 0.5 for C- and L-band, respectively)
---coast        Only run correction on the coastlines and don't round inversions - I.E. FORCING ALL LOOPS TO BE CLOSED
---dilation     Number of dilations to be carried out when searching for the coast (Default: 1)
---randpix      Number of pixels to randomly select for inversion
---merge        Invert unmasked pixels
-
---nanUncorr    Nan anything that can't be inverted due to no loops
 """
 # %% Change log
 '''
@@ -106,10 +100,9 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     # For parallel processing
-    global n_para_gap, G, Aloop, imdates, incdir, ifgdir, length, width,\
-        coef_r2m, ifgdates, ref_unw, cycle, keep_incfile, resdir, restxtfile, \
+    global G, Aloop, imdates, ifgdir, length, width, ifgdates, cycle, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull, corrdir, nanUncorr, coast, land, nrandpix, n_pix_inv, unw_all, unw_agg, unw_con, begin, n_para, plotdir, pix_plot, \
+        n_ifg, corrFull, corrdir, nanUncorr, nrandpix, unw_all, unw_agg, unw_con, begin, n_para, plotdir, pix_plot, \
         pix_output
 
     # %% Set default
@@ -117,12 +110,6 @@ def main(argv=None):
     corrdir = []
     tsadir = []
     reset = True
-    nanUncorr = False
-    coast = False
-    dilation_its = 1
-    nrandpix = 0
-    merge = False
-    iterative = True
     pix_plot = False
     pix_output = 1000
 
@@ -141,8 +128,8 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:c:",
-                                       ["help", "noreset", "nanUncorr", "gamma=", "coast", "pix_pngs",
-                                        "dilation=", "randpix=", "n_unw_r_thre=", "n_para=", "merge="])
+                                       ["help", "noreset", "nanUncorr", "gamma=", "pix_pngs",
+                                        "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -163,18 +150,6 @@ def main(argv=None):
                 n_unw_r_thre = float(a)
             elif o == '--n_para':
                 n_para = int(a)
-            elif o == '--nanUncorr':
-                nanUncorr = True
-            elif o == '--coast':
-                coast = True;
-            elif o == '--dilation':
-                dilation_its = int(a)
-            elif o == '--randpix':
-                nrandpix = int(a)
-            elif o == '--merge':
-                nrandpix = int(a)
-            elif o == '--iterate':
-                iterative = True
             elif o == '--pix_pngs':
                 pix_plot = False
 
@@ -207,7 +182,8 @@ def main(argv=None):
 
     if not corrdir:
         corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'L1')
-        plotdir = os.path.join(corrdir, 'plots')
+    
+    plotdir = os.path.join(corrdir, 'plots')
 
     if not os.path.isdir(tsadir):
         print('\nNo {} exists!'.format(tsadir), file=sys.stderr)
@@ -215,7 +191,6 @@ def main(argv=None):
 
     if not os.path.exists(corrdir):
         os.mkdir(corrdir)
-
 
     if reset:
         print('Removing Previous Masks')
@@ -235,7 +210,6 @@ def main(argv=None):
 
     tsadir = os.path.abspath(tsadir)
     infodir = os.path.join(tsadir, 'info')
-    resultsdir = os.path.join(tsadir, 'results')
 
     bad_ifg11file = os.path.join(infodir, '11bad_ifg.txt')
     reffile = os.path.join(infodir, 'ref.txt')
@@ -303,10 +277,7 @@ def main(argv=None):
     n_ifg = len(ifgdates)
     n_ifg_bad = len(set(bad_ifg11))
     n_im = len(imdates)
-    if coast:
-        n_unw_thre = 1
-    else:
-        n_unw_thre = int(n_unw_r_thre * n_im)
+    n_unw_thre = int(n_unw_r_thre * n_im)
 
     # Make 13used_image.txt
     imfile = os.path.join(infodir, 'L03used_image.txt')
@@ -318,11 +289,6 @@ def main(argv=None):
     G = inv_lib.make_sb_matrix(ifgdates)
     Aloop = loop_lib.make_loop_matrix(ifgdates)
     n_loop = Aloop.shape[0]
-
-    # Extract no loop ifgs
-    ns_loop4ifg = np.abs(Aloop).sum(axis=0)
-    ixs_ifg_no_loop = np.where(ns_loop4ifg == 0)[0]
-    no_loop_ifg = [ifgdates[ix] for ix in ixs_ifg_no_loop]
 
     # %% Display and output settings & parameters
     print('')
@@ -336,9 +302,6 @@ def main(argv=None):
     print('')
     print('Reference area (X/Y)   : {}:{}/{}:{}'.format(refx1, refx2, refy1, refy2))
     print('Gamma value            : {}'.format(gamma), flush=True)
-
-    if coast:
-        print('Dilation Iterations    : {}'.format(dilation_its), flush=True)
 
     # %% Read data in parallel
     _n_para = n_para if n_para < n_ifg else n_ifg
@@ -395,11 +358,8 @@ def main(argv=None):
     # %% Unwrapping corrections in a pixel by pixel basis (to be parallelised)
     print('\n Unwrapping Correction inversion for {0:.0f} pixels in {1} loops...\n'.format(n_pt_unnan, n_loop), flush=True)
 
-    n_para_tmp = n_para
-    n_para = 1 # Trust me, I've done the tests. 1 is faster
-
     begin = time.time()
-    if n_para_tmp == 1:
+    if _n_para == 1:
         print('with no parallel processing...', flush=True)
         for ii in range(n_pt_unnan):
             correction[ii, :] = unw_loop_corr(ii)
@@ -410,8 +370,6 @@ def main(argv=None):
         p = q.Pool(_n_para)
         correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
         p.close()
-
-    n_para = n_para_tmp
 
     elapsed_time = time.time() - start
     hour = int(elapsed_time / 3600)
@@ -493,11 +451,7 @@ def read_unw(i):
         unwfile = os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '_orig.unw')
         unw1 = np.fromfile(unwfile, dtype=np.float32).reshape((length, width))
     unw1[unw1 == 0] = np.nan  # Fill 0 with nan
-    # buff = 0  # Buffer to increase reference area until a value is found
-    # while np.all(np.isnan(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])):
-    #     buff += 1
-    # ref_unw = np.nanmean(unw1[refy1 - buff:refy2 + buff, refx1 - buff:refx2 + buff])
-    # unw1 = unw1 - ref_unw
+
 
     return unw1
 
@@ -692,8 +646,6 @@ def apply_correction(i):
     unwfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw')
     unwpngfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw.png')
     corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.L1_compare.png')
-    corrfiltpng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.L1_compareFilt.png')
-    corrfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.corr')
 
     # Convert correction to radians
     unw1 = unw[i, :, :]
@@ -708,12 +660,8 @@ def apply_correction(i):
                'Corrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(corr_unw.flatten() ** 2))),
                'Modulo nPi',
                'L1 Correction (nPi)']
-    if not coast:
-        loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
-    else:
-        corr =  corrFull[i, :, :]
-        corr[np.where(land != 3)] = np.nan
-        loopy_lib.make_compare_png(unw1, corr_unw, npi, corr, corrcomppng, titles4, 3)
+
+    loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
 
     plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
