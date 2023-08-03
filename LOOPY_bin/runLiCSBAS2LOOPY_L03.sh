@@ -115,7 +115,7 @@ echo ' '
 
 L01dir=${GEOCdir}L01
 
-#LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --reset --n_para ${n_para}
+LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --reset --n_para ${n_para}
 
 if [ ! -z $splitdate ]; then
   echo ' '
@@ -177,8 +177,8 @@ if [ ! -z $splitdate ]; then
   done
 
   ## Rename splits since we're only running 1 pre and 1 post seismic network
-  mv ${L01dir}SplitPre1L03 ${L01dir}MergePre
-  mv ${L01dir}SplitPos1L03 ${L01dir}MergePos
+  mv ${L01dir}SplitPre1L03 ${L01dir}mergePre
+  mv ${L01dir}SplitPos1L03 ${L01dir}mergePos
 
 
   echo ' '
@@ -187,7 +187,7 @@ if [ ! -z $splitdate ]; then
   echo '#####################'
   echo ' '
 
-  LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s ../split_dates.txt -c ${L01dir} --merge -e
+  LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s splitdates.txt -c ${L01dir} --merge -e
 
   GEOCdir=${L01dir}mergeCos
 
