@@ -210,6 +210,10 @@ def main(argv=None):
             raise Usage('No {} dir exists!'.format(ifgdir))
         elif not os.path.exists(os.path.join(ifgdir, 'slc.mli.par')):
                 raise Usage('No slc.mli.par file exists in {}!'.format(ifgdir))
+        elif nullify and null_both:
+            raise Usage('--nullify and --null_both selected. Pick only one option')
+        elif nullmask and null_both:
+            raise Usage('--nullmask and --null_both selected. Pick only one option')
         if rm_ifg_list and not os.path.exists(rm_ifg_list):
             raise Usage('No {} exists!'.format(rm_ifg_list))
 
