@@ -36,13 +36,14 @@ with warnings.catch_warnings(): ## To silence user warning
     mpl.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import dates as mdates
+from matplotlib import colors
 
 import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_inv_lib as inv_lib
 
 
 #%%
-def make_im_png(data, pngfile, cmap, title, vmin=None, vmax=None, cbar=True, ref_window=[None, None, None, None]):
+def make_im_png(data, pngfile, cmap, title, vmin=None, vmax=None, cbar=True, ref_window=[None, None, None, None], logscale=False):
     """
     Make png image.
     cmap can be 'insar'. To wrap data, np.angle(np.exp(1j*x/cycle)*cycle)
@@ -64,7 +65,10 @@ def make_im_png(data, pngfile, cmap, title, vmin=None, vmax=None, cbar=True, ref
     fig, ax = plt.subplots(1, 1, figsize=(figsizex, figsizey))
     plt.tight_layout()
     
-    im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=cmap, interpolation=interp)
+    if logscale:
+        im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=cmap, interpolation=interp, norm=colors.LogNorm(vmin=0.001))
+    else:
+        im = ax.imshow(data, vmin=vmin, vmax=vmax, cmap=cmap, interpolation=interp)
 
     if ref_window[0] is not None:
         x1 = ref_window[0]
