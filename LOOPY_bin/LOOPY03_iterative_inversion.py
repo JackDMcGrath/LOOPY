@@ -652,7 +652,7 @@ def unw_loop_corr(ii):
             print('Error in plotting {}_all'.format(ii))
 
     if np.mod(ii, pix_output) == 0 or n_para == 1:
-        print('{}/{} {} iterations in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan,n_it, time.time() - commence, time.time() - begin))
+        print('{}/{} {} iterations for {} ifgs in {} loops in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan,n_it, ifg_tot, nLoops, time.time() - commence, time.time() - begin))
 
     return corr
 
