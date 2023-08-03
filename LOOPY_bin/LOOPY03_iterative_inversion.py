@@ -342,11 +342,11 @@ def main(argv=None):
     # %% Remove points with less valid data than n_unw_thre
     ix_unnan_pt = np.where(np.sum(~np.isnan(unw_all), axis=1) > n_unw_thre)[0]
     n_pt_unnan = len(ix_unnan_pt)
-    corrFull = np.zeros(unw_all.shape) * np.nan
+    corrFull = np.zeros(unw_all.shape)
     unw_all = unw_all[ix_unnan_pt, :]  # keep only data for pixels where n_unw > n_unw_thre
     unw_agg = unw_agg[ix_unnan_pt, :]  # keep only data for pixels where n_unw > n_unw_thre
     unw_con = unw_con[ix_unnan_pt, :]  # keep only data for pixels where n_unw > n_unw_thre
-    correction = np.zeros(unw_all.shape) * np.nan
+    correction = np.zeros(unw_all.shape)
 
     print('  {} / {} points removed due to not enough ifg data...'.format(n_pt_all - n_pt_unnan, n_pt_all), flush=True)
     # breakpoint()
