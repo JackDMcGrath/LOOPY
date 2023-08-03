@@ -79,7 +79,11 @@ def make_im_png(data, pngfile, cmap, title, vmin=None, vmax=None, cbar=True, ref
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.set_title(title)
-    if cbar: fig.colorbar(im)
+    if cbar:
+        cbar = fig.colorbar(im)
+        if logscale and vmax == 1:
+            cbar.set_ticks([0.05, 0.1, 0.2, 0.5, 1])
+            cbar.ax.set_yticklabels([0.05, 0.1, 0.2, 0.5, 1])
 
     plt.savefig(pngfile)
     plt.close()
