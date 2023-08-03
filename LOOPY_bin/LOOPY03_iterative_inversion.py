@@ -616,7 +616,6 @@ def unw_loop_corr(ii):
                 corr[solve_order[invIfg_ix]] += correction
         
         n_good = n_invert
-        time.sleep(0.2)
 
     if png_plot and np.mod(ii, pix_output) == 0:
         try:
