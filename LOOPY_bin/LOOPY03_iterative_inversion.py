@@ -62,31 +62,27 @@ v1.0.0 20230321 Jack McGrath, Uni of Leeds
 '''
 
 # %% Import
-import getopt
 import os
-import sys
+os.environ["OMP_NUM_THREADS"] = "1"
+    # Because np.linalg.lstsq use full CPU but not much faster than 1CPU.
+    # Instead parallelize by multiprocessing
 import re
+import SCM
+import sys
 import time
+import getopt
 import shutil
 import numpy as np
 import multiprocessing as multi
-import SCM
 import LOOPY_lib as loopy_lib
 import LiCSBAS_io_lib as io_lib
 import LiCSBAS_inv_lib as inv_lib
 import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_loop_lib as loop_lib
 import LiCSBAS_plot_lib as plot_lib
-from cvxopt import matrix
-from skimage import filters
-from skimage.morphology import disk
-from scipy.ndimage import binary_opening, binary_closing, binary_dilation
-from scipy.interpolate import NearestNDInterpolator
-from scipy.spatial import ConvexHull
-from skimage import feature
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-
+from cvxopt import matrix
 
 class Usage(Exception):
     """Usage context manager"""
@@ -134,10 +130,6 @@ def main(argv=None):
         n_para = len(os.sched_getaffinity(0))
     except:
         n_para = multi.cpu_count()
-
-    os.environ["OMP_NUM_THREADS"] = "1"
-    # Because np.linalg.lstsq use full CPU but not much faster than 1CPU.
-    # Instead parallelize by multiprocessing
 
     gamma = 0.001
     n_unw_r_thre = []
