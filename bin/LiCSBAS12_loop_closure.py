@@ -55,7 +55,7 @@ Outputs in TS_GEOCml*/ :
 Usage
 =====
 LiCSBAS12_loop_closure.py -d ifgdir [-t tsadir] [-l loop_thre] [--multi_prime]
- [--rm_ifg_list file] [--n_para int] [--nullify] [--nullmask] [--ref_approx lon/lat] [--skip_pngs] [--treat_as_bad]
+ [--rm_ifg_list file] [--n_para int] [--nullify] [--nullmask] [--null_both] [--ref_approx lon/lat] [--skip_pngs] [--treat_as_bad]
 
  -d  Path to the GEOCml* dir containing stack of unw data.
  -t  Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
@@ -64,13 +64,15 @@ LiCSBAS12_loop_closure.py -d ifgdir [-t tsadir] [-l loop_thre] [--multi_prime]
  --rm_ifg_list  Manually remove ifgs listed in a file
  --n_para  Number of parallel processing (Default: # of usable CPU)
  --nullify Nullify unw values causing loop residuals >pi, per-pixel
+ --null_both Run a normal LiCSBAS12, but also output conservatively and aggressively nulled data
  --ref_approx  Approximate geographic coordinates for reference area (lon/lat)
  --skip_pngs Do not generate png previews of loop closures (often takes long)
  --treat_as_bad When nullifying, nullify unless ALL loops are GOOD (default: Only nullify if ALL loops are bad)
 """
 #%% Change log
 '''
-v1.6.3 20220330 Milan Lazecky
+v1.6.4 20230803 Jack McGrath
+ - Add in aggressive nullification and null_both option (for usie with LPC inversion)
  - better choice of reference point - distance from centre (or given prelim ref point), and considering coherence
 v1.6.2 20211102 Milan Lazecky
  - nullify unw pixels with loop phase > pi
