@@ -50,12 +50,14 @@ p11_unw_thre=""	# default: 0.3
 p11_coh_thre=""	# default: 0.05
 p12_loop_thre="100"	# default: 1.5 rad
 p12_multi_prime="y"	# y/n. y recommended
-p12_nullify="n" # y/n
+p12_nullify="n" # y/n Nullify pixels that fail loop closure check [default "n"]
 p12_nullmask="n" # y/n
 p12_rm_ifg_list=""	# List file containing ifgs to be manually removed
-p12_null_noloop="n"
-p12_treat_as_bad="n"
-p13_null_noloop="n"
+p12_null_noloop="n" # y/n Remove pixels that have no loop before nullification
+p12_treat_as_bad="n" # y/n Conservative ("n", default) or aggressive ("y") nullification
+p12_null_both="n" # y/n Run both nullifications, and store orignal unw, aggressive and conservative nullifications
+p12_ignore_comp="y" # y/n Ignore connected components when selecting reference [default "n"]
+p13_null_noloop="n" # y/n Remove pixels that have no loop
 p15_coh_thre="0.05"	# default: 0.05
 p15_n_unw_r_thre="1.5"	# default: 1.5
 p15_vstd_thre="100"	# default: 100 mm/yr
@@ -285,8 +287,14 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
   if [ ! -z $p12_TSdir ];then p12_op="$p12_op -t $p12_TSdir"; fi
   if [ ! -z $p12_loop_thre ];then p12_op="$p12_op -l $p12_loop_thre"; fi
   if [ $p12_multi_prime == "y" ];then p12_op="$p12_op --multi_prime"; fi
-  if [ $p12_nullify == "y" ];then p12_op="$p12_op --nullify"; fi
+  if [ $p12_nullify == "y" ];then 
+    p12_op="$p12_op --nullify"; 
+    if [ $p12_treat_as_bad == "y" ]; then
+      p12_op="$p12_op --treat_as_bad";
+    fi
+  fi
   if [ $p12_nullmask == "y" ];then p12_op="$p12_op --nullmask"; fi
+  if [ $p12_null_both == "y" ]; then  p12_op="$p12_op --null_both"; fi
   if [ ! -z $p12_rm_ifg_list ];then p12_op="$p12_op --rm_ifg_list $p12_rm_ifg_list"; fi
   if [ ! -z $p12_n_para ];then p12_op="$p12_op --n_para $p12_n_para";
   elif [ ! -z $n_para ];then p12_op="$p12_op --n_para $n_para";fi
@@ -302,29 +310,21 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
 	if [ $p12_multi_prime == "y" ];then p12_op="$p12_op --multi_prime"; fi
 	if [ ! -z $p12_rm_ifg_list ];then p12_op="$p12_op --rm_ifg_list $p12_rm_ifg_list"; fi
 	if [ ! -z $p12_n_para ];then p12_op="$p12_op --n_para $p12_n_para";
+  if [ $p12_ignore_comp == "y" ]; then p120_op="$p120_op --ignore_comp";
 	elif [ ! -z $n_para ];then p12_op="$p12_op --n_para $n_para";fi
-
-  if [ $cometdev -eq 1 ]; then
-    extra='--nullify'
-    if [ $p12_treat_as_bad == "y" ]; then
-      extra="${extra} --treat_as_bad"
-    fi
-  else
-    extra=''
-  fi
 
 	if [ $check_only == "y" ];then
     if [ $p12_null_noloop == "y" ]; then
       echo "LiCSBAS130_remove_noloops.py $p13_op"
     fi
-		echo "LiCSBAS12_loop_closure.py $p12_op $extra"
-    echo "LiCSBAS120_choose_reference.py -f ./ $p120_op --ignore_comp"
+		echo "LiCSBAS12_loop_closure.py $p12_op"
+    echo "LiCSBAS120_choose_reference.py -f ./ $p120_op"
 	else
     if [ $p12_null_noloop == "y" ]; then
       LiCSBAS130_remove_noloops.py $p13_op 2>&1 | tee -a $log
     fi
-		LiCSBAS12_loop_closure.py $extra $p12_op 2>&1 | tee -a $log
-		LiCSBAS120_choose_reference.py -f ./ $p120_op --ignore_comp 2>&1 | tee -a $log
+		LiCSBAS12_loop_closure.py $p12_op 2>&1 | tee -a $log
+		LiCSBAS120_choose_reference.py -f ./ $p120_op 2>&1 | tee -a $log
 		if [ ${PIPESTATUS[0]} -ne 0 ];then exit 1; fi
 	fi
 
@@ -360,19 +360,13 @@ if [ $start_step -le 13 -a $end_step -ge 13 ];then
 	if [ $p13_keep_incfile == "y" ];then p13_op="$p13_op --keep_incfile"; fi
 	if [ $gpu == "y" ];then p13_op="$p13_op --gpu"; fi
   if [ $p13_null_noloop == "y" ]; then p13_op="$p13_op --null_noloop"; fi
-
-  if [ $cometdev -eq 2 ]; then
-    extra='--nopngs'
-    #extra='--singular --nopngs'
-  else
-    extra=''
-  fi
+  if [ $p13_no_pngs == "y" ]; then p13_op="$p13_op --nopngs"; fi
 
 	if [ $check_only == "y" ];then
-    echo "LiCSBAS130_sb_inv.py $p13_op $extra"
+    echo "LiCSBAS130_sb_inv.py $p13_op"
     echo "LiCSBAS133_write_h5.py $p133_op"
 	else
-		LiCSBAS130_sb_inv.py $p13_op $extra 2>&1 | tee -a $log
+		LiCSBAS130_sb_inv.py $p13_op 2>&1 | tee -a $log
     LiCSBAS133_write_h5.py $p133_op
 		if [ ${PIPESTATUS[0]} -ne 0 ];then exit 1; fi
 	fi
