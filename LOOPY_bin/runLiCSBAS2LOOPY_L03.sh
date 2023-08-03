@@ -75,7 +75,7 @@ echo p04_mask_ifg_coh_thre $coh_thresh >> params.txt
 GEOCdir=${GEOCdir}mask
 
 if [ -f $FRAME.mask ]; then
-  echo p04_poly_mask_file $FRAME.mask >> params.txt
+  echo p04_mask_range_file $FRAME.mask >> params.txt
 fi
 
 if [ $start_step -le 03 ]; then
