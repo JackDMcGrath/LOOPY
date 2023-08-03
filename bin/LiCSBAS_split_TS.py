@@ -24,6 +24,11 @@ class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescri
     '''
     pass
 
+class Usage(Exception):
+    """Usage context manager"""
+    def __init__(self, msg):
+        self.msg = msg
+
 def start():
     global start_time
     # intialise and print info on screen
@@ -227,7 +232,6 @@ def merge_split_dir():
     with open(uncorr_file, 'w') as f:
         for i in unassigned:
             print('{}'.format(i), file=f)
-
 
 def merge_kaikoura_dir():
     print('Merging Timeseries into pre- and post- kaikoura')
