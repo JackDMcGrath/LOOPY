@@ -77,13 +77,18 @@ import LiCSBAS_plot_lib as plot_lib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from cvxopt import matrix
+try:
+    from tqdm.contrib.concurrent import process_map
+    progress_bar = True
+except ModuleNotFoundError:
+    progress_bar = False
+
 
 class Usage(Exception):
     """Usage context manager"""
 
     def __init__(self, msg):
         self.msg = msg
-
 
 # %% Main
 def main(argv=None):
@@ -103,7 +108,7 @@ def main(argv=None):
     global G, Aloop, imdates, ifgdir, length, width, ifgdates, cycle, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
         n_ifg, corrFull, corrdir, unw_all, unw_agg, unw_con, begin, n_para, plotdir, pix_plot, \
-        pix_output
+        pix_output, progress_bar
 
     # %% Set default
     ifgdir = []
@@ -365,9 +370,12 @@ def main(argv=None):
                 print('{0}/{1} pixels in {2:.2f} secs (ETC: {3:.0f} secs)'.format(ii + 1, n_pt_unnan, elapse, (elapse / (ii + 1)) * n_pt_unnan))
     else:
         print('with {} parallel processing...'.format(_n_para), flush=True)
-        p = q.Pool(_n_para)
-        correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
-        p.close()
+        if progress_bar:
+            correction = np.array(process_map(unw_loop_corr, range(n_pt_unnan), max_workers=_n_para, chunksize=1))
+        else:
+            p = q.Pool(_n_para)
+            correction = np.array(p.map(unw_loop_corr, range(n_pt_unnan)))
+            p.close()
 
     elapsed_time = time.time() - start
     hour = int(elapsed_time / 3600)
@@ -598,11 +606,13 @@ def unw_loop_corr(ii):
             plt.ylabel('Corrected')
             plt.savefig(os.path.join(plotdir, '{}_all2.png'.format(ii)))
             plt.close()
-            print('Plotted {}'.format(os.path.join(plotdir, '{}_all2.png'.format(ii))))      
+            if not progress_bar:
+                print('Plotted {}'.format(os.path.join(plotdir, '{}_all2.png'.format(ii))))      
         except:
             print('Error in plotting {}_all'.format(ii))
 
-    if np.mod(ii, pix_output) == 0 or n_para == 1:
+    if not progress_bar:
+      if np.mod(ii, pix_output) == 0 or n_para == 1:
         print('{}/{} {} iterations for {} ifgs in {} loops in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan,n_it, ifg_tot, nLoops, time.time() - commence, time.time() - begin))
 
     return corr
