@@ -102,7 +102,7 @@ def main(argv=None):
     # For parallel processing
     global G, Aloop, imdates, ifgdir, length, width, ifgdates, cycle, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
-        n_ifg, corrFull, corrdir, nanUncorr, nrandpix, unw_all, unw_agg, unw_con, begin, n_para, plotdir, pix_plot, \
+        n_ifg, corrFull, corrdir, unw_all, unw_agg, unw_con, begin, n_para, plotdir, pix_plot, \
         pix_output
 
     # %% Set default
@@ -204,9 +204,6 @@ def main(argv=None):
 
     if not os.path.exists(plotdir):
             os.mkdir(plotdir)
-
-    if nanUncorr:
-        print('**********\nCAUTION: ANY PIXEL NOT AVAILIABLE TO BE INVERTED WILL BE NANNED\nYOU BETTE BE CONFIDENT COS IM NOT SAVING AN UNNANNED VERSION\n*********')
 
     tsadir = os.path.abspath(tsadir)
     infodir = os.path.join(tsadir, 'info')
