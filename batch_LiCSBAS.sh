@@ -56,6 +56,7 @@ p12_null_noloop="n" # y/n Remove pixels that have no loop before nullification
 p12_treat_as_bad="n" # y/n Conservative ("n", default) or aggressive ("y") nullification
 p12_null_both="n" # y/n Run both nullifications, and store orignal unw, aggressive and conservative nullifications
 p12_ignore_comp="y" # y/n Ignore connected components when selecting reference [default "n"]
+p12_find_reference="y" # y/n Run improved method of checking the reference (LiCSBAS120_find_reference.py)
 p13_null_noloop="n" # y/n Remove pixels that have no loop
 p15_coh_thre="0.05"	# default: 0.05
 p15_n_unw_r_thre="1.5"	# default: 1.5
@@ -312,13 +313,17 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
       echo "LiCSBAS130_remove_noloops.py $p13_op"
     fi
 		echo "LiCSBAS12_loop_closure.py $p12_op"
-    echo "LiCSBAS120_choose_reference.py -f ./ $p120_op"
+    if [ $p12_find_reference == "y" ]; then
+      echo "LiCSBAS120_choose_reference.py -f ./ $p120_op"
+    fi
 	else
     if [ $p12_null_noloop == "y" ]; then
       LiCSBAS130_remove_noloops.py $p13_op 2>&1 | tee -a $log
     fi
 		LiCSBAS12_loop_closure.py $p12_op 2>&1 | tee -a $log
-		LiCSBAS120_choose_reference.py -f ./ $p120_op 2>&1 | tee -a $log
+    if [ $p12_find_reference == "y" ]; then
+		  LiCSBAS120_choose_reference.py -f ./ $p120_op 2>&1 | tee -a $log
+    fi
 		if [ ${PIPESTATUS[0]} -ne 0 ];then exit 1; fi
 	fi
 
