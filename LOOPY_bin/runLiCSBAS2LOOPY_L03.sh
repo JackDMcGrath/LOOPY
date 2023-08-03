@@ -66,11 +66,11 @@ echo nlook $n_looks >> params.txt
 if [ -f $FRAME.clip ]; then
   clip_range=`cat $FRAME.clip`
   echo p05_clip_range_geo $clip_range >> params.txt
-  echo do_op05_clip y >> params.txt 
+  echo doop05_clip y >> params.txt 
   GEOCdir=${GEOCdir}clip
 fi
 
-echo do_op04_mask y >> params.txt
+echo doop04_mask y >> params.txt
 echo p04_mask_ifg_coh_thre $coh_thresh >> params.txt
 GEOCdir=${GEOCdir}mask
 
