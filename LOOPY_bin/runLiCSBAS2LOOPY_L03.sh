@@ -41,12 +41,6 @@ n_looks=10
 
 GEOCdir=GEOCml${n_looks}
 
-echo 20141001 > $splitdates
-echo 20161113 >> $splitdates
-echo 20180101 >> $splitdates
-echo 20200101 >> $splitdates
-echo 20230101 >> $splitdates
-
 ####################
 ## Set Variables
 ####################
@@ -54,9 +48,16 @@ echo 20230101 >> $splitdates
 curdir=`pwd`
 FRAME=`echo "${curdir##*/}" | awk '{print substr($0, 1, 17)}'`
 
-if [ -f splitdates.txt ]; then
-  rm -f splitdates.txt
+az=`echo $FRAME | head -c 4 | tail -c 1`
+
+echo 20141001 > $splitdates
+echo 20161113 >> $splitdates
+if [ az == 'A' ]; then
+  echo 20190101 >> $splitdates
+else
+  echo 20200101 >> $splitdates
 fi
+echo 20230101 >> $splitdates
 
 if [ -f splitdirs.txt ]; then
   rm -f splitdirs.txt
