@@ -33,7 +33,7 @@ coh_thresh="0.04" # Going to mask all pixels lower than this
 error_locations=/nfs/a285/homes/eejdm/coastlines/gshhg/NZCoastRiver.txt
 n_para=$1
 
-if [ ! -z $n_para ]; then
+if [ -z $n_para ]; then
   n_para=15
 fi
 
