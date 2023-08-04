@@ -112,6 +112,9 @@ v1.0 20190730 Yu Morishita, Uni of Leeds and GSI
 #%% Import
 import getopt
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
+    # Because np.linalg.lstsq use full CPU but not much faster than 1CPU.
+    # Instead parallelize by multiprocessing
 import sys
 import re
 import time
