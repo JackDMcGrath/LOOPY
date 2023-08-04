@@ -195,7 +195,7 @@ if [ ! -z $splitdates ]; then
   echo '#####################'
   echo ' '
 
-  LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splidates -c ${L01dir} --merge
+  LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} --merge
 
   GEOCdir=${L01dir}merge
 
