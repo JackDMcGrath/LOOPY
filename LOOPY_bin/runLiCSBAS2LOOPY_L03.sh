@@ -53,7 +53,7 @@ az=`echo $FRAME | head -c 4 | tail -c 1`
 echo 20141001 > $splitdates
 echo 20161113 >> $splitdates
 if [ az == 'A' ]; then
-  echo 20190101 >> $splitdates
+  echo 20190601 >> $splitdates
 else
   echo 20200101 >> $splitdates
 fi
