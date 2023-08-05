@@ -652,8 +652,6 @@ def mask_unw_errors(i):
     global begin
     begin = time.time()
     date = ifgdates[i]
-    if i == v:
-        print('        Starting')
     if not os.path.exists(os.path.join(corrdir, date)):
         os.mkdir(os.path.join(corrdir, date))
     if os.path.exists(os.path.join(corrdir, date, date + '.unw')):
@@ -661,7 +659,8 @@ def mask_unw_errors(i):
         return
     else:
         print('    ({}/{}): {}'.format(i + 1, n_ifg, date))
-
+    if i == v:
+        print('        Starting {} verbosely'.format(date))
     if i == v:
         print('        Loading')
 
@@ -850,19 +849,29 @@ def mask_unw_errors(i):
             border[np.where(border_regions == corrIx)] = 1
             # Dilate boundary so it crosses into both regions
             border_dil = binary_dilation(border).astype('int')
+            
+            error_loc = np.where(border)
+            
+            corr_val = []
+            for ix, erry in enumerate(error_loc[0]):
+              errx = error_loc[1][ix]
+              errxmin = errx - 1 if errx > 0 else 0
+              errxmax = errx + 2 if errx < (width - 1) else width
+              errymin = erry - 1 if erry > 0 else 0
+              errymax = erry + 2 if erry < (length - 1) else length
+              
+              err_val = npi_corr[erry, errx]
+              good_val = good_vals[errymin:errymax, errxmin:errxmax]
+              corr_val.append(((np.nanmedian(good_val) - err_val) * (nPi / 2)).round() * 2 * np.pi)
 
-            av_err = mode(npi_corr[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
-            av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
-
-            corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
+            if i == v:
+                print('corr_val')
+                print(np.unique(corr_val, return_counts=True))
+            
+            corr_val = np.median(corr_val)
             correction[np.where(regions == corrIx)] = corr_val
             if i == v:
-                print('AV ERR')
-                print(np.unique(npi_corr[np.where(border == 1)], return_counts=True))
-                print('AV GOOD')
-                print(np.unique(good_vals[np.where(border_dil == 1)], return_counts=True))
-            if i == v:
-                print('            Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
+                print('            Done {:.0f}/{:.0f}: {:.2f} rads {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, time.time() - start))
         if i == v:
             print('        Correction Calculated {:.2f}'.format(time.time() - begin))
 
