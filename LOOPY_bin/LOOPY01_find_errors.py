@@ -850,19 +850,26 @@ def mask_unw_errors(i):
             border[np.where(border_regions == corrIx)] = 1
             # Dilate boundary so it crosses into both regions
             border_dil = binary_dilation(border).astype('int')
+            
+            error_loc = np.where(border)
+            
+            corr_val = []
 
-            av_err = mode(npi_corr[np.where(border == 1)], nan_policy='omit', keepdims=False)[0]
-            av_good = mode(good_vals[np.where(border_dil == 1)], nan_policy='omit', keepdims=False)[0]
+            for ix, erry in enumerate(error_loc[0]):
+              corr_val = []
+              errx = error_loc[1][ix]
+              err_val = npi_corr[erry, errx]
+              good_val = good_vals[erry - 1:erry + 2, errx - 1:errx + 2]
+              corr_val.append(((np.nanmedian(good_val) - err_val) * (nPi / 2)).round() * 2 * np.pi)
 
-            corr_val = ((av_good - av_err) * (nPi / 2)).round() * 2 * np.pi
+            if i == v:
+                print('corr_val')
+                print(np.unique(corr_val, return_counts=True))
+            
+            corr_val = np.median(corr_val)
             correction[np.where(regions == corrIx)] = corr_val
             if i == v:
-                print('AV ERR')
-                print(np.unique(npi_corr[np.where(border == 1)], return_counts=True))
-                print('AV GOOD')
-                print(np.unique(good_vals[np.where(border_dil == 1)], return_counts=True))
-            if i == v:
-                print('            Done {:.0f}/{:.0f}: {:.2f} rads ({:.1f} - {:.1f}) {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, av_good, av_err, time.time() - start))
+                print('            Done {:.0f}/{:.0f}: {:.2f} rads {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, time.time() - start))
         if i == v:
             print('        Correction Calculated {:.2f}'.format(time.time() - begin))
 
