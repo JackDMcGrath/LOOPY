@@ -652,8 +652,6 @@ def mask_unw_errors(i):
     global begin
     begin = time.time()
     date = ifgdates[i]
-    if i == v:
-        print('        Starting')
     if not os.path.exists(os.path.join(corrdir, date)):
         os.mkdir(os.path.join(corrdir, date))
     if os.path.exists(os.path.join(corrdir, date, date + '.unw')):
@@ -661,7 +659,8 @@ def mask_unw_errors(i):
         return
     else:
         print('    ({}/{}): {}'.format(i + 1, n_ifg, date))
-
+    if i == v:
+        print('        Starting {} verbosely'.format(date))
     if i == v:
         print('        Loading')
 
@@ -854,12 +853,15 @@ def mask_unw_errors(i):
             error_loc = np.where(border)
             
             corr_val = []
-
             for ix, erry in enumerate(error_loc[0]):
-              corr_val = []
               errx = error_loc[1][ix]
+              errxmin = errx - 1 if errx > 0 else 0
+              errxmax = errx + 2 if errx < (width - 1) else width
+              errymin = erry - 1 if erry > 0 else 0
+              errymax = erry + 2 if erry < (length - 1) else length
+              
               err_val = npi_corr[erry, errx]
-              good_val = good_vals[erry - 1:erry + 2, errx - 1:errx + 2]
+              good_val = good_vals[errymin:errymax, errxmin:errxmax]
               corr_val.append(((np.nanmedian(good_val) - err_val) * (nPi / 2)).round() * 2 * np.pi)
 
             if i == v:
