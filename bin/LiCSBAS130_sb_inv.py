@@ -114,7 +114,8 @@ import getopt
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 # Because np.linalg.lstsq use full CPU but not much faster than 1CPU.
-# Instead parallelize by multiprocessing
+# Instead parallelize by multiprocessing. Here because can cause CPU issues
+# if imported before numpy
 import sys
 import re
 import time

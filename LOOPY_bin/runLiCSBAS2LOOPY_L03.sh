@@ -3,7 +3,7 @@
 # Script to automated run LiCSBAS and LOOPY for an entire frame, from download to
 # final timeseries. Must be run in folder FRAME
 
-# THIS VERSION WILL ONLY SPLIT AROUND 1 DATE
+# In this version, we can do lots of splits. We just don't care that one of them is Kaikoura
 
 # Needed Files:
 #   errorLocations.txt (optional)
@@ -26,12 +26,17 @@
 ## Set User Toggles
 ###################
 
-splitdate=$1 # date of major earthquake to split pre- and post- seismic networks across. Leave blank for no split
+splitdates=splitdates.txt # date of major earthquake to split pre- and post- seismic networks across. Leave blank for no split
 
 LiCSBAS_start="03" # LiCSBAS script to start processing from
 coh_thresh="0.04" # Going to mask all pixels lower than this
 error_locations=/nfs/a285/homes/eejdm/coastlines/gshhg/NZCoastRiver.txt
-n_para=40
+n_para=$1
+
+if [ -z $n_para ]; then
+  n_para=15
+fi
+
 n_looks=10
 
 GEOCdir=GEOCml${n_looks}
@@ -43,17 +48,20 @@ GEOCdir=GEOCml${n_looks}
 curdir=`pwd`
 FRAME=`echo "${curdir##*/}" | awk '{print substr($0, 1, 17)}'`
 
-if [ -f splitdates.txt ]; then
-  rm -f splitdates.txt
+az=`echo $FRAME | head -c 4 | tail -c 1`
+
+echo 20141001 > $splitdates
+echo 20161113 >> $splitdates
+if [ az == 'A' ]; then
+  echo 20190601 >> $splitdates
+else
+  echo 20200101 >> $splitdates
 fi
+echo 20230101 >> $splitdates
 
 if [ -f splitdirs.txt ]; then
   rm -f splitdirs.txt
 fi
-
-echo 20141001 > splitdates.txt
-echo $splitdate >> splitdates.txt
-echo 20230101 >> splitdates.txt
 
 ####################
 ## Prep batch_LiCSBAS
@@ -115,16 +123,16 @@ echo ' '
 
 L01dir=${GEOCdir}L01
 
-LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --reset --n_para ${n_para}
+LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --n_para ${n_para}
 
-if [ ! -z $splitdate ]; then
+if [ ! -z $splitdates ]; then
   echo ' '
   echo '############################'
-  echo '#### Splitting Timeseries around '${splitdate}
+  echo '#### Splitting Timeseries around '${splitdates}
   echo '############################'
   echo ' '
 
-  LiCSBAS_split_TS.py -d $L01dir -s splitdates.txt -k # Split data into smaller, more manageable chunks, labelled base dof Earthquake
+  LiCSBAS_split_TS.py -d $L01dir -s $splitdates
 
   n_split=$((`wc -l splitdirs.txt | awk '{print $1}'` - 1))
 
@@ -176,20 +184,20 @@ if [ ! -z $splitdate ]; then
 
   done
 
-  ## Rename splits since we're only running 1 pre and 1 post seismic network
-  mv ${L01dir}SplitPre1L03 ${L01dir}mergePre
-  mv ${L01dir}SplitPos1L03 ${L01dir}mergePos
+  # ## Rename splits since we're only running 1 pre and 1 post seismic network
+  # mv ${L01dir}SplitPre1L03 ${L01dir}mergePre
+  # mv ${L01dir}SplitPos1L03 ${L01dir}mergePos
 
 
   echo ' '
   echo '#####################'
-  echo '#### Merge two timeseries'
+  echo '#### Merge split timeseries'
   echo '#####################'
   echo ' '
 
-  LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s splitdates.txt -c ${L01dir} --merge -e
+  LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} --merge
 
-  GEOCdir=${L01dir}mergeCos
+  GEOCdir=${L01dir}merge
 
 else
 
