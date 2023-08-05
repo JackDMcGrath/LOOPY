@@ -123,7 +123,11 @@ echo ' '
 
 L01dir=${GEOCdir}L01
 
-LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --n_para ${n_para}
+if [ ! -z $(grep ${FRAME} /nfs/a285/homes/eejdm/FINALS/TOPS.txt) ]; then
+  LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --n_para ${n_para} --onlylisted
+else
+  LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --n_para ${n_para}
+fi
 
 if [ ! -z $splitdates ]; then
   echo ' '
@@ -188,17 +192,32 @@ if [ ! -z $splitdates ]; then
   # mv ${L01dir}SplitPre1L03 ${L01dir}mergePre
   # mv ${L01dir}SplitPos1L03 ${L01dir}mergePos
 
-
   echo ' '
   echo '#####################'
-  echo '#### Merge split timeseries'
+  echo '#### Run nullification on original timeseries, so that non-corrected ifgs are nulled'
+  echo '#####################'
+  echo ' '
+  
+  echo GEOCmldir $L01dir > params.txt
+  echo start_step 11 >> params.txt
+  echo end_step 12 >> params.txt
+  echo p12_null_both n >> params.txt
+  echo p12_nullify y >> params.txt
+  echo p12_treat_as_bad y >> params.txt
+
+  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
+  ./batch_LiCSBAS.sh
+   
+  echo ' '
+  echo '#####################'
+  echo '#### Merge split timeseries, where uncorrected '
   echo '#####################'
   echo ' '
 
   LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} --merge
 
   GEOCdir=${L01dir}merge
-
+  
 else
 
     echo GEOCmldir $L01dir > params.txt
