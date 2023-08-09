@@ -529,7 +529,7 @@ def unw_loop_corr(ii, print_output=False):
     usedates = np.array(ifgdates)[useIFG]
     loopMat = Aloop[:, useIFG]
     loopMat = loopMat[np.where(np.sum((loopMat != 0), axis=1) == 3)[0]]
-    nLoops_all, ifg_tot = loopMat.shape
+    nLoops_all, ifg_tot_all = loopMat.shape
 
     # Decide split the timeseries into processing chunks
     if nLoops_all < max_loops:
@@ -637,7 +637,29 @@ def unw_loop_corr(ii, print_output=False):
     # There maybe a all nan slices. Suppress the warning
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        corr_full = np.nanmedian(corr, axis=0)
+        corr_full = np.nanmedian(corr, axis=0).round()
+
+    # Find corrections
+    corr_check = ~np.isnan(corr).astype('int')
+
+    # only 1 correction
+    only1 = np.nansum(corr_check, axis=0) == 1
+
+    # 2 corrections
+    only2 = np.nansum(corr_check, axis=0) == 2
+
+    # 3 corrections
+    only3 = np.nansum(corr_check, axis=0) == 3
+
+    matchmedian = (corr == corr_full).all(axis=0)
+
+    match2 = np.logical_and(only2, matchmedian)
+    match3 = np.logical_and(only3, matchmedian)
+
+
+    print('Nifgs\tn_1corr\tn_2corr\tn_2match\tn_3corr\tn_3match')
+    print('{}\t{}\t{}\t{}\t{}\t{}'.format(ifg_tot_all, sum(only1), sum(only2), sum(match2), sum(only3), sum(match3)))
+
 
     corr_full[np.isnan(corr_full)] = 0
 
