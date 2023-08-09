@@ -547,7 +547,8 @@ def unw_loop_corr(ii, print_output=False):
                 loop_ix.append([nLoops_all - max_loops, nLoops_all])
     loop_ix = np.array(loop_ix).astype('int')
 
-    corr = np.zeros((loop_ix.shape[0], len(disp_all))) * np.nan
+    corr = np.zeros((loop_ix.shape[0], len(disp_all)))
+    corr_log = np.zeros((loop_ix.shape[0], len(disp_all)))
 
     if print_output:
         print(ii, 'Loop_ix:\n', loop_ix)
@@ -630,10 +631,11 @@ def unw_loop_corr(ii, print_output=False):
                     correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
                     run_all[invIfg_ix] -= correction * wrap
                     corr[nRun, useIFG[solve_order[invIfg_ix]]] += correction
+                    corr_log[nRun, useIFG[solve_order[invIfg_ix]]] += 1
             
             n_good = n_invert
 
-
+    corr[np.where(corr_log == 0)] = np.nan
     # There maybe a all nan slices. Suppress the warning
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -685,6 +687,7 @@ def unw_loop_corr_win(n_pt_unnan, Aloop, wrap, unw, i):
     G = matrix(G)
     d = matrix(closure)
     corr[nonNan] = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+    
 
     return corr
 
