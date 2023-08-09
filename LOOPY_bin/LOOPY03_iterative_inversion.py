@@ -67,6 +67,7 @@ import time
 import getopt
 import shutil
 import numpy as np
+import warnings
 import multiprocessing as multi
 import LOOPY_lib as loopy_lib
 import LiCSBAS_io_lib as io_lib
@@ -108,7 +109,7 @@ def main(argv=None):
     global G, Aloop, imdates, ifgdir, length, width, ifgdates, cycle, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
         n_ifg, corrFull, corrdir, unw_all, unw_agg, unw_con, begin, n_para, plotdir, pix_plot, \
-        pix_output, progress_bar
+        pix_output, progress_bar, max_loops, verbose
 
     # %% Set default
     ifgdir = []
@@ -117,6 +118,8 @@ def main(argv=None):
     reset = True
     pix_plot = False
     pix_output = 1000
+    max_loops = 1000
+    verbose = -1
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -132,8 +135,8 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:",
-                                       ["help", "noreset", "nanUncorr", "gamma=", "pix_pngs",
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:v:",
+                                       ["help", "noreset", "nanUncorr", "gamma=", "pix_pngs", "--no_progress",
                                         "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
@@ -147,6 +150,9 @@ def main(argv=None):
                 tsadir = a
             elif o == '-c':
                 corrdir = a
+            elif o == '-v':
+                verbose = float(a)
+                progress_bar = False
             elif o == '--noreset':
                 reset = False
             elif o == '--gamma':
@@ -157,6 +163,8 @@ def main(argv=None):
                 n_para = int(a)
             elif o == '--pix_pngs':
                 pix_plot = False
+            elif o == '--no_progress':
+                progress_bar = False
 
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
@@ -358,7 +366,7 @@ def main(argv=None):
     wrap = 2 * np.pi
 
     # %% Unwrapping corrections in a pixel by pixel basis (to be parallelised)
-    print('\n Unwrapping Correction inversion for {0:.0f} pixels in {1} loops...\n'.format(n_pt_unnan, n_loop), flush=True)
+    print('\n Unwrapping Correction inversion for {0:.0f} pixels in {1} loops with {2} max_loops...\n'.format(n_pt_unnan, n_loop, max_loops), flush=True)
 
     begin = time.time()
     if _n_para == 1:
@@ -505,117 +513,131 @@ def read_unw_win(ifgdates, length, width, refx1, refx2, refy1, refy2, ifgdir, i)
     return unw1
 
 
-def unw_loop_corr(ii):
+def unw_loop_corr(ii, print_output=False):
+
+    if (np.mod(ii, pix_output) == 0 or ii == verbose or n_para == 1) and not progress_bar:
+        print_output = True
 
     commence = time.time()
     disp_all = unw_all[ii, :]
-    corr = np.zeros(disp_all.shape)
+    corr_full = np.zeros(disp_all.shape)
     
-    ifg_good = np.array(ifgdates)[np.where(unw_agg[ii,:])[0]]
-    ifg_cand = np.array(ifgdates)[np.where(unw_con[ii,:])[0]]
-    ifg_bad = np.array(ifgdates)[~np.isnan(unw_all[ii,:])]
-    ifg_good = list(set(ifg_good))
-    ifg_cand = list(set(ifg_cand) - set(ifg_good))
-    ifg_bad = list(set(ifg_bad) - set(ifg_cand) - set(ifg_good))
+    # Extract only the non-nan data for the pixel so that nLoops is more accurate
+    useIFG = ~np.isnan(disp_all)
+    usedates = ifgdates[useIFG]
+    loopMat = Aloop[:, useIFG]
+    loopMat = loopMat[np.where(np.sum((loopMat != 0), axis=1) == 3)[0]]
+    nLoops, ifg_tot = loopMat.shape
 
-    good_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_good])
-    cand_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_cand])
-    bad_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_bad])
-
-    n_good = len(ifg_good)
-    n_cand = len(ifg_cand)
-    n_bad = len(ifg_bad)
-
-    solve_order = np.concatenate((good_ix, cand_ix[np.random.permutation(n_cand)], bad_ix[np.random.permutation(n_bad)])).astype('int')
-
-    # Change loop matrix to reflect solve order
-    solveLoop = Aloop[:, solve_order]
-    complete_loops = np.where(np.sum((solveLoop != 0), axis=1) == 3)[0]
-    solveLoop = solveLoop[complete_loops, :]
-    disp_all = disp_all[solve_order]
-    nLoops, ifg_tot = solveLoop.shape
-
-    if n_good < (ifg_tot / 4):
-        if (n_good + n_cand) < (ifg_tot / 3):
-            # If theres not enough that survived any nulling, don't try inverting
-            # (Increased threshold to reflect potentially lower quality data)
-            return corr
+    # Decide split the timeseries into processing chunks
+    if nLoops < max_loops:
+        loop_ix = np.array([0, nLoops])
+    else:
+        if nLoops < 1.5 * max_loops:
+            loop_ix = np.array([[0, max_loops], [nLoops - max_loops, nLoops]])
         else:
-            n_good = int(ifg_tot / 5)
+            loop_ix = []
+            start_loop = 0
+            while start_loop <= (nLoops - max_loops):
+                loop_ix.append([start_loop, start_loop + max_loops])
+                start_loop += 0.5 * max_loops
+            if start_loop > (nLoops - max_loops):
+                loop_ix.append([nLoops - max_loops, nLoops])
+    loop_ix = np.array(loop_ix).astype('int')
 
-    n_it = 0
+    corr = np.zeros((loop_ix.shape[0], len(disp_all))) * np.nan
 
-    while n_good < ifg_tot:
-        n_it += 1
-        n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
+    if print_output:
+        print(ii, 'Loop_ix', loop_ix)
 
-        if np.mod(ii, pix_output) == 0 and n_it == 1 and pix_plot:
-            closure_orig = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
+    for nRun, loops in enumerate(loop_ix):
+        if print_output:
+            print('{} Starting run {}/{} after {:.2f} seconds'.format(ii, nRun, loop_ix.shape[0], time.time()-commence))
+        start_loop, end_loop = loops
+        runLoop = loopMat[start_loop:end_loop, :]
+        runIFG_ix = (runLoop != 0).any(axis=0)
+        rundates = usedates[runIFG_ix]
+        runLoop = runLoop[:, runIFG_ix]
+        run_agg = unw_agg[ii, useIFG[runIFG_ix]]
+        run_con = unw_con[ii, useIFG[runIFG_ix]]
+        run_all = unw_all[ii, useIFG[runIFG_ix]]
 
-        disp = disp_all[:n_invert]
+        ifg_good = np.array(rundates)[np.where(run_agg[ii,:])[0]]
+        ifg_cand = np.array(rundates)[np.where(run_con[ii,:])[0]]
+        ifg_bad = np.array(rundates)[~np.isnan(run_all[ii,:])]
+        ifg_good = list(set(ifg_good))
+        ifg_cand = list(set(ifg_cand) - set(ifg_good))
+        ifg_bad = list(set(ifg_bad) - set(ifg_cand) - set(ifg_good))
 
-        G_all = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
+        good_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_good])
+        cand_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_cand])
+        bad_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_bad])
 
-        # Now remove any incomplete loops from the matrix
-        complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
-        G = G_all[complete_loops, :]
+        n_good = len(ifg_good)
+        n_cand = len(ifg_cand)
+        n_bad = len(ifg_bad)
 
-        # Some interferograms will now have no loops. Remove these
-        loopIfg = np.where((G != 0).any(axis=0))[0]
-        G = G[:, loopIfg]
-        if G.shape[0] > 10:
-            invIfg_ix = np.arange(n_invert)
-            invIfg_ix = invIfg_ix[loopIfg]
-            disp = disp[loopIfg]
-            closure = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
-            if (closure != 0).any():
-                G = matrix(G)
-                d = matrix(closure)
-                correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
-                disp_all[invIfg_ix] -= correction * wrap
-                corr[solve_order[invIfg_ix]] += correction
-        
-        n_good = n_invert
+        solve_order = np.concatenate((good_ix, cand_ix[np.random.permutation(n_cand)], bad_ix[np.random.permutation(n_bad)])).astype('int')
 
-    if pix_plot and np.mod(ii, pix_output) == 0:
-        try:
-            closure_final = (np.dot(solveLoop, disp_all) / wrap).round() # Closure in integer 2pi
-            # grdx = int(max(closure_orig) - min(closure_orig)) * 1 
-            # grdy = int(max(closure_final) - min(closure_final)) * 1
-            # grdx = grdx if grdx != 0 else 1
-            # grdy = grdy if grdy != 0 else 1
-            # plt.hexbin(closure_orig, closure_final, gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
-            # plt.colorbar()
-            # plt.xlabel('Input')
-            # plt.ylabel('Corrected')
-            # plt.savefig(os.path.join(plotdir, '{}_all.png'.format(ii)))
-            # plt.close()
-            # print('Plotted {}'.format(os.path.join(plotdir, '{}_all.png'.format(ii))))
-            improve = 100 * sum(abs(closure_final) < abs(closure_orig)) / nLoops
-            unchange = 100 * sum(closure_final == closure_orig) / nLoops
-            worsen = 100 * sum(abs(closure_final) > abs(closure_orig)) / nLoops
-            grdx = int(max(abs(closure_orig)) - min(abs(closure_orig))) * 1 
-            grdy = int(max(abs(closure_final)) - min(abs(closure_final))) * 1
-            grdx = grdx if grdx != 0 else 1
-            grdy = grdy if grdy != 0 else 1
-            plt.hexbin(abs(closure_orig), abs(closure_final), gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
-            plt.plot([0,max([max(abs(closure_orig)), max(abs(closure_final))])],[0,max([max(abs(closure_orig)), max(abs(closure_final))])]) 
-            plt.colorbar()
-            plt.title('{} ifgs in {} loops\nImproved: {:.0f}% Same: {:.0f}% Worse: {:.0f}%'.format(ifg_tot, nLoops, improve, unchange, worsen))
-            plt.xlabel('Input')
-            plt.ylabel('Corrected')
-            plt.savefig(os.path.join(plotdir, '{}_all2.png'.format(ii)))
-            plt.close()
-            if not progress_bar:
-                print('Plotted {}'.format(os.path.join(plotdir, '{}_all2.png'.format(ii))))      
-        except:
-            print('Error in plotting {}_all'.format(ii))
+        # Change loop matrix to reflect solve order
+        solveLoop = runLoop[:, solve_order]
+        complete_loops = np.where(np.sum((solveLoop != 0), axis=1) == 3)[0]
+        solveLoop = solveLoop[complete_loops, :]
+        run_all = run_all[solve_order]
+        nLoops, ifg_tot = solveLoop.shape
+
+        if n_good < (ifg_tot / 4):
+            if (n_good + n_cand) < (ifg_tot / 3):
+                # If theres not enough that survived any nulling, don't try inverting
+                # (Increased threshold to reflect potentially lower quality data)
+                continue
+            else:
+                n_good = int(ifg_tot / 5)
+
+        n_it = 0
+
+        while n_good < ifg_tot:
+            n_it += 1
+            if print_output:
+                print('\t{} iteration {} after {:.2f} seconds'.format(ii, n_it, time.time()-commence))
+            n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
+
+            disp = run_all[:n_invert]
+
+            G_all = solveLoop[:, :n_invert] # Select only the IFGs to be inverted
+
+            # Now remove any incomplete loops from the matrix
+            complete_loops = np.where(np.sum((G_all != 0), axis=1) == 3)[0]
+            G = G_all[complete_loops, :]
+
+            # Some interferograms will now have no loops. Remove these
+            loopIfg = np.where((G != 0).any(axis=0))[0]
+            G = G[:, loopIfg]
+            if G.shape[0] > 10:
+                invIfg_ix = np.arange(n_invert)
+                invIfg_ix = invIfg_ix[loopIfg]
+                disp = disp[loopIfg]
+                closure = (np.dot(G, disp) / wrap).round() # Closure in integer 2pi
+                if (closure != 0).any():
+                    G = matrix(G)
+                    d = matrix(closure)
+                    correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
+                    run_all[invIfg_ix] -= correction * wrap
+                    corr[nRun, useIFG[solve_order[invIfg_ix]]] += correction
+            
+            n_good = n_invert
+
+
+    # There maybe a all nan slices. Suppress the warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        corr_full[useIFG] = np.nanmedian(corr, axis=0)
 
     if not progress_bar:
-      if np.mod(ii, pix_output) == 0 or n_para == 1:
-        print('{}/{} {} iterations for {} ifgs in {} loops in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan,n_it, ifg_tot, nLoops, time.time() - commence, time.time() - begin))
+      if print_output:
+        print('{}/{} {} runs for {} ifgs in {} loops in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan, loop_ix.shape[0], ifg_tot, nLoops, time.time() - commence, time.time() - begin))
 
-    return corr
+    return corr_full
 
 
 def unw_loop_corr_win(n_pt_unnan, Aloop, wrap, unw, i):
