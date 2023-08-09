@@ -51,12 +51,13 @@ FRAME=`echo "${curdir##*/}" | awk '{print substr($0, 1, 17)}'`
 az=`echo $FRAME | head -c 4 | tail -c 1`
 
 echo 20141001 > $splitdates
-echo 20161113 >> $splitdates
-if [ az == 'A' ]; then
-  echo 20190601 >> $splitdates
-else
-  echo 20200101 >> $splitdates
-fi
+#echo 20161113 >> $splitdates
+#if [ az == 'A' ]; then
+#  echo 20190601 >> $splitdates
+#else
+#  echo 20200101 >> $splitdates
+#fi
+echo 20190101 >> $splitdates
 echo 20230101 >> $splitdates
 
 if [ -f splitdirs.txt ]; then
@@ -218,6 +219,29 @@ if [ ! -z $splitdates ]; then
 
   GEOCdir=${L01dir}merge
   
+  if [ ! -z $(grep ${FRAME} /nfs/a285/homes/eejdm/FINALS/TOPS.txt) ]; then
+    if [ ! -z $(grep 20161113 $splitdates) ]; then
+  
+      echo ' '
+      echo '#####################'
+      echo '#### Reset nullification, and add in unnulled data over the earthquake'
+      echo '#####################'
+      echo ' '
+  
+      LiCSBAS_reset_nulls.py -f ./ -d ${GEOCdir} --reset_LoopErr
+      echo 'Copying Unnulled Kaikoura IFGs'
+      for ifg in $(cat GEOCml10clipmaskGACOSL01merge/uncorrected.txt); do
+	im1=`echo $ifg | awk '{print substr($0, 1, 8)}'`
+	im2=`echo $ifg | awk '{print substr($0, 10, 8)}'`
+	if [ $im1 -lt 20161113 ] && [ $im2 -gt 20161113 ]; then
+	  echo $ifg
+	  cp -f ${GEOCdir}/$ifg/${ifg}_agg.unw ${GEOCdir}merge/$ifg/${ifg}.unw
+	  #ln -s `pwd`/${GEOCdir}/$ifg ${GEOCdir}merge/$ifg
+	fi
+      done
+    fi
+  fi
+    
 else
 
     echo GEOCmldir $L01dir > params.txt
@@ -263,7 +287,7 @@ else
 
     GEOCdir=$corrdir
 
-    fi
+fi
 
 echo ' '
 echo '#####################'
@@ -274,6 +298,7 @@ echo ' '
 echo GEOCmldir $GEOCdir > params.txt
 echo start_step 11 >> params.txt
 echo end_step 15 >> params.txt
+echo p11_unw_thre 0.05 >> params.txt
 echo p12_nullify n >> params.txt
 echo p12_find_reference y >> params.txt
 
