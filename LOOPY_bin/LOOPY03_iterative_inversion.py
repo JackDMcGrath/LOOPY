@@ -135,7 +135,7 @@ def main(argv=None):
     # %% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hd:t:c:v:",
+            opts, args = getopt.getopt(argv[1:], "hd:t:c:v:m:",
                                        ["help", "noreset", "nanUncorr", "gamma=", "pix_pngs", "--no_progress",
                                         "n_unw_r_thre=", "n_para="])
         except getopt.error as msg:
@@ -151,8 +151,10 @@ def main(argv=None):
             elif o == '-c':
                 corrdir = a
             elif o == '-v':
-                verbose = float(a)
+                verbose = int(a)
                 progress_bar = False
+            elif o == '-m':
+                max_loops = int(a)
             elif o == '--noreset':
                 reset = False
             elif o == '--gamma':
