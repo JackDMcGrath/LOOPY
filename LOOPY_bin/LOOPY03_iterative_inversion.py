@@ -525,37 +525,41 @@ def unw_loop_corr(ii, print_output=False):
     corr_full = np.zeros(disp_all.shape)
     
     # Extract only the non-nan data for the pixel so that nLoops is more accurate
-    useIFG = ~np.isnan(disp_all)
-    usedates = ifgdates[useIFG]
+    useIFG = np.where(~np.isnan(disp_all))[0]
+    usedates = np.array(ifgdates)[useIFG]
     loopMat = Aloop[:, useIFG]
     loopMat = loopMat[np.where(np.sum((loopMat != 0), axis=1) == 3)[0]]
-    nLoops, ifg_tot = loopMat.shape
+    nLoops_all, ifg_tot = loopMat.shape
 
     # Decide split the timeseries into processing chunks
-    if nLoops < max_loops:
-        loop_ix = np.array([0, nLoops])
+    if nLoops_all < max_loops:
+        loop_ix = np.array([0, nLoops_all])
     else:
-        if nLoops < 1.5 * max_loops:
-            loop_ix = np.array([[0, max_loops], [nLoops - max_loops, nLoops]])
+        if nLoops_all < 1.5 * max_loops:
+            loop_ix = np.array([[0, max_loops], [nLoops_all - max_loops, nLoops_all]])
         else:
             loop_ix = []
             start_loop = 0
-            while start_loop <= (nLoops - max_loops):
+            while start_loop <= (nLoops_all - max_loops):
                 loop_ix.append([start_loop, start_loop + max_loops])
                 start_loop += 0.5 * max_loops
-            if start_loop > (nLoops - max_loops):
-                loop_ix.append([nLoops - max_loops, nLoops])
+            if start_loop > (nLoops_all - max_loops):
+                loop_ix.append([nLoops_all - max_loops, nLoops_all])
     loop_ix = np.array(loop_ix).astype('int')
 
     corr = np.zeros((loop_ix.shape[0], len(disp_all))) * np.nan
 
     if print_output:
-        print(ii, 'Loop_ix', loop_ix)
+        print(ii, 'Loop_ix:\n', loop_ix)
 
-    for nRun, loops in enumerate(loop_ix):
+    for nRun in range(loop_ix.shape[0]):
         if print_output:
             print('{} Starting run {}/{} after {:.2f} seconds'.format(ii, nRun, loop_ix.shape[0], time.time()-commence))
-        start_loop, end_loop = loops
+        if len(loop_ix.shape) > 1:
+            start_loop, end_loop = loop_ix[nRun, :]
+        else:
+            start_loop, end_loop = loop_ix
+
         runLoop = loopMat[start_loop:end_loop, :]
         runIFG_ix = (runLoop != 0).any(axis=0)
         rundates = usedates[runIFG_ix]
@@ -564,16 +568,16 @@ def unw_loop_corr(ii, print_output=False):
         run_con = unw_con[ii, useIFG[runIFG_ix]]
         run_all = unw_all[ii, useIFG[runIFG_ix]]
 
-        ifg_good = np.array(rundates)[np.where(run_agg[ii,:])[0]]
-        ifg_cand = np.array(rundates)[np.where(run_con[ii,:])[0]]
-        ifg_bad = np.array(rundates)[~np.isnan(run_all[ii,:])]
+        ifg_good = np.array(rundates)[np.where(run_agg)[0]]
+        ifg_cand = np.array(rundates)[np.where(run_con)[0]]
+        ifg_bad = np.array(rundates)[~np.isnan(run_all)]
         ifg_good = list(set(ifg_good))
         ifg_cand = list(set(ifg_cand) - set(ifg_good))
         ifg_bad = list(set(ifg_bad) - set(ifg_cand) - set(ifg_good))
 
-        good_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_good])
-        cand_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_cand])
-        bad_ix = np.array([ix for ix, date in enumerate(ifgdates) if date in ifg_bad])
+        good_ix = np.array([ix for ix, date in enumerate(rundates) if date in ifg_good])
+        cand_ix = np.array([ix for ix, date in enumerate(rundates) if date in ifg_cand])
+        bad_ix = np.array([ix for ix, date in enumerate(rundates) if date in ifg_bad])
 
         n_good = len(ifg_good)
         n_cand = len(ifg_cand)
@@ -633,11 +637,13 @@ def unw_loop_corr(ii, print_output=False):
     # There maybe a all nan slices. Suppress the warning
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        corr_full[useIFG] = np.nanmedian(corr, axis=0)
+        corr_full = np.nanmedian(corr, axis=0)
+
+    corr_full[np.isnan(corr_full)] = 0
 
     if not progress_bar:
       if print_output:
-        print('{}/{} {} runs for {} ifgs in {} loops in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan, loop_ix.shape[0], ifg_tot, nLoops, time.time() - commence, time.time() - begin))
+        print('{}/{} {} runs for {} ifgs in {} loops in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan, loop_ix.shape[0], ifg_tot, nLoops_all, time.time() - commence, time.time() - begin))
 
     return corr_full
 
