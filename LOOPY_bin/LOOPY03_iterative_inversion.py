@@ -605,8 +605,6 @@ def unw_loop_corr(ii, print_output=False):
 
         while n_good < ifg_tot:
             n_it += 1
-            if print_output:
-                print('\t{} iteration {} after {:.2f} seconds'.format(ii, n_it, time.time()-commence))
             n_invert = int(n_good * 1.25) if int(n_good * 1.25) < ifg_tot else ifg_tot
 
             disp = run_all[:n_invert]
@@ -631,44 +629,50 @@ def unw_loop_corr(ii, print_output=False):
                     correction = np.array(loopy_lib.l1regls(G, d, alpha=0.01, show_progress=0)).round()[:, 0]
                     run_all[invIfg_ix] -= correction * wrap
                     corr[nRun, useIFG[solve_order[invIfg_ix]]] += correction
-                    corr_log[nRun, useIFG[solve_order[invIfg_ix]]] += 1
-            
+                    corr_log[nRun, useIFG[solve_order[invIfg_ix]]] += 1       
+ 
             n_good = n_invert
+            if print_output:
+                print('\t{} iteration {} after {:.2f} seconds'.format(ii, n_it, time.time()-commence))
+
 
     corr[np.where(corr_log == 0)] = np.nan
+    
     # There maybe a all nan slices. Suppress the warning
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         corr_full = np.nanmedian(corr, axis=0).round()
 
     # Find corrections
-    corr_check = ~np.isnan(corr).astype('int')
+    corr_check = (corr_log != 0).astype('int')
 
+    # no correction
+    only0 = np.nansum(corr_check, axis=0) == 0
+    
     # only 1 correction
     only1 = np.nansum(corr_check, axis=0) == 1
-
+     
     # 2 corrections
     only2 = np.nansum(corr_check, axis=0) == 2
-
+    
     # 3 corrections
     only3 = np.nansum(corr_check, axis=0) == 3
-
+    
     matchmedian = (corr == corr_full).all(axis=0)
 
     match2 = np.logical_and(only2, matchmedian)
     match3 = np.logical_and(only3, matchmedian)
-
-
-    print('Nifgs\tn_1corr\tn_2corr\tn_2match\tn_3corr\tn_3match')
-    print('{}\t{}\t{}\t{}\t{}\t{}'.format(ifg_tot_all, sum(only1), sum(only2), sum(match2), sum(only3), sum(match3)))
+    
+    if print_output:
+      print('Nifgs\tno_corr\tn_1corr\tn_2corr\tn_2good\tn_3corr\tn_3good')
+      print('{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(ifg_tot_all, sum(only0), sum(only1), sum(only2), sum(match2), sum(only3), sum(match3)))
 
 
     corr_full[np.isnan(corr_full)] = 0
 
-    if not progress_bar:
-      if print_output:
-        print('{}/{} {} runs for {} ifgs in {} loops in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan, loop_ix.shape[0], ifg_tot, nLoops_all, time.time() - commence, time.time() - begin))
-
+    if print_output:
+      print('{}/{} {} runs for {} ifgs in {} loops in {:.2f} seconds (Total Time: {:.2f} seconds)'.format(ii, n_pt_unnan, loop_ix.shape[0], ifg_tot, nLoops_all, time.time() - commence, time.time() - begin))
+    time.sleep(10)
     return corr_full
 
 
