@@ -31,23 +31,24 @@ Outputs in GEOCml*LoopMask/:
 - yyyymmdd_yyyymmdd/
   - yyyymmdd_yyyymmdd.unw[.png] : Corrected unw
   - yyyymmdd_yyyymmdd.cc : Coherence file
-  - yyyymmdd_yyyymmdd.L1compare.png : png of original + corrected unw, original npi map, and correction
+  - yyyymmdd_yyyymmdd.LPC_compare.png : png of original + corrected unw, original npi map, and correction
 - other metafiles produced by LiCSBAS02_ml_prep.py
 
 =====
 Usage
 =====
-LOOPY03_iteration_inversion.py -d ifgdir [-t tsadir] [-c corrdir] [--gamma float] [--n_para int] [--n_unw_r_thre float]
+LOOPY03_iteration_inversion.py -d ifgdir [-t tsadir] [-c corrdir] [--gamma float] [--n_para int] [--n_unw_r_thre float] [--nofilter]
 
 -d             Path to the GEOCml* dir containing stack of unw data
 -t             Path to the output TS_GEOCml* dir
--c             Path to the correction dierectory (Default: GEOCml*L1)
+-c             Path to the correction dierectory (Default: GEOCml*L03)
 --gamma        Gamma value for L1 Regulariastion (Default: 0.001)
 --n_para       Number of parallel processing (Default:  # of usable CPU)
 --n_unw_r_thre Threshold of n_unw (number of used unwrap data) (Note this value
                is ratio to the number of images; i.e., 1.5*n_im) Larger number
                (e.g. 2.5) makes processing faster but result sparser.
                (Default: 1 and 0.5 for C- and L-band, respectively)
+--nofilter     Don't filter corrections
 """
 # %% Change log
 '''
@@ -77,9 +78,7 @@ import LiCSBAS_plot_lib as plot_lib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from cvxopt import matrix
-from scipy.ndimage import median_filter
-from skimage.restoration import denoise_tv_chambolle, denoise_bilateral, denoise_wavelet, estimate_sigma
-from scipy.ndimage import binary_dilation, binary_erosion, binary_opening, binary_closing
+from scipy.ndimage import binary_opening, binary_closing
 from scipy.interpolate import NearestNDInterpolator
 from skimage.morphology import disk
 
@@ -114,7 +113,7 @@ def main(argv=None):
     global G, Aloop, imdates, ifgdir, length, width, ifgdates, cycle, \
         cmap_vel, cmap_wrap, wavelength, refx1, refx2, refy1, refy2, n_pt_unnan, Aloop, wrap, unw, \
         n_ifg, corrFull, corrdir, unw_all, unw_agg, unw_con, begin, n_para, plotdir, pix_plot, \
-        pix_output, progress_bar
+        pix_output, progress_bar, filtercorr
 
     # %% Set default
     ifgdir = []
@@ -123,6 +122,7 @@ def main(argv=None):
     reset = True
     pix_plot = False
     pix_output = 1000
+    filtercorr = True
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -140,7 +140,7 @@ def main(argv=None):
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:c:",
                                        ["help", "noreset", "nanUncorr", "gamma=", "pix_pngs",
-                                        "n_unw_r_thre=", "n_para="])
+                                        "n_unw_r_thre=", "n_para=", "--nofilter"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -163,6 +163,8 @@ def main(argv=None):
                 n_para = int(a)
             elif o == '--pix_pngs':
                 pix_plot = False
+            elif o == '--nofilter':
+                filtercorr = False
 
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
@@ -192,7 +194,7 @@ def main(argv=None):
         tsadir = os.path.join(os.path.dirname(ifgdir), 'TS_' + os.path.basename(ifgdir))
 
     if not corrdir:
-        corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'L1')
+        corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'L03')
     
     plotdir = os.path.join(corrdir, 'plots')
 
@@ -658,7 +660,7 @@ def apply_correction(i):
 
     unwfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw')
     unwpngfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw.png')
-    corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.L1_compare.png')
+    corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.LPC_compare.png')
 
     # Convert correction to radians
     unw1 = unw[i, :, :]
@@ -666,78 +668,55 @@ def apply_correction(i):
 
     correction = corrFull[i, :, :]
 
-    for filter_type in ['none', 'median3', 'median5', 'binary', 'tv', 'wavelet']:
-        corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.L1_{}.png'.format(filter_type))
-        if filter_type == 'median3':
+    if filtercorr:
 
-            corrFilt = median_filter(correction, size=3).round()
-
-        elif filter_type == 'median5':
-
-            corrFilt = median_filter(correction, size=5).round()
-
-        elif filter_type == 'binary':
-            filtWidth = 5
-            grid = np.zeros((length,width))
-            grid[np.where(abs(correction) > 0)] = 1 # Find all areas that have a correction
-            grid = binary_closing(grid, structure=disk(radius=np.ceil(filtWidth / 2))).astype('int') # Fill in any holes
-            grid = binary_opening(grid, structure=disk(radius=np.ceil(filtWidth / 2))).astype('int') # Remove wild spikes
-            corrFilt[np.where(grid == 0)] = 0 # Remove wild spikes from inverted Correction
-            grid = grid + (np.abs(correction) > 0).astype('int')  # Make grid where 0  = no correction, 1 = need interpolating, 2 = Inverted Correction
-            mask = np.where(grid == 2)
-            interp = NearestNDInterpolator(np.transpose(mask), correction[mask]) # Create interpolator
-            interp_to = np.where(grid == 1) # Find where to interpolate to
-            nearest_data = interp(*interp_to)  # Interpolate
-            corrFilt[interp_to] = nearest_data  # Apply corrected data
-            corrFilt[np.where(np.isnan(correction))] = np.nan
-
-        elif filter_type == 'tv':
-
-            min_corr = np.nanmin(correction[:])
-            max_corr = np.nanmax(correction[:])
-            correction -= min_corr - 1
-            correction[np.isnan(correction)] = 0
-            correction /= (max_corr + 1)
-
-            correction = denoise_tv_chambolle(correction, weight=0.1, channel_axis=-1)
-
-            correction *= (max_corr + 1)
-            correction += (min_corr + 1)
-
-            corrFilt = correction.round()
+        corr_val, corr_count = np.unique(correction, return_counts=True)
+        corr_order = np.argsort(corr_count)
         
-        elif filter_type == 'wavelet':
+        # Find full region where correction could be needed, and remove random noise
+        corr_grid = np.zeros((length, width))
+        corr_grid [np.where(correction != 0)] = 1
+        corr_grid = binary_closing(corr_grid, structure=disk(radius=2)).astype('int')  # Fill in any holes
+        corr_grid = binary_opening(corr_grid, structure=disk(radius=1)).astype(np.float32)  # Remove wild spikes
 
-            min_corr = np.nanmin(correction[:])
-            max_corr = np.nanmax(correction[:])
-            correction -= min_corr - 1
-            correction[np.isnan(correction)] = 0
-            correction /= (max_corr + 1)
+        # Make variable to store correction
+        corrFilt = np.zeros((length, width))
+        corrFilt[np.where(np.isnan(unw))] = np.nan
+        corrFilt[np.where(corr_grid == 1)] = np.nan
 
-            correction = denoise_wavelet(correction, channel_axis=-1, rescale_sigma=True)
+        # Filter each correction value to reduce noise
+        for corr in corr_order:
+            if corr_val[corr] == 0:
+                continue
 
-            correction *= (max_corr + 1)
-            correction += (min_corr + 1)
+            grid = np.zeros((length, width))
+            grid[np.where(correction == corr_val[corr])] = 1  # Find all areas that have a correction
+            grid = binary_closing(grid, structure=disk(radius=2)).astype('int')  # Fill in any holes
+            grid = binary_opening(grid, structure=disk(radius=1)).astype('int')  # Remove wild spikes
+            corrFilt[np.where(grid == 1)] = corr_val[corr]
 
-            corrFilt = correction.round()
+        # Interpolate filtered corrections to identified correction region
+        mask = np.where(~np.isnan(corrFilt))  # < this is the good data
+        interp = NearestNDInterpolator(np.transpose(mask), corrFilt[mask])  # Create interpolator
+        interp_to = np.where(corr_grid == 1)  # Find where to interpolate to
+        corrFilt[interp_to] = interp(*interp_to)  # Apply corrected data
 
-        else:
-            corrFilt = correction
+    else:
+        corrFilt = correction
 
+    correction_rads = corrFilt * wrap
 
-        correction_rads = corrFilt * wrap
+    corr_unw = unw[i, :, :] - correction_rads
+    corr_unw.tofile(unwfile)
+    # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
+    titles4 = ['Uncorrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(unw1.flatten() ** 2))),
+            'Corrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(corr_unw.flatten() ** 2))),
+            'Modulo nPi',
+            'LPC Correction (nPi)']
 
-        corr_unw = unw[i, :, :] - correction_rads
-        corr_unw.tofile(unwfile)
-        # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
-        titles4 = ['Uncorrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(unw1.flatten() ** 2))),
-                'Corrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(corr_unw.flatten() ** 2))),
-                'Modulo nPi',
-                'L1 Correction (nPi) {}'.format(filter_type)]
+    loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFilt, corrcomppng, titles4, 3)
 
-        loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFilt, corrcomppng, titles4, 3)
-
-        plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
+    plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 # %% main
 if __name__ == "__main__":
