@@ -216,54 +216,77 @@ if [ ! -z $splitdates ]; then
 
   LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} --merge
 
+  if [ ! -z $(grep ${FRAME} /nfs/a285/homes/eejdm/FINALS/TOPS.txt) ]; then
+    if [ ! -z $(grep 20161113 $splitdates) ]; then
+
+      echo ' '
+      echo '#####################'
+      echo '#### Reset nullification, and add in unnulled data over the earthquake'
+      echo '#####################'
+      echo ' '
+
+      LiCSBAS_reset_nulls.py -f ./ -d ${L01dir} --reset_LoopErr
+      echo 'Copying Unnulled Kaikoura IFGs'
+      for ifg in $(cat ${L01dir}/uncorrected.txt); do
+	      im1=`echo $ifg | awk '{print substr($0, 1, 8)}'`
+	      im2=`echo $ifg | awk '{print substr($0, 10, 8)}'`
+	      if [ $im1 -lt 20161113 ] && [ $im2 -gt 20161113 ]; then
+	        echo $ifg
+	        cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${L01dir}merge/$ifg/${ifg}.unw
+	        #ln -s `pwd`/${L01dir}/$ifg ${L01dir}merge/$ifg
+	      fi
+      done
+    fi
+  fi
+  
   GEOCdir=${L01dir}merge
   
 else
 
-    echo GEOCmldir $L01dir > params.txt
-    echo start_step 11 >> params.txt
-    echo end_step 12 >> params.txt
-    echo p12_null_both y >> params.txt
-    echo p12_find_reference n >> params.txt
+  echo GEOCmldir $L01dir > params.txt
+  echo start_step 11 >> params.txt
+  echo end_step 12 >> params.txt
+  echo p12_null_both y >> params.txt
+  echo p12_find_reference n >> params.txt
 
-    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
+  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
 
-    echo ' '
-    echo '#####################'
-    echo '#### Running all nullification for '$L01dir
-    echo '#####################'
-    echo ' '
+  echo ' '
+  echo '#####################'
+  echo '#### Running all nullification for '$L01dir
+  echo '#####################'
+  echo ' '
 
-    ./batch_LiCSBAS.sh
+  ./batch_LiCSBAS.sh
 
-    echo ' '
-    echo '#####################'
-    echo '#### Running LOOPY03_iterative_inversion.py for '$L01dir
-    echo '#####################'
-    echo ' '
+  echo ' '
+  echo '#####################'
+  echo '#### Running LOOPY03_iterative_inversion.py for '$L01dir
+  echo '#####################'
+  echo ' '
 
-    corrdir=${L01dir}L03
-    LOOPY03_iterative_inversion.py -d $L01dir -c ${corrdir} --n_para ${n_para}
+  corrdir=${L01dir}L03
+  LOOPY03_iterative_inversion.py -d $L01dir -c ${corrdir} --n_para ${n_para}
 
-    echo ' '
-    echo '#####################'
-    echo '#### Aggressively null corrected timeseries in '$corrdir
-    echo '#####################'
-    echo ' '
+  echo ' '
+  echo '#####################'
+  echo '#### Aggressively null corrected timeseries in '$corrdir
+  echo '#####################'
+  echo ' '
 
-    echo GEOCmldir $corrdir > params.txt
-    echo start_step 11 >> params.txt
-    echo end_step 12 >> params.txt
-    echo p12_null_both n >> params.txt
-    echo p12_nullify y >> params.txt
-    echo p12_treat_as_bad y >> params.txt
+  echo GEOCmldir $corrdir > params.txt
+  echo start_step 11 >> params.txt
+  echo end_step 12 >> params.txt
+  echo p12_null_both n >> params.txt
+  echo p12_nullify y >> params.txt
+  echo p12_treat_as_bad y >> params.txt
 
-    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
-    ./batch_LiCSBAS.sh
+  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
+  ./batch_LiCSBAS.sh
 
-    GEOCdir=$corrdir
+  GEOCdir=$corrdir
 
-    fi
+fi
 
 echo ' '
 echo '#####################'
@@ -274,6 +297,7 @@ echo ' '
 echo GEOCmldir $GEOCdir > params.txt
 echo start_step 11 >> params.txt
 echo end_step 15 >> params.txt
+echo p11_unw_thre 0.05 >> params.txt
 echo p12_nullify n >> params.txt
 echo p12_find_reference y >> params.txt
 
