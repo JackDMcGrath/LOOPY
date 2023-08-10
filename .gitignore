@@ -2,3 +2,5 @@ oldLOOPYLiCSBAS
 bin/Velocity_fitting_multiEQ_filtered_std_new.py
 *pyc
 .vscode/
+20*
+LOOPY_bin/testingFilters_LOOPY03_iterative_inversion.py
