@@ -716,6 +716,12 @@ def apply_correction(i):
 
     loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFilt, corrcomppng, titles4, 3)
 
+    if filtercorr:
+        correction_rads = correction * wrap
+        corr_unw = unw[i, :, :] - correction_rads
+        corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.LPC_nofilter.png')
+        loopy_lib.make_compare_png(unw1, corr_unw, npi, correction, corrcomppng, titles4, 3)
+
     plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 # %% main
