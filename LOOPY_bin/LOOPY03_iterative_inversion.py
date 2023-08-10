@@ -681,7 +681,7 @@ def apply_correction(i):
 
         # Make variable to store correction
         corrFilt = np.zeros((length, width))
-        corrFilt[np.where(np.isnan(unw))] = np.nan
+        corrFilt[np.where(np.isnan(unw1))] = np.nan
         corrFilt[np.where(corr_grid == 1)] = np.nan
 
         # Filter each correction value to reduce noise
