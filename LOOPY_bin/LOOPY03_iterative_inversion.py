@@ -720,6 +720,10 @@ def apply_correction(i):
         correction_rads = correction * wrap
         corr_unw = unw[i, :, :] - correction_rads
         corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.LPC_nofilter.png')
+        titles4 = ['Uncorrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(unw1.flatten() ** 2))),
+            'Corrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(corr_unw.flatten() ** 2))),
+            'Modulo nPi',
+            'LPC Correction (nPi)']
         loopy_lib.make_compare_png(unw1, corr_unw, npi, correction, corrcomppng, titles4, 3)
 
     plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
