@@ -707,7 +707,7 @@ def apply_correction(i):
     correction_rads = corrFilt * wrap
 
     corr_unw = unw[i, :, :] - correction_rads
-    corr_unw.tofile(unwfile)
+    corr_unw.astype('float32').tofile(unwfile)
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
     titles4 = ['Uncorrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(unw1.flatten() ** 2))),
             'Corrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(corr_unw.flatten() ** 2))),
