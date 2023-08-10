@@ -667,7 +667,7 @@ def apply_correction(i):
     correction = corrFull[i, :, :]
 
     for filter_type in ['none', 'median3', 'median5', 'binary', 'tv', 'wavelet']:
-        unwpngfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '_{}.unw.png'.format(filter_type))
+        corrcomppng = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.L1_{}.png'.format(filter_type))
         if filter_type == 'median3':
 
             corrFilt = median_filter(correction, size=3).round()
