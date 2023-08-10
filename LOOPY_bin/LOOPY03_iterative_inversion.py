@@ -77,6 +77,12 @@ import LiCSBAS_plot_lib as plot_lib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from cvxopt import matrix
+from scipy.ndimage import median_filter
+from skimage.restoration import denoise_tv_chambolle, denoise_bilateral, denoise_wavelet, estimate_sigma
+from scipy.ndimage import binary_dilation, binary_erosion, binary_opening, binary_closing
+from scipy.interpolate import NearestNDInterpolator
+from skimage.morphology import disk
+
 try:
     from tqdm.contrib.concurrent import process_map
     progress_bar = True
@@ -658,19 +664,80 @@ def apply_correction(i):
     unw1 = unw[i, :, :]
     npi = (unw1 / np.pi).round()
 
-    correction = corrFull[i, :, :] * wrap
+    correction = corrFull[i, :, :]
 
-    corr_unw = unw[i, :, :] - correction
-    corr_unw.tofile(unwfile)
-    # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
-    titles4 = ['Uncorrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(unw1.flatten() ** 2))),
-               'Corrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(corr_unw.flatten() ** 2))),
-               'Modulo nPi',
-               'L1 Correction (nPi)']
+    for filter_type in ['none', 'median3', 'median5', 'binary', 'tv', 'wavelet']:
+        unwpngfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '_{}.unw.png'.format(filter_type))
+        if filter_type == 'median3':
 
-    loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFull[i, :, :], corrcomppng, titles4, 3)
+            corrFilt = median_filter(correction, size=3).round()
 
-    plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
+        elif filter_type == 'median5':
+
+            corrFilt = median_filter(correction, size=5).round()
+
+        elif filter_type == 'binary':
+            filtWidth = 5
+            grid = np.zeros((length,width))
+            grid[np.where(abs(correction) > 0)] = 1 # Find all areas that have a correction
+            grid = binary_closing(grid, structure=disk(radius=np.ceil(filtWidth / 2))).astype('int') # Fill in any holes
+            grid = binary_opening(grid, structure=disk(radius=np.ceil(filtWidth / 2))).astype('int') # Remove wild spikes
+            corrFilt[np.where(grid == 0)] = 0 # Remove wild spikes from inverted Correction
+            grid = grid + (np.abs(correction) > 0).astype('int')  # Make grid where 0  = no correction, 1 = need interpolating, 2 = Inverted Correction
+            mask = np.where(grid == 2)
+            interp = NearestNDInterpolator(np.transpose(mask), correction[mask]) # Create interpolator
+            interp_to = np.where(grid == 1) # Find where to interpolate to
+            nearest_data = interp(*interp_to)  # Interpolate
+            corrFilt[interp_to] = nearest_data  # Apply corrected data
+            corrFilt[np.where(np.isnan(correction))] = np.nan
+
+        elif filter_type == 'tv':
+
+            min_corr = np.nanmin(correction[:])
+            max_corr = np.nanmax(correction[:])
+            correction -= min_corr - 1
+            correction[np.isnan(correction)] = 0
+            correction /= (max_corr + 1)
+
+            correction = denoise_tv_chambolle(correction, weight=0.1, channel_axis=-1)
+
+            correction *= (max_corr + 1)
+            correction += (min_corr + 1)
+
+            corrFilt = correction.round()
+        
+        elif filter_type == 'wavelet':
+
+            min_corr = np.nanmin(correction[:])
+            max_corr = np.nanmax(correction[:])
+            correction -= min_corr - 1
+            correction[np.isnan(correction)] = 0
+            correction /= (max_corr + 1)
+
+            correction = denoise_wavelet(correction, channel_axis=-1, rescale_sigma=True)
+
+            correction *= (max_corr + 1)
+            correction += (min_corr + 1)
+
+            corrFilt = correction.round()
+
+        else:
+            corrFilt = correction
+
+
+        correction_rads = corrFilt * wrap
+
+        corr_unw = unw[i, :, :] - correction_rads
+        corr_unw.tofile(unwfile)
+        # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
+        titles4 = ['Uncorrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(unw1.flatten() ** 2))),
+                'Corrected (RMS: {:.2f})'.format(np.sqrt(np.nanmean(corr_unw.flatten() ** 2))),
+                'Modulo nPi',
+                'L1 Correction (nPi) {}'.format(filter_type)]
+
+        loopy_lib.make_compare_png(unw1, corr_unw, npi, corrFilt, corrcomppng, titles4, 3)
+
+        plot_lib.make_im_png(np.angle(np.exp(1j * unw1 / 3) * 3), unwpngfile, cmap_wrap, ifgdates[i] + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 # %% main
 if __name__ == "__main__":
