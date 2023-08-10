@@ -61,11 +61,11 @@ p13_null_noloop="n" # y/n Remove pixels that have no loop
 p15_coh_thre="0.05"	# default: 0.05
 p15_n_unw_r_thre="1.5"	# default: 1.5
 p15_vstd_thre="100"	# default: 100 mm/yr
-p15_maxTlen_thre="1"	# default: 1 yr
-p15_n_gap_thre="0"	# default: 10
+p15_maxTlen_thre="6"	# default: 1 yr
+p15_n_gap_thre="10"	# default: 10
 p15_stc_thre="20"	# default: 5 mm
-p15_n_ifg_noloop_thre="1000"	# default: 50
-p15_n_loop_err_thre="1000"	# default: 5
+p15_n_ifg_noloop_thre="100"	# default: 50
+p15_n_loop_err_thre="100"	# default: 5
 p15_resid_rms_thre="25"	# default: 2 mm
 p16_filtwidth_km=""	# default: 2 km
 p16_filtwidth_yr=""	# default: avg_interval*3 yr
@@ -304,8 +304,10 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
 	if [ ! -z $p12_TSdir ];then
     p12_op="$p12_op -t $p12_TSdir"
     p120_op="$p120_op -t $p12_TSdir"
+    tsdir=$p12_TSdir
   else
     p120_op="$p120_op -t TS_$GEOCmldir";
+    tsdir=TS_$GEOCmldir
   fi
 
 	if [ $check_only == "y" ];then
@@ -323,6 +325,8 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
 		LiCSBAS12_loop_closure.py $p12_op 2>&1 | tee -a $log
     if [ $p12_find_reference == "y" ]; then
 		  LiCSBAS120_choose_reference.py -f ./ $p120_op 2>&1 | tee -a $log
+    else
+		  cp $tsdir/info/12ref.txt $tsdir/info/120ref.txt
     fi
 		if [ ${PIPESTATUS[0]} -ne 0 ];then exit 1; fi
 	fi
