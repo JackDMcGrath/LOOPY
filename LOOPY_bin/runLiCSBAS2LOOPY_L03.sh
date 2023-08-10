@@ -52,11 +52,7 @@ az=`echo $FRAME | head -c 4 | tail -c 1`
 
 echo 20141001 > $splitdates
 echo 20161113 >> $splitdates
-if [ az == 'A' ]; then
-  echo 20190601 >> $splitdates
-else
-  echo 20200101 >> $splitdates
-fi
+echo 20200101 >> $splitdates
 echo 20230101 >> $splitdates
 
 if [ -f splitdirs.txt ]; then
@@ -232,7 +228,7 @@ if [ ! -z $splitdates ]; then
 	      im2=`echo $ifg | awk '{print substr($0, 10, 8)}'`
 	      if [ $im1 -lt 20161113 ] && [ $im2 -gt 20161113 ]; then
 	        echo $ifg
-	        cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${L01dir}merge/$ifg/${ifg}.unw
+	        cp -f ${L01dir}/$ifg/${ifg}_orig.unw ${L01dir}merge/$ifg/${ifg}.unw
 	        #ln -s `pwd`/${L01dir}/$ifg ${L01dir}merge/$ifg
 	      fi
       done
