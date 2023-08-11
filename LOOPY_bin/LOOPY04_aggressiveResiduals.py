@@ -158,7 +158,9 @@ def correcting_by_integer(reslist):
             res_integer[zeromask] = 0
 
             if args.filter:
-                res_integer = binary_filter(res_integer)
+                res_integer[np.isnan(res_integer)] = 0
+                res_integer = binary_filter(res_integer, pair)
+                res_integer[np.isnan(unw)] = np.nan
 
             rms_res_integer_corrected = np.sqrt(np.nanmean((res_num_2pi - res_integer) ** 2))
 
@@ -197,7 +199,7 @@ def correcting_by_integer(reslist):
             unw.flatten().tofile(os.path.join(correct_pair_dir, pair + '.unw'))
             plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), os.path.join(correct_pair_dir, pair + '.unw.png'), SCM.roma, pair + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
-def binary_filter(correction):
+def binary_filter(correction, pair):
 
     corr_val, corr_count = np.unique(correction, return_counts=True)
     corr_order = np.argsort(corr_count)
@@ -207,6 +209,8 @@ def binary_filter(correction):
     corr_grid [np.where(correction != 0)] = 1
     corr_grid = binary_closing(corr_grid, structure=disk(radius=2)).astype('int')  # Fill in any holes
     corr_grid = binary_opening(corr_grid, structure=disk(radius=1)).astype(np.float32)  # Remove wild spikes
+    plt.imshow(corr_grid)
+    plt.savefig(os.path.join(integer_png_dir, '{}_corr_grid.png'.format(pair)))
 
     # Make variable to store correction
     corrFilt = np.zeros((length, width))
@@ -224,11 +228,15 @@ def binary_filter(correction):
         grid = binary_opening(grid, structure=disk(radius=1)).astype('int')  # Remove wild spikes
         corrFilt[np.where(np.logical_and(grid == 1, correction == corr_val[corr]))] = corr_val[corr]
 
+    plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
+    plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt1.png'.format(pair)))
     # Interpolate filtered corrections to identified correction region
     mask = np.where(~np.isnan(corrFilt))  # < this is the good data
     interp = NearestNDInterpolator(np.transpose(mask), corrFilt[mask])  # Create interpolator
     interp_to = np.where(corr_grid == 1)  # Find where to interpolate to
     corrFilt[interp_to] = interp(*interp_to)  # Apply corrected data
+    plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
+    plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt2.png'.format(pair)))
 
     return corrFilt
 
