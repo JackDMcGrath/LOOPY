@@ -39,6 +39,9 @@ import shutil
 import multiprocessing as multi
 from scipy import interpolate
 import SCM
+from scipy.ndimage import binary_opening, binary_closing
+from scipy.interpolate import NearestNDInterpolator
+from skimage.morphology import disk
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -66,6 +69,7 @@ def init_args():
     parser.add_argument('--no_depeak', default=False, action='store_true', help="don't offset by residual mode before calculation (recommend depeak)")
     parser.add_argument('--interp', default='Linear', choices=['Linear', 'Cubic'], help="Interpolation Method of masked velocities")
     parser.add_argument('--nonan', default=False, action='store_true', help="Set uncertain corrections to 0 rather than nan when masking")
+    parser.add_argument('filter', dest='filter', default=False, action='store_true', help="Run binary filtering of the correction" )
     args = parser.parse_args()
 
     if '/' in args.out_dir:
@@ -152,6 +156,10 @@ def correcting_by_integer(reslist):
             # Set Areas where theres is not a correction to 0 (preserving size of overall field)
             zeromask = np.where(np.logical_and(~np.isnan(unw), np.isnan(res_integer)))
             res_integer[zeromask] = 0
+
+            if args.filter:
+                res_integer = binary_filter(res_integer)
+
             rms_res_integer_corrected = np.sqrt(np.nanmean((res_num_2pi - res_integer) ** 2))
 
             # correcting by component mode
@@ -186,6 +194,41 @@ def correcting_by_integer(reslist):
         else:
             unw.flatten().tofile(os.path.join(correct_pair_dir, pair + '.unw'))
             plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), os.path.join(correct_pair_dir, pair + '.unw.png'), SCM.roma, pair + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
+
+def binary_filter(correction):
+
+    corr_val, corr_count = np.unique(correction, return_counts=True)
+    corr_order = np.argsort(corr_count)
+        
+    # Find full region where correction could be needed, and remove random noise
+    corr_grid = np.zeros((length, width))
+    corr_grid [np.where(correction != 0)] = 1
+    corr_grid = binary_closing(corr_grid, structure=disk(radius=2)).astype('int')  # Fill in any holes
+    corr_grid = binary_opening(corr_grid, structure=disk(radius=1)).astype(np.float32)  # Remove wild spikes
+
+    # Make variable to store correction
+    corrFilt = np.zeros((length, width))
+    corrFilt[np.where(np.isnan(correction))] = np.nan
+    corrFilt[np.where(corr_grid == 1)] = np.nan
+
+    # Filter each correction value to reduce noise
+    for corr in corr_order:
+        if corr_val[corr] == 0 or np.isnan(corr_val[corr]):
+            continue
+
+        grid = np.zeros((length, width))
+        grid[np.where(correction == corr_val[corr])] = 1  # Find all areas that have a correction
+        grid = binary_closing(grid, structure=disk(radius=2)).astype('int')  # Fill in any holes
+        grid = binary_opening(grid, structure=disk(radius=1)).astype('int')  # Remove wild spikes
+        corrFilt[np.where(np.logical_and(grid == 1, correction == corr_val[corr]))] = corr_val[corr]
+
+    # Interpolate filtered corrections to identified correction region
+    mask = np.where(~np.isnan(corrFilt))  # < this is the good data
+    interp = NearestNDInterpolator(np.transpose(mask), corrFilt[mask])  # Create interpolator
+    interp_to = np.where(corr_grid == 1)  # Find where to interpolate to
+    corrFilt[interp_to] = interp(*interp_to)  # Apply corrected data
+
+    return corrFilt
 
 def start():
     global start_time
@@ -296,7 +339,7 @@ def plot_correction_by_integer(pair, unw, unw_corrected, unw_masked, res_mask, r
     im_res = ax[1, 0].imshow(res_num_2pi, vmin=-2, vmax=2, cmap=cm.RdBu, interpolation='nearest')
     im_res = ax[1, 1].imshow(res_integer, vmin=-2, vmax=2, cmap=cm.RdBu, interpolation='nearest')
     im_res = ax[1, 2].imshow(res_mask, vmin=-2, vmax=2, cmap=cm.RdBu, interpolation='nearest')
-    ax[1, 0].scatter(ref_x, ref_y, c='r', s=10)
+    ax[1, 0].plot([refx1, refx1, refx2, refx2, refx1], [refy1, refy2, refy2, refy1, refy1], c='r')
     ax[0, 0].set_title("Unw (rad)")
     ax[0, 1].set_title("Correct by Integer")
     ax[0, 2].set_title("Correct with Mask")
