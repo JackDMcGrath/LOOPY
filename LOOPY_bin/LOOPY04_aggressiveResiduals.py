@@ -48,7 +48,6 @@ class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescri
     '''
     pass
 
-
 def init_args():
     global args
 
@@ -150,7 +149,6 @@ def load_res(res_file, length, width):
     del res_mm, res_rad
     return res_num_2pi, res_rms
 
-
 def correcting_by_integer(reslist):
     for i in reslist:
         pair = os.path.basename(i).split('.')[0][-17:]
@@ -178,9 +176,10 @@ def correcting_by_integer(reslist):
             unw_corrected = unw - res_integer * 2 * np.pi
 
             # turn uncertain correction into masking
-            mask1 = np.logical_and(abs(res_num_2pi) > 0.2, abs(res_num_2pi) < 0.8)
-            mask2 = np.logical_and(abs(res_num_2pi) > 1.2, abs(res_num_2pi) < 1.8)
-            mask = np.logical_or(mask1, mask2)
+            # mask1 = np.logical_and(abs(res_num_2pi) > 0.2, abs(res_num_2pi) < 0.8)
+            # mask2 = np.logical_and(abs(res_num_2pi) > 1.2, abs(res_num_2pi) < 1.8)
+            # mask = np.logical_or(mask1, mask2)
+            mask = np.logical_and(np.mod(abs(res_num_2pi), 1) > 0.2, np.mod(abs(res_num_2pi),1) < 0.8)
             res_mask = copy.copy(res_integer)
             if args.nonan:
                 res_mask[mask] = 0
@@ -206,7 +205,6 @@ def correcting_by_integer(reslist):
             unw.flatten().tofile(os.path.join(correct_pair_dir, pair + '.unw'))
             plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), os.path.join(correct_pair_dir, pair + '.unw.png'), SCM.roma, pair + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
-
 def start():
     global start_time
     # intialise and print info on screen
@@ -214,7 +212,6 @@ def start():
     ver="1.0"; date=20221020; author="Qi Ou and Jack McGrath"
     print("\n{} ver{} {} {}".format(os.path.basename(sys.argv[0]), ver, date, author), flush=True)
     print("{} {}".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
-
 
 def finish():
     #%% Finish
@@ -225,7 +222,6 @@ def finish():
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour,minite,sec))
     print("\n{} {} finished!".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
     print('Output directory: {}\n'.format(os.path.relpath(correct_dir)))
-
 
 def set_input_output():
     global unwdir, tsadir, resdir, infodir, netdir, correct_dir, integer_png_dir, resultdir
@@ -350,8 +346,6 @@ def move_metafiles():
         ccfile = os.path.join(unwdir, pair, pair + '.cc')
         if not os.path.exists(os.path.join(correct_dir, pair, pair + '.cc')):
             os.symlink(ccfile, os.path.join(correct_dir, pair, pair + '.cc'))
-
-
 
 def main():
     start()
