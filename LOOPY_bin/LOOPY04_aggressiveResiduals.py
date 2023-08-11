@@ -147,7 +147,7 @@ def correcting_by_integer(reslist):
         cycle = 3
 
         if i in corr_list:
-            # print(pair, 'is being corrected')
+            print(pair, 'is being corrected')
             # calc component mode
             #res_num_2pi, res_rms = load_res(i, length, width)
             res_num_2pi, res_rms = load_vel(i, length, width)
@@ -237,6 +237,7 @@ def binary_filter(correction, pair):
     corrFilt[interp_to] = interp(*interp_to)  # Apply corrected data
     plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
     plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt2.png'.format(pair)))
+    print(os.path.join(integer_png_dir, '{}_corrFilt2.png'.format(pair)))
 
     return corrFilt
 
