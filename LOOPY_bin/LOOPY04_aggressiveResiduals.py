@@ -150,7 +150,6 @@ def load_res(res_file, length, width):
     del res_mm, res_rad
     return res_num_2pi, res_rms
 
-
 def correcting_by_integer(reslist):
     for i in reslist:
         pair = os.path.basename(i).split('.')[0][-17:]
@@ -163,7 +162,7 @@ def correcting_by_integer(reslist):
         cycle = 3
 
         if i in corr_list:
-            #print(pair)
+            # print(pair, 'is being corrected')
             # calc component mode
             #res_num_2pi, res_rms = load_res(i, length, width)
             res_num_2pi, res_rms = load_vel(i, length, width)
@@ -203,6 +202,7 @@ def correcting_by_integer(reslist):
                 plot_lib.make_im_png(np.angle(np.exp(1j*unw_masked/cycle)*cycle), os.path.join(correct_pair_dir, pair + '.unw.png'), SCM.roma, pair + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
             del mask1, mask2, mask, res_mask, unw_masked, rms_res_mask_corrected
         else:
+            print(pair, 'not in corr_list')
             unw.flatten().tofile(os.path.join(correct_pair_dir, pair + '.unw'))
             plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), os.path.join(correct_pair_dir, pair + '.unw.png'), SCM.roma, pair + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
@@ -215,7 +215,6 @@ def start():
     print("\n{} ver{} {} {}".format(os.path.basename(sys.argv[0]), ver, date, author), flush=True)
     print("{} {}".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
 
-
 def finish():
     #%% Finish
     elapsed_time = time.time() - start_time
@@ -225,7 +224,6 @@ def finish():
     print("\nElapsed time: {0:02}h {1:02}m {2:02}s".format(hour,minite,sec))
     print("\n{} {} finished!".format(os.path.basename(sys.argv[0]), ' '.join(sys.argv[1:])), flush=True)
     print('Output directory: {}\n'.format(os.path.relpath(correct_dir)))
-
 
 def set_input_output():
     global unwdir, tsadir, resdir, infodir, netdir, correct_dir, integer_png_dir, resultdir
@@ -283,9 +281,10 @@ def get_para():
     res_list = [os.path.basename(res[:-4]) for res in res_list]
     if args.ifg_list:
         corr_list = io_lib.read_ifg_list(args.ifg_list)
+        print('Corr_list is args.ifg_list')
     else:
         corr_list = res_list
-
+        print('Corr_list is res_list')
     if len(res_list) == 0:
         sys.exit('No ifgs for correcting...\nCheck if there are *res files in the directory {}'.format(resdir))
 
