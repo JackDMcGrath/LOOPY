@@ -169,7 +169,8 @@ def correcting_by_integer(reslist):
             # mask1 = np.logical_and(abs(res_num_2pi) > 0.2, abs(res_num_2pi) < 0.8)
             # mask2 = np.logical_and(abs(res_num_2pi) > 1.2, abs(res_num_2pi) < 1.8)
             # mask = np.logical_or(mask1, mask2)
-            mask = np.logical_and(np.mod(abs(res_num_2pi), 1) > 0.2, np.mod(abs(res_num_2pi),1) < 0.8)
+            mask = np.zeros(unw.shape).astype(bool)
+            mask[np.where(~np.isnan(res_num_2pi))] = np.logical_and(np.mod(abs(res_num_2pi[np.where(~np.isnan(res_num_2pi))]), 1) > 0.2, np.mod(abs(res_num_2pi[np.where(~np.isnan(res_num_2pi))]),1) < 0.8)
             res_mask = copy.copy(res_integer)
             if args.nonan:
                 res_mask[mask] = 0
@@ -190,7 +191,7 @@ def correcting_by_integer(reslist):
             else:
                 unw_masked.flatten().tofile(os.path.join(correct_pair_dir, pair + '.unw'))
                 plot_lib.make_im_png(np.angle(np.exp(1j*unw_masked/cycle)*cycle), os.path.join(correct_pair_dir, pair + '.unw.png'), SCM.roma, pair + '.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
-            del mask1, mask2, mask, res_mask, unw_masked, rms_res_mask_corrected
+            del mask, res_mask, unw_masked, rms_res_mask_corrected
         else:
             print(pair, 'not in corr_list')
             unw.flatten().tofile(os.path.join(correct_pair_dir, pair + '.unw'))
