@@ -147,7 +147,7 @@ def correcting_by_integer(reslist):
         cycle = 3
 
         if i in corr_list:
-            print(pair, 'is being corrected')
+            # print(pair, 'is being corrected')
             # calc component mode
             #res_num_2pi, res_rms = load_res(i, length, width)
             res_num_2pi, res_rms = load_vel(i, length, width)
@@ -211,6 +211,7 @@ def binary_filter(correction, pair):
     corr_grid = binary_opening(corr_grid, structure=disk(radius=1)).astype(np.float32)  # Remove wild spikes
     plt.imshow(corr_grid)
     plt.savefig(os.path.join(integer_png_dir, '{}_corr_grid.png'.format(pair)))
+    plt.close()
 
     # Make variable to store correction
     corrFilt = np.zeros((length, width))
@@ -230,6 +231,7 @@ def binary_filter(correction, pair):
 
     plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
     plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt1.png'.format(pair)))
+    plt.close()
     # Interpolate filtered corrections to identified correction region
     mask = np.where(~np.isnan(corrFilt))  # < this is the good data
     interp = NearestNDInterpolator(np.transpose(mask), corrFilt[mask])  # Create interpolator
@@ -237,7 +239,7 @@ def binary_filter(correction, pair):
     corrFilt[interp_to] = interp(*interp_to)  # Apply corrected data
     plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
     plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt2.png'.format(pair)))
-    print(os.path.join(integer_png_dir, '{}_corrFilt2.png'.format(pair)))
+    plt.close()
 
     return corrFilt
 
