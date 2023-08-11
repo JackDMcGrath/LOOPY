@@ -174,7 +174,7 @@ if [ ! -z $splitdates ]; then
 
     echo GEOCmldir $corrdir > params.txt
     echo start_step 11 >> params.txt
-    echo end_step 12 >> params.txt
+    echo end_step 15 >> params.txt
     echo p12_null_both n >> params.txt
     echo p12_nullify y >> params.txt
     echo p12_treat_as_bad y >> params.txt
@@ -197,16 +197,15 @@ if [ ! -z $splitdates ]; then
   echo GEOCmldir $L01dir > params.txt
   echo start_step 11 >> params.txt
   echo end_step 12 >> params.txt
-  echo p12_null_both n >> params.txt
-  echo p12_nullify y >> params.txt
-  echo p12_treat_as_bad y >> params.txt
+  echo p12_null_both y >> params.txt
+  echo p12_nullify n >> params.txt
 
   edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
   ./batch_LiCSBAS.sh
    
   echo ' '
   echo '#####################'
-  echo '#### Merge split timeseries, where uncorrected '
+  echo '#### Merge split timeseries'
   echo '#####################'
   echo ' '
 
@@ -214,22 +213,29 @@ if [ ! -z $splitdates ]; then
 
   if [ ! -z $(grep ${FRAME} /nfs/a285/homes/eejdm/FINALS/TOPS.txt) ]; then
     if [ ! -z $(grep 20161113 $splitdates) ]; then
+      mkdir -p uncorrected
+      mkdir -p uncorrected/seismic
 
       echo ' '
       echo '#####################'
-      echo '#### Reset nullification, and add in unnulled data over the earthquake'
+      echo '#### Add in nulled data for the uncorrected'
       echo '#####################'
       echo ' '
 
-      LiCSBAS_reset_nulls.py -f ./ -d ${L01dir} --reset_LoopErr
+      #LiCSBAS_reset_nulls.py -f ./ -d ${L01dir} --reset_LoopErr
       echo 'Copying Unnulled Kaikoura IFGs'
-      for ifg in $(cat ${L01dir}/uncorrected.txt); do
+      for ifg in $(cat ${L01dir}merge/uncorrected.txt); do
 	      im1=`echo $ifg | awk '{print substr($0, 1, 8)}'`
 	      im2=`echo $ifg | awk '{print substr($0, 10, 8)}'`
 	      if [ $im1 -lt 20161113 ] && [ $im2 -gt 20161113 ]; then
-	        echo $ifg
-	        cp -f ${L01dir}/$ifg/${ifg}_orig.unw ${L01dir}merge/$ifg/${ifg}.unw
+	        echo $ifg: Seismic
+	        cp -f ${L01dir}/$ifg/${ifg}_con.unw ${L01dir}merge/$ifg/${ifg}.unw
 	        #ln -s `pwd`/${L01dir}/$ifg ${L01dir}merge/$ifg
+                ln -s `pwd`/${L01dir}/$ifg/${ifg}_con.png  uncorrected/seismic/${ifg}_con.png
+              else
+                echo $ifg: Spanner
+                cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${L01dir}merge/$ifg/${ifg}.unw
+                ln -s `pwd`/${L01dir}/$ifg/${ifg}_agg.png uncorrected/${ifg}_agg.png
 	      fi
       done
     fi
@@ -272,6 +278,7 @@ else
 
   echo GEOCmldir $corrdir > params.txt
   echo start_step 11 >> params.txt
+  echo p11_unw_thre 0 >> params.txt
   echo end_step 12 >> params.txt
   echo p12_null_both n >> params.txt
   echo p12_nullify y >> params.txt
@@ -292,6 +299,7 @@ echo ' '
 
 echo GEOCmldir $GEOCdir > params.txt
 echo start_step 11 >> params.txt
+echo p11_unw_thre 0 >> params.txt
 echo end_step 15 >> params.txt
 echo p11_unw_thre 0.05 >> params.txt
 echo p12_nullify n >> params.txt
