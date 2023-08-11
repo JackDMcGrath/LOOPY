@@ -693,7 +693,7 @@ def apply_correction(i):
             grid[np.where(correction == corr_val[corr])] = 1  # Find all areas that have a correction
             grid = binary_closing(grid, structure=disk(radius=2)).astype('int')  # Fill in any holes
             grid = binary_opening(grid, structure=disk(radius=1)).astype('int')  # Remove wild spikes
-            corrFilt[np.where(grid == 1)] = corr_val[corr]
+            corrFilt[np.where(np.logical_and(grid == 1, correction == corr_val[corr]))] = corr_val[corr]
 
         # Interpolate filtered corrections to identified correction region
         mask = np.where(~np.isnan(corrFilt))  # < this is the good data
