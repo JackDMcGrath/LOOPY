@@ -76,21 +76,11 @@ def init_args():
 
 def load_vel(ifgd, length, width):
     vel_mm = io_lib.read_img(os.path.join(resdir, ifgd + '.ifg'), length, width)
-    if np.isnan(vel_mm[ref_y, ref_x]):
-        y1, x1 = ref_y, ref_x
-        y2 = y1 + 1
-        x2 = x1 + 1
-        while np.isnan(vel_mm[y1:y2, x1:x2]).all():
-            y1 -= 1
-            y2 += 1
-            x1 -= 1
-            x2 += 1
-        vel_mm = vel_mm - np.nanmean(vel_mm[y1:y2, x1:x2])
+    if np.isnan(np.nanmedian(vel_mm[refy1:refy2, refx1:refx2])):
+        vel_mm = vel_mm - np.nanmedian(vel_mm)
     else:
-        vel_mm = vel_mm - np.nanmean(vel_mm[ref_y, ref_x])
+        vel_mm = vel_mm - np.nanmedian(vel_mm[refy1:refy2, refx1:refx2])
 
-    minvel = np.nanmin(vel_mm)
-    maxvel = np.nanmax(vel_mm)
     vel_mm[np.where(TSmask == 0)] = np.nan
     pngfile = os.path.join(resdir, ifgd + '.masked.png')
     title = 'Masked {} IFG'.format(ifgd)
@@ -115,18 +105,10 @@ def load_vel(ifgd, length, width):
     vel_rad = vel_mm / coef_r2m
 
     ifg = io_lib.read_img(os.path.join(args.unw_dir, ifgd, ifgd  + '.unw'), length, width)
-    if np.isnan(ifg[ref_y, ref_x]):
-        y1, x1 = ref_y, ref_x
-        y2 = y1 + 1
-        x2 = x1 + 1
-        while np.isnan(ifg[y1:y2, x1:x2]).all():
-            y1 -= 1
-            y2 += 1
-            x1 -= 1
-            x2 += 1
-        ifg = ifg - np.nanmean(ifg[y1:y2, x1:x2])
+    if np.isnan(ifg[refy1:refy2, refx1:refx2]):
+        ifg = ifg - np.nanmedian(ifg)
     else:
-        ifg = ifg - np.nanmean(ifg[ref_y, ref_x])
+        ifg = ifg - np.nanmedian(ifg[refy1:refy2, refx1:refx2])
 
     res_num_2pi = (ifg - vel_rad) / 2 / np.pi
     if not args.no_depeak:
@@ -246,7 +228,7 @@ def set_input_output():
     Path(integer_png_dir).mkdir(parents=True, exist_ok=True)
 
 def get_para():
-    global width, length, coef_r2m, ref_x, ref_y, n_para, res_list, corr_list
+    global width, length, coef_r2m, refx1, refx2, refy1, refy2, n_para, res_list, corr_list
 
     # read ifg size and satellite frequency
     mlipar = os.path.join(args.unw_dir, 'slc.mli.par')
@@ -262,8 +244,6 @@ def get_para():
     with open(reffile, "r") as f:
         refarea = f.read().split()[0]  # str, x1/x2/y1/y2
     refx1, refx2, refy1, refy2 = [int(s) for s in re.split('[:/]', refarea)]
-    ref_x = int((refx1 + refx2) / 2)
-    ref_y = int((refy1 + refy2) / 2)
 
     # multi-processing
     if not args.n_para:
