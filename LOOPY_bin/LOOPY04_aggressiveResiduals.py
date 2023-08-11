@@ -69,7 +69,7 @@ def init_args():
     parser.add_argument('--no_depeak', default=False, action='store_true', help="don't offset by residual mode before calculation (recommend depeak)")
     parser.add_argument('--interp', default='Linear', choices=['Linear', 'Cubic'], help="Interpolation Method of masked velocities")
     parser.add_argument('--nonan', default=False, action='store_true', help="Set uncertain corrections to 0 rather than nan when masking")
-    parser.add_argument('filter', dest='filter', default=False, action='store_true', help="Run binary filtering of the correction" )
+    parser.add_argument('--filter', dest='filter', default=False, action='store_true', help="Run binary filtering of the correction" )
     args = parser.parse_args()
 
     if '/' in args.out_dir:
