@@ -109,7 +109,7 @@ def load_vel(ifgd, length, width):
     vel_rad = vel_mm / coef_r2m
 
     ifg = io_lib.read_img(os.path.join(args.unw_dir, ifgd, ifgd  + '.unw'), length, width)
-    if np.isnan(ifg[refy1:refy2, refx1:refx2]):
+    if np.isnan(np.nanmedian(ifg[refy1:refy2, refx1:refx2])):
         ifg = ifg - np.nanmedian(ifg)
     else:
         ifg = ifg - np.nanmedian(ifg[refy1:refy2, refx1:refx2])
