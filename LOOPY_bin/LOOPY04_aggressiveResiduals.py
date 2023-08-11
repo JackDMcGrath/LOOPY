@@ -209,9 +209,9 @@ def binary_filter(correction, pair):
     corr_grid [np.where(correction != 0)] = 1
     corr_grid = binary_closing(corr_grid, structure=disk(radius=2)).astype('int')  # Fill in any holes
     corr_grid = binary_opening(corr_grid, structure=disk(radius=1)).astype(np.float32)  # Remove wild spikes
-    plt.imshow(corr_grid)
-    plt.savefig(os.path.join(integer_png_dir, '{}_corr_grid.png'.format(pair)))
-    plt.close()
+    # plt.imshow(corr_grid)
+    # plt.savefig(os.path.join(integer_png_dir, '{}_corr_grid.png'.format(pair)))
+    # plt.close()
 
     # Make variable to store correction
     corrFilt = np.zeros((length, width))
@@ -229,19 +229,19 @@ def binary_filter(correction, pair):
         grid = binary_opening(grid, structure=disk(radius=1)).astype('int')  # Remove wild spikes
         corrFilt[np.where(np.logical_and(grid == 1, correction == corr_val[corr]))] = corr_val[corr]
 
-    plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
-    plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt1.png'.format(pair)))
-    plt.close()
+    # plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
+    # plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt1.png'.format(pair)))
+    # plt.close()
     # Interpolate filtered corrections to identified correction region
     mask = np.where(~np.isnan(corrFilt))  # < this is the good data
     interp = NearestNDInterpolator(np.transpose(mask), corrFilt[mask])  # Create interpolator
     interp_to = np.where(corr_grid == 1)  # Find where to interpolate to
     corrFilt[interp_to] = interp(*interp_to)  # Apply corrected data
-    plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
-    plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt2.png'.format(pair)))
-    plt.close()
+    # plt.imshow(corrFilt, vmin=-2, vmax=2, cmap=cm.RdBu)
+    # plt.savefig(os.path.join(integer_png_dir, '{}_corrFilt2.png'.format(pair)))
+    # plt.close()
 
-    return corrFilt
+    return corrFilt.astype('float32')
 
 def start():
     global start_time
