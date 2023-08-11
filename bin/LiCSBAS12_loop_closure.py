@@ -1370,12 +1370,11 @@ def nullify_both(ix):
         unwagg.tofile(unwaggfile)
         unwcon.tofile(unwconfile)
 
-        # cycle = 3
-        # if treat_as_bad:
-        #     pngfile = os.path.join(ifgdir, ifgd, ifgd+'_aggro_null.png')
-        # else:
-        #     pngfile = os.path.join(ifgdir, ifgd, ifgd+'_conservative_null.png')
-        # plot_lib.make_im_png(np.angle(np.exp(1j*unw/cycle)*cycle), pngfile, cmap_wrap, ifgd+'.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
+        cycle = 3
+        aggpngfile = os.path.join(ifgdir, ifgd, ifgd+'_agg.png')
+        conpngfile = os.path.join(ifgdir, ifgd, ifgd+'_con.png')
+        plot_lib.make_im_png(np.angle(np.exp(1j*unwagg/cycle)*cycle), aggpngfile, cmap_wrap, ifgd+'_agg.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
+        plot_lib.make_im_png(np.angle(np.exp(1j*unwcon/cycle)*cycle), conpngfile, cmap_wrap, ifgd+'_con.unw', vmin=-np.pi, vmax=np.pi, cbar=False)
 
 
 def nullify_mask(ifgd, mask):
