@@ -700,6 +700,7 @@ def main(argv=None):
             p.close()
 
             ns_loop_err_null = np.sum(res[:, :, :,], axis=0)
+            ns_loop_err[np.where(np.isnan(ns_loop_err_null))] = np.nan
             print('n_loop_err counted')
 
         if nullmask:
