@@ -303,6 +303,55 @@ if [ ! -z $splitdates ]; then
     finalposdir=${posdir}L04
 
     LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${posdir} -o ${finalposdir} --nonan -n ${n_para} --filter
+
+    echo ' '
+    echo '#####################'
+    echo '#### Full Post-Seismic Time Series'
+    echo '#####################'
+    echo ' '
+    
+    echo GEOCmldir $finalposdir > params.txt
+    echo start_step 11 >> params.txt
+    echo end_step 15 >> params.txt
+    echo p12_null_both n >> params.txt
+    echo p12_nullify n >> params.txt     # No need to nullify again - already done this
+    echo p12_find_reference y >> params.txt
+
+    mv TS_${$finalposdir} TS_${$finalposdir}_nullno
+
+    echo ' '
+    echo '#####################'
+    echo '#### Full Post-Seismic Time Series Conservative'
+    echo '#####################'
+    echo ' '
+    
+    echo GEOCmldir $finalposdir > params.txt
+    echo start_step 11 >> params.txt
+    echo end_step 15 >> params.txt
+    echo p12_null_both n >> params.txt
+    echo p12_nullify y >> params.txt     # No need to nullify again - already done this
+    echo p12_treat_as_bad n >> params.txt
+    echo p12_find_reference y >> params.txt
+
+    mv TS_${$finalposdir} TS_${$finalposdir}_nullcon
+
+    echo ' '
+    echo '#####################'
+    echo '#### Full Post-Seismic Time Series COnservative'
+    echo '#####################'
+    echo ' '
+    
+    echo GEOCmldir $finalposdir > params.txt
+    echo start_step 11 >> params.txt
+    echo end_step 15 >> params.txt
+    echo p12_null_both n >> params.txt
+    echo p12_nullify y >> params.txt     # No need to nullify again - already done this
+    echo p12_treat_as_bad y >> params.txt
+    echo p12_find_reference y >> params.txt
+
+    mv TS_${finalposdir} TS_${finalposdir}_nullagg
+
+    LiCSBAS_reset_nulls -f ./ -d ${finalposdir} --reset_all
     
     echo ' '
     echo '#####################'
