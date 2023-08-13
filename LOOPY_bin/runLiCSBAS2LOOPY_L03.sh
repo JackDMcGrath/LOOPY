@@ -317,6 +317,25 @@ if [ ! -z $splitdates ]; then
     echo p12_nullify n >> params.txt     # No need to nullify again - already done this
     echo p12_find_reference y >> params.txt
 
+   
+    echo ' '
+    echo '#####################'
+    echo '#### Merge Coseismic network'
+    echo '#####################'
+    echo ' '
+    
+    finaldir=${L01dir}mergeCos
+
+    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L04 --merge -e
+
+    # Now have a network of L01, L03 then L04 corrected Pre- and Post- seismic, with uncorrected coseismic
+
+    echo ' '
+    echo '#####################'
+    echo '#### Create Post seismic nulled velocity fields'
+    echo '#####################'
+    echo ' '
+
     mv TS_${$finalposdir} TS_${$finalposdir}_nullno
 
     echo ' '
@@ -337,7 +356,7 @@ if [ ! -z $splitdates ]; then
 
     echo ' '
     echo '#####################'
-    echo '#### Full Post-Seismic Time Series COnservative'
+    echo '#### Full Post-Seismic Time Series Conservative'
     echo '#####################'
     echo ' '
     
@@ -352,18 +371,6 @@ if [ ! -z $splitdates ]; then
     mv TS_${finalposdir} TS_${finalposdir}_nullagg
 
     LiCSBAS_reset_nulls -f ./ -d ${finalposdir} --reset_all
-    
-    echo ' '
-    echo '#####################'
-    echo '#### Merge Coseismic network'
-    echo '#####################'
-    echo ' '
-    
-    finaldir=${L01dir}mergeCos
-
-    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L04 --merge -e
-
-    # Now have a network of L01, L03 then L04 corrected Pre- and Post- seismic, with uncorrected coseismic
 
   else
     LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} --merge
