@@ -162,7 +162,7 @@ def main(argv=None):
             elif o == '--n_para':
                 n_para = int(a)
             elif o == '--pix_pngs':
-                pix_plot = False
+                pix_plot = True
             elif o == '--nofilter':
                 filtercorr = False
 
