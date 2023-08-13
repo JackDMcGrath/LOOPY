@@ -281,7 +281,7 @@ if [ ! -z $splitdates ]; then
     posdir=${L01dir}mergePos
 
     for ifg in $(cat ${posdir}/uncorrected.txt); do
-	    cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${posdir}merge/$ifg/${ifg}.unw
+	    cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${posdir}/$ifg/${ifg}.unw
     done
 
     echo GEOCmldir $posdir > params.txt
