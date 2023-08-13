@@ -347,7 +347,7 @@ def merge_coseismic_dir():
     firstdir = True
 
     for seis in ['Pre', 'Pos']:
-        splitdir = splitbase + 'merge' + seis
+        splitdir = splitbase + 'merge' + seis + suffix
 
         if os.path.exists(splitdir):
 
