@@ -121,7 +121,7 @@ def main(argv=None):
     tsadir = []
     reset = True
     pix_plot = False
-    pix_output = 1000
+    pix_output = 10
     filtercorr = True
 
     try:
@@ -608,10 +608,11 @@ def unw_loop_corr(ii):
             grdy = grdy if grdy != 0 else 1
             plt.hexbin(abs(closure_orig), abs(closure_final), gridsize=(grdx, grdy), mincnt=1, cmap='inferno', norm=colors.LogNorm(vmin=1))
             plt.plot([0,max([max(abs(closure_orig)), max(abs(closure_final))])],[0,max([max(abs(closure_orig)), max(abs(closure_final))])]) 
-            plt.colorbar()
+            cbar = plt.colorbar()
+            cbar.set_label('Number of Loops')
             plt.title('{} ifgs in {} loops\nImproved: {:.0f}% Same: {:.0f}% Worse: {:.0f}%'.format(ifg_tot, nLoops, improve, unchange, worsen))
-            plt.xlabel('Input')
-            plt.ylabel('Corrected')
+            plt.xlabel('Input LPC (n * 2pi)')
+            plt.ylabel('Corrected LPC (n * 2pi)')
             plt.savefig(os.path.join(plotdir, '{}_all2.png'.format(ii)))
             plt.close()
             if not progress_bar:
