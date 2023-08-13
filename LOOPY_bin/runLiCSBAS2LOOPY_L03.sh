@@ -1,25 +1,49 @@
 #!/bin/bash
 
-# Script to automated run LiCSBAS and LOOPY for an entire frame, from download to
-# final timeseries. Must be run in folder FRAME
+# Script to automated run LiCSBAS and LOOPY for an entire frame, from LiCSBAS03 to final timeseries. 
+# Must be run in folder FRAME
+# Data preperation is done in the order clip, mask, GACOS
+# This version will identify if the frame is a TOPS frame.
+# If TOPS, assume large, uncorrectable cosesimic.
+#     1) Only use the listed errors for L01
+#     2) Split into Pren and Postn subnetworks for L03 correction
+#     3) Merge into full Pre and Post networks for L04 correction
+#     4) Merge into full network, with uncorrected Kaikoura
 
-# In this version, we can do lots of splits. We just don't care that one of them is Kaikoura for none TOPS frames 
+# If not TOPS
+#     1) Allow searching for errors in L01
+#     2) Split into subnetworks for L03 correction
+#     4) Merge into full network for L04 correction
 
 # Needed Files:
-#   errorLocations.txt (optional)
-#   mask or clip file (optional)
+#   ${FRAME}.clip file (optional): Used by LiCSBAS05
+#   ${FRAME}.mask file (optional): Used by LiCSBAS04
+#   errorLocations.txt (optional): Used for LOOPY01
+#   TOPS.txt:                      List of frames that have significant Kaikoura
 
-# UNWdir: GEOCml10 - multilooked data ONLY
-# noLOOPYdir: GEOCml10[mask,clip]GACOS - Data never touched by LOOPY
-# GEOCdir: GEOCml10[clip,mask]L01GACOS - Reference LOOPY data containing ALL the unw. Core of the LOOPY variable names
-# splitdir: ${GEOCdir}Split[Pre, Pos][1-n]Splitting the data into manageable chunks
-# L03dir: ${splitdir}L03 L03 correction of splitdir
-# maskdir: ${L03dir}_intMask: Interger mask correction of L03dir
-# nocorrSplit: Uncorrected Splitdir
-# final_dir: last corrected data set
 
-# mergebasedir ${GEOCdir}merge Base name for merges
-# suffix: End of the correction names for splitdirs (e.g. L03_intMask)
+## FRAME VARIABLE NAMES
+# GEOCdir: GEOCml10[clip,mask]GACOS Original, Uncorrected Data
+# L01dir: ${GEOCdir}L01             L01 corrected data (run on full TS)
+
+# TOPS Frames:
+#   splitdir: ${L01dir}Split${i}    subnetwork (i = Pre/Post1...n)
+#   corrdir:  ${splitdir}L03        L03 corrected subnetwork
+#   predir=${L01dir}mergePre        Full pre-seismic network
+#   finalpredir=${predir}L04        L04 corrected preseismic
+#   posdir=${L01dir}mergePos        Full post-seismic netwrok
+#   finalposdir=${posdir}L04        L04 corrected post-seismic
+#   finaldir=${L01dir}mergeCos      Full Pre, Cos, Post seismic, with uncorrected cosesimic
+
+# Non-TOPS Frames:
+#   splitdir: ${L01dir}Split${i}    subnetwork (i = 1..n)
+#   corrdir:  ${splitdir}L03        L03 corrected subnetwork
+#   mergedir=${L01dir}merge         Full network 
+#   finaldir=${mergedir}L04         L04 corrected full network
+
+# Non-Split Frames
+#   corrdir=${L01dir}L03            L03 corrected network
+#   finaldir=${corrdir}L04          L04 corrected network
 
 
 ###################
@@ -27,10 +51,12 @@
 ###################
 
 splitdates=splitdates.txt # date of major earthquake to split pre- and post- seismic networks across. Leave blank for no split
+error_locations=/nfs/a285/homes/eejdm/coastlines/gshhg/NZCoastRiver.txt
+TOPS_file=/nfs/a285/homes/eejdm/FINALS/TOPS.txt
 
 LiCSBAS_start="03" # LiCSBAS script to start processing from
 coh_thresh="0.04" # Going to mask all pixels lower than this
-error_locations=/nfs/a285/homes/eejdm/coastlines/gshhg/NZCoastRiver.txt
+
 n_para=$1
 
 if [ -z $n_para ]; then
@@ -48,13 +74,11 @@ GEOCdir=GEOCml${n_looks}
 curdir=`pwd`
 FRAME=`echo "${curdir##*/}" | awk '{print substr($0, 1, 17)}'`
 
-if [ ! -z $(grep ${FRAME} /nfs/a285/homes/eejdm/FINALS/TOPS.txt) ]; then
+if [ ! -z $(grep ${FRAME} ${TOPS_file}) ]; then
   kaikoura='y'
 else
   kaikoura='n'
 fi
-
-az=`echo $FRAME | head -c 4 | tail -c 1`
 
 echo 20141001 > $splitdates
 echo 20161113 >> $splitdates
@@ -98,8 +122,6 @@ fi
 if [ -f batch_LiCSBAS.sh ]; then
   rm -f batch_LiCSBAS.sh
 fi
-
-uncorrdir=${GEOCdir}
 
 copy_batch_LiCSBAS.sh 
 
@@ -248,7 +270,7 @@ if [ ! -z $splitdates ]; then
     
     finalpredir=${predir}L04
 
-    LOOPY04_aggressive_residuals.py -d ${uncorrdir} -t TS_${predir} -o ${finalpredir} --nonan -n ${n_para} --filter
+    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${predir} -o ${finalpredir} --nonan -n ${n_para} --filter
     
     echo ' '
     echo '#####################'
@@ -280,7 +302,7 @@ if [ ! -z $splitdates ]; then
     
     finalposdir=${posdir}L04
 
-    LOOPY04_aggressive_residuals.py -d ${uncorrdir} -t TS_${posdir} -o ${finalposdir} --nonan -n ${n_para} --filter
+    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${posdir} -o ${finalposdir} --nonan -n ${n_para} --filter
     
     echo ' '
     echo '#####################'
@@ -331,9 +353,9 @@ if [ ! -z $splitdates ]; then
     echo '#####################'
     echo ' '
     
-    finaldir=${uncorrdir}L04
+    finaldir=${GEOCdir}L04
 
-    LOOPY04_aggressive_residuals.py -d ${uncorrdir} -t TS_${mergedir} -o ${finaldir} --nonan -n ${n_para} --filter
+    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${mergedir} -o ${finaldir} --nonan -n ${n_para} --filter
 
   fi 
   
@@ -373,7 +395,7 @@ else
   echo GEOCmldir $corrdir > params.txt
   echo start_step 11 >> params.txt
   echo p11_unw_thre 0 >> params.txt
-  echo end_step 12 >> params.txt
+  echo end_step 15 >> params.txt
   echo p12_null_both n >> params.txt
   echo p12_nullify y >> params.txt
   echo p12_treat_as_bad y >> params.txt
@@ -381,7 +403,15 @@ else
   edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
   ./batch_LiCSBAS.sh
 
-  finaldir=$corrdir
+  echo ' '
+  echo '#####################'
+  echo '#### Run Residual Correction'
+  echo '#####################'
+  echo ' '
+    
+  finaldir=${GEOCdir}L04
+
+  LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${corrdir} -o ${finaldir} --nonan -n ${n_para} --filter
 
 fi
 
