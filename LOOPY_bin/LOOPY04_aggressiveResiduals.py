@@ -315,10 +315,8 @@ def get_para():
     res_list = [os.path.basename(res[:-4]) for res in res_list]
     if args.ifg_list:
         corr_list = io_lib.read_ifg_list(args.ifg_list)
-        print('Corr_list is args.ifg_list')
     else:
         corr_list = res_list
-        print('Corr_list is res_list')
     if len(res_list) == 0:
         sys.exit('No ifgs for correcting...\nCheck if there are *res files in the directory {}'.format(resdir))
 
