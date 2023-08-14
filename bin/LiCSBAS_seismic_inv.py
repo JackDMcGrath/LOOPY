@@ -882,6 +882,9 @@ def fit_pixel_velocities(ii):
     # G = G[np.ix_(noNanPix, invert_ix)]
     G = G[noNanPix, :]
     singular = np.where((G == 0).all(axis=0))[0].tolist()
+    singular1 = np.where((G == 1)).all(axis=0)[0].tolist()
+    if len(singular1) > 1:
+        singular = singular + singular1[1:]
     invert_ix = list(set(invert_ix) - set(singular))
     G = G[:, invert_ix]
 
