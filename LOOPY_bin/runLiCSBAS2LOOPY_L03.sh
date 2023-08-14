@@ -242,7 +242,7 @@ if [ ! -z $splitdates ]; then
   echo ' '
 
   if [ ${kaikoura} == 'y' ]; then
-    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} --merge -k
+    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L03 --merge -k
     
     echo ' '
     echo '#####################'
@@ -348,7 +348,7 @@ if [ ! -z $splitdates ]; then
     echo start_step 11 >> params.txt
     echo end_step 15 >> params.txt
     echo p12_null_both n >> params.txt
-    echo p12_nullify y >> params.txt     # No need to nullify again - already done this
+    echo p12_nullify y >> params.txt
     echo p12_treat_as_bad n >> params.txt
     echo p12_find_reference y >> params.txt
 
@@ -356,7 +356,7 @@ if [ ! -z $splitdates ]; then
 
     echo ' '
     echo '#####################'
-    echo '#### Full Post-Seismic Time Series Conservative'
+    echo '#### Full Post-Seismic Time Series Aggressive'
     echo '#####################'
     echo ' '
     
@@ -364,7 +364,7 @@ if [ ! -z $splitdates ]; then
     echo start_step 11 >> params.txt
     echo end_step 15 >> params.txt
     echo p12_null_both n >> params.txt
-    echo p12_nullify y >> params.txt     # No need to nullify again - already done this
+    echo p12_nullify y >> params.txt
     echo p12_treat_as_bad y >> params.txt
     echo p12_find_reference y >> params.txt
 
@@ -373,7 +373,7 @@ if [ ! -z $splitdates ]; then
     LiCSBAS_reset_nulls -f ./ -d ${finalposdir} --reset_all
 
   else
-    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} --merge
+    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L03 --merge
 
     echo ' '
     echo '#####################'
