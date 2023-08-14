@@ -1241,7 +1241,7 @@ def loop_closure_4th(args, da):
             da.loc[:,:,ifgd23] = np.logical_or(da.loc[:,:,ifgd23],is_ok)
             da.loc[:,:,ifgd13] = np.logical_or(da.loc[:,:,ifgd13],is_ok)
         ns_loop_err1 = ns_loop_err1 + ~is_ok #suspected unw error
-    ns_loop_err1 = np.array(ns_loop_err1, dtype=np.int16)
+    ns_loop_err1 = np.array(ns_loop_err1, dtype=np.float32)
 
     return ns_loop_err1, da
 
