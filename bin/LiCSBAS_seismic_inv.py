@@ -856,7 +856,7 @@ def fit_pixel_velocities(ii):
     disp = disp[noNanPix]
     # Intercept (reference term), Pre-Seismic Velocity, [[C]oseismic-offset, log [R]elaxation, [P]ost-seismic linear velocity]
     truemodel = np.zeros((2 + n_eq * 3))
-    inverr = np.zeros((2 + n_eq * 3))
+    inverr = np.ones((2 + n_eq * 3)) * 100000
     invert_ix = [0, 1]
 
     for ix, param in enumerate(eq_params):
