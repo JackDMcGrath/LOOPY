@@ -635,9 +635,12 @@ def calc_semivariogram():
     pixel_spacing_a = float(io_lib.get_param_par(param13, 'pixel_spacing_a'))
     pixel_spacing_r = float(io_lib.get_param_par(param13, 'pixel_spacing_r'))
 
-    # Rounding as otherwise phantom decimals appearing that makes some Lats too long
-    Lat = np.arange(0, np.round(length * pixel_spacing_r, 5), pixel_spacing_r)
-    Lon = np.arange(0, np.round(width * pixel_spacing_a, 5), pixel_spacing_a)
+    # Adding 1 in the calculation as sometimes it is wrong due to rounding
+    Lat = np.arange(0, (length + 1) * pixel_spacing_r, pixel_spacing_r)
+    Lon = np.arange(0, (width + 1) * pixel_spacing_a, pixel_spacing_a)
+
+    Lat = Lat[:length]
+    Lon = Lon[:width]
 
     XX, YY = np.meshgrid(Lon, Lat)
     XX = XX.flatten()
@@ -882,9 +885,11 @@ def fit_pixel_velocities(ii):
     # G = G[np.ix_(noNanPix, invert_ix)]
     G = G[noNanPix, :]
     singular = np.where((G == 0).all(axis=0))[0].tolist()
-    singular1 = np.where((G == 1)).all(axis=0)[0].tolist()
+    singular1 = np.where((G == 1).all(axis=0))[0].tolist()
     if len(singular1) > 1:
         singular = singular + singular1[1:]
+    if 2 in singular and 5 not in singular:    # Fudge to put in so if a frame starts after the earthquake, don't calculate post seisic linear
+        singular = singular + [4]
     invert_ix = list(set(invert_ix) - set(singular))
     G = G[:, invert_ix]
 
@@ -893,7 +898,12 @@ def fit_pixel_velocities(ii):
     W = Q[np.ix_(noNanPix, noNanPix)].copy()
 
     # Calculate VCM of inverted model parameters
-    invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
+    try:    
+        invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
+    except:
+        print(G)
+        print(singular)
+        invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
 
     model = np.matmul(invVCM, np.matmul(np.matmul(G.T, W), disp))
 
