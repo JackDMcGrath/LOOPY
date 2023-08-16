@@ -151,13 +151,13 @@ def set_input_output():
                 if not os.path.exists(reffile):
                     reffile = os.path.join(infodir, '130ref.txt')
                     if not os.path.exists(reffile):
-                        print('\nNo reffile 13ref.txt or 130ref.txt found! No referencing occuring')
-                        reffile = []
+                        reffile = os.path.join(infodir, '120ref.txt')
+                        if not os.path.exists(reffile):
+                            print('\nNo reffile 13ref.txt or 130ref.txt found! No referencing occuring')
+                            reffile = []
             else:
-                reffile = os.path.join(infodir, '120ref.txt')
-                if not os.path.exists(reffile):
-                    print('\nNo reffile {} found! No referencing occuring'.format(args.ref_file))
-                    reffile = []
+                print('\nNo reffile {} found! No referencing occuring'.format(args.ref_file))
+                reffile = []
         if reffile != []:
             print('\nHad to search for reffile. Using {}'.format(reffile))
 
