@@ -53,13 +53,13 @@ Inputs in GEOC/:
 - frame.geo.[E, N, U, hgt, mli]
 - slc.mli
 
-Outputs in GEOCml*LoopMask/:
+Outputs in GEOCml*L01/:
 - yyyymmdd_yyyymmdd/
   - yyyymmdd_yyyymmdd.unw[.png] : Corrected unw
   - yyyymmdd_yyyymmdd.cc : Coherence file
   - yyyymmdd_yyyymmdd.errormap.png : png of identified error boundaries
   - yyyymmdd_yyyymmdd.npicorr.png : png of original + corrected unw, with npi maps
-  - yyyymmdd_yyyymmdd.maskcorr.png : png of original + corrected unw, original npi map, and correction
+  - yyyymmdd_yyyymmdd.L01.png : png of original + corrected unw, original npi map, and correction
 - known_errors.png : png of the input know error mask
 - other metafiles produced by LiCSBAS02_ml_prep.py
 
@@ -70,7 +70,7 @@ LOOPY01_find_errors.py -d ifgdir [-t tsadir] [-c corrdir] [-m int] [-f int] [-e 
 
 -d        Path to the GEOCml* dir containing stack of unw data
 -t        Path to the output TS_GEOCml* dir. (Default: TS_GEOCml*)
--c        Path to the correction dierectory (Default: GEOCml*LoopMask)
+-c        Path to the correction dierectory (Default: GEOCml*L01)
 -m        Output multilooking factor (Default: No multilooking of mask, INCOMPTIBLE WITH FULL RES)
 -f        Minimum size of error to correct (Default: 10 pixels at final ML size)
 -e        Text file, where each row is a known error location, in form lon1,lat1,....,lonn,latn
@@ -111,7 +111,7 @@ import LOOPY_lib as loopy_lib
 from osgeo import gdal
 from scipy.stats import mode
 from scipy.ndimage import label
-from scipy.ndimage import binary_dilation, binary_closing
+from scipy.ndimage import binary_dilation, binary_closing, binary_erosion
 from scipy.interpolate import NearestNDInterpolator
 from skimage import filters
 from skimage.filters.rank import modal
@@ -252,7 +252,7 @@ def main(argv=None):
 
     if not corrdir:
         if ml_factor == 1 or fullres:
-            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMask')
+            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'L01')
         else:  # In the event you are working with already multilooked data (GEOCml*) find what true output ml_factor will be
             mlIx = os.path.basename(ifgdir).find('ml')
             mlIn = [ii for ii in os.path.basename(ifgdir)[mlIx + 2:]]
@@ -267,7 +267,7 @@ def main(argv=None):
                 search = False
             ml_inFactor = int("".join(ml_inFactor))
             ml_outFactor = ml_factor * ml_inFactor
-            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'LoopMaskml{}'.format(ml_outFactor))
+            corrdir = os.path.join(os.path.dirname(ifgdir), os.path.basename(ifgdir) + 'L01ml{}'.format(ml_outFactor))
 
     if not os.path.exists(corrdir):
         os.mkdir(corrdir)
@@ -758,11 +758,16 @@ def mask_unw_errors(i):
     ifg2 = unw.copy()
     if i == v:
         print('        Copied unw {:.2f}'.format(time.time() - begin))
+    
     err_val = 10 * np.nanmax(ifg2)
     if i == v:
         print('        err_val set {:.2f}'.format(time.time() - begin))
 
+    # Dilate the errors to account for non-static error locations, particularly for the predefined
+    errors = binary_dilation(errors, iterations=2).astype('int')
     ifg2[np.where(errors == 1)] = err_val
+    # Return errors to previous size
+    errors = binary_erosion(errors, iterations=2).astype('int')
     if i == v:
         print('        Boundaries added {:.2f}'.format(time.time() - begin))
     filled_ifg2 = NN_interp(ifg2)
@@ -838,6 +843,9 @@ def mask_unw_errors(i):
 
         if i == v:
             print('        Preparing Corrections {:.2f}'.format(time.time() - begin))
+            
+        plot_corr_val = np.zeros(mask.shape)    
+        plot_corr_val[np.where(np.isnan(regions))] = np.nan
     # %%
         for ii, corrIx in enumerate(corr_regions):
             # Make map only of the border regions
@@ -863,6 +871,10 @@ def mask_unw_errors(i):
               err_val = npi_corr[erry, errx]
               good_val = good_vals[errymin:errymax, errxmin:errxmax]
               corr_val.append(((np.nanmedian(good_val) - err_val) * (nPi / 2)).round() * 2 * np.pi)
+              if i == v:
+                print('ix', ix, err_val, np.nanmedian(good_val))
+                
+              plot_corr_val[erry, errx] = corr_val[-1]
 
             if i == v:
                 print('corr_val')
@@ -874,6 +886,9 @@ def mask_unw_errors(i):
                 print('            Done {:.0f}/{:.0f}: {:.2f} rads {:.2f} secs'.format(ii + 1, len(corr_regions), corr_val, time.time() - start))
         if i == v:
             print('        Correction Calculated {:.2f}'.format(time.time() - begin))
+            
+        title='Error Flux Vectors'
+        plot_lib.make_im_png(plot_corr_val, os.path.join(corrdir, date, date + '.errormap_corr.png'), 'tab20c', title, cbar=True)
 
     # Apply correction to original version of IFG
     if coh_thresh:
@@ -926,7 +941,7 @@ def mask_unw_errors(i):
     corr_unw.tofile(os.path.join(corrdir, date, date + '.unw'))
     # mask.astype('bool').tofile(os.path.join(corrdir, date, date + '.mask'))
     # Create correction png image (UnCorr_unw, npi, correction, Corr_unw)
-    corrcomppng = os.path.join(corrdir, date, date + '.maskcorr.png')
+    corrcomppng = os.path.join(corrdir, date, date + '.L01.png')
     titles4 = ['{} Uncorrected'.format(ifgdates[i]),
                '{} Corrected'.format(ifgdates[i]),
                'Modulo nPi',
