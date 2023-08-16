@@ -140,7 +140,7 @@ def main(argv=None):
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:c:",
                                        ["help", "noreset", "nanUncorr", "gamma=", "pix_pngs",
-                                        "n_unw_r_thre=", "n_para=", "--nofilter"])
+                                        "n_unw_r_thre=", "n_para=", "nofilter"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
