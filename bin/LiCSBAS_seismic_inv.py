@@ -925,9 +925,11 @@ def fit_pixel_velocities(ii):
     Gcos[:, 0] = 1
     Gcos[:, 1] = [ord for ord in ord_eq for _ in range(2)]
 
+    # For each earthquake, calculate the true coseismic displacement (ie not the jump from the long-term rate
     for ee in range(n_eq):
         # Fix postseismic
-        truemodel[4 + ee * 3] = truemodel[4 + ee * 3] + truemodel[1]
+        truemodel[4 + ee * 3] = truemodel[4 + ee * 3] + truemodel[1]  # Sets postseismic linear to be the full linear velocity
+        #truemodel[4 + ee * 3] = truemodel[4 + ee * 3]                 # Keep Postseismic linear as the change from the long term rate
         eq = ee * 2 # eq = index of immediately before eq, eq+1 = index of immediately after
 
         Gcos[eq + 1, 2 + ee * 3] = 1 # Coseismic (for post eq1)
