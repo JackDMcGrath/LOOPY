@@ -61,12 +61,12 @@ p13_null_noloop="n" # y/n Remove pixels that have no loop
 p15_coh_thre="0.05"	# default: 0.05
 p15_n_unw_r_thre="1.5"	# default: 1.5
 p15_vstd_thre="100"	# default: 100 mm/yr
-p15_maxTlen_thre="6"	# default: 1 yr
-p15_n_gap_thre="10"	# default: 10
-p15_stc_thre="20"	# default: 5 mm
-p15_n_ifg_noloop_thre="100"	# default: 50
-p15_n_loop_err_thre="100"	# default: 5
-p15_resid_rms_thre="25"	# default: 2 mm
+p15_maxTlen_thre="7"	# default: 1 yr
+p15_n_gap_thre="5"	# default: 10
+p15_stc_thre="10"	# default: 5 mm
+p15_n_ifg_noloop_thre="10"	# default: 50
+p15_n_loop_err_thre="1000"	# default: 5
+p15_resid_rms_thre="20"	# default: 2 mm
 p16_filtwidth_km=""	# default: 2 km
 p16_filtwidth_yr=""	# default: avg_interval*3 yr
 p16_deg_deramp=""	# 1, bl, or 2. default: no deramp
@@ -297,8 +297,13 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
   if [ $p12_nullmask == "y" ];then p12_op="$p12_op --nullmask"; fi
   if [ $p12_null_both == "y" ]; then  p12_op="$p12_op --null_both"; fi
   if [ ! -z $p12_rm_ifg_list ];then p12_op="$p12_op --rm_ifg_list $p12_rm_ifg_list"; fi
-  if [ ! -z $p12_n_para ];then p12_op="$p12_op --n_para $p12_n_para";
-  elif [ ! -z $n_para ];then p12_op="$p12_op --n_para $n_para";fi
+  if [ ! -z $p12_n_para ];then 
+    p12_op="$p12_op --n_para $p12_n_para";
+    p13_op="$p13_op --n_para $p12_n_para";
+  elif [ ! -z $n_para ];then 
+    p12_op="$p12_op --n_para $n_para";
+    p13_op="$p13_op --n_para $n_para";
+  fi
   if [ $p12_ignore_comp == "y" ]; then p120_op="$p120_op --ignore_comp"; fi
 
 	if [ ! -z $p12_TSdir ];then
