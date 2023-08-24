@@ -192,8 +192,9 @@ def main():
         shutil.move(os.path.join(ifgdir, ifg), os.path.join(no_loop_dir, ifg))
 
     # Reset IFG dates list
-    ifgdates_all = ifgdates
-    ifgdates = list(set(ifgdates) - set(no_loop_ifg)).sort()
+    if len(no_loop_ifg) > 0:
+        ifgdates_all = ifgdates
+        ifgdates = list(set(ifgdates_all) - set(no_loop_ifg)).sort()
 
     imdates = tools_lib.ifgdates2imdates(ifgdates)
     n_ifg = len(ifgdates)
