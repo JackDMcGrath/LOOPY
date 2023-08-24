@@ -34,6 +34,9 @@ v1.0.0 20230714 Jack McGrath, University of Leeds
 """
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
+    # Because np.linalg.lstsq use full CPU but not much faster than 1CPU.
+    # Instead parallelize by multiprocessing
 import re
 import shutil
 import sys
@@ -141,7 +144,7 @@ def set_input_output():
         outh5file = os.path.join(tsadir, outdir, 'cum.h5')    
 
     # If no reffile defined, search for 13ref, then 130ref, in this folder and infodir
-    reffile = os.path.join(tsadir, args.ref_file)
+    reffile = os.path.join(args.frame_dir, args.ref_file)
     if not os.path.exists(reffile):
         reffile = os.path.join(infodir, args.ref_file)
         if not os.path.exists(reffile):
