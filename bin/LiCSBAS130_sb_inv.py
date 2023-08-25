@@ -171,7 +171,7 @@ def init_args():
     parser.add_argument('--null_noloop', default=False, action='store_true', help="Don't include any IFG pixel that isn't associated with a good loop")
     parser.add_argument('--no_inversion', default=False, action='store_true', help="Don't do velocity inverison, just do noise indicies")
     parser.add_argument('--no_loops_removed', default=False, action='store_true', help="If no loop pixels have been removed, don't write out mask file")
-    parser.add_argument('-d',dest='downweight', default=1, type=float, help='Downweight interferograms listed in uncorrected.txt by int')
+    parser.add_argument('-d', dest='downweight', default=1, type=float, help='Downweight interferograms listed in uncorrected.txt by int')
     args = parser.parse_args()
 
     return args
@@ -412,7 +412,9 @@ def main():
     if args.downweight != 1:
         uncorrfile = os.path.join(ccdir, 'uncorrected.txt')
         downweight_list = io_lib.read_ifg_list(uncorrfile)
-        print('Downweighting uncorrected interferograms')
+        print('Downweighting uncorrected interferograms by {:.1f}'.format(args.downweight))
+        for ifgd in downweight_list:
+            print(ifgd)
 
     #%% Ref phase for inversion
     lengththis = refy2-refy1
@@ -512,7 +514,6 @@ def main():
                     f.seek(countf*4, os.SEEK_SET) #Seek for >=2nd patch, 4 means byte
                     cohpatch[i, :, :] = np.fromfile(f, dtype=np.float32, count=countl).reshape((lengththis, width))
                 if args.downweight != 1 and ifgd in downweight_list:
-                    print('Downweighting {} by {:.1f}'.format(ifgd, args.downweight))
                     cohpatch[i, :, :] = cohpatch[i, :, :] / args.downweight
                 cohpatch[cohpatch==0] = np.nan
 

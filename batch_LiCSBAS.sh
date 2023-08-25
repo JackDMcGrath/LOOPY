@@ -58,6 +58,7 @@ p12_null_both="n" # y/n Run both nullifications, and store orignal unw, aggressi
 p12_ignore_comp="y" # y/n Ignore connected components when selecting reference [default "n"]
 p12_find_reference="y" # y/n Run improved method of checking the reference (LiCSBAS120_find_reference.py)
 p13_null_noloop="n" # y/n Remove pixels that have no loop
+p13_downweight_ifg="" # Amount to downweight uncorrected interferograms (needs WLS inversion) (1 = no downweighting [default])
 p15_coh_thre="0.05"	# default: 0.05
 p15_n_unw_r_thre="5"	# default: 1.5
 p15_vstd_thre="10000"	# default: 100 mm/yr
@@ -357,6 +358,7 @@ if [ $start_step -le 13 -a $end_step -ge 13 ];then
     p133_op="$p133_op -t TS_$GEOCmldir"
   fi
 	if [ ! -z $p13_inv_alg ];then p13_op="$p13_op --inv_alg $p13_inv_alg"; fi
+  if [ ! -z $p13_downweight_ifg ];then p13_op="$p13_op --d $p13_downweight_ifg"; fi
 	if [ ! -z $p13_mem_size ];then p13_op="$p13_op --mem_size $p13_mem_size"; fi
 	if [ ! -z $p13_gamma ];then p13_op="$p13_op --gamma $p13_gamma"; fi
 	if [ ! -z $p13_n_para ];then
