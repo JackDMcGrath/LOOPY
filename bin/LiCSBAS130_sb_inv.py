@@ -411,10 +411,14 @@ def main():
 
     if args.downweight != 1:
         uncorrfile = os.path.join(ccdir, 'uncorrected.txt')
-        downweight_list = io_lib.read_ifg_list(uncorrfile)
-        print('Downweighting uncorrected interferograms by {:.1f}'.format(args.downweight))
-        for ifgd in downweight_list:
-            print(ifgd)
+        if os.path.exits(uncorrfile):
+            downweight_list = io_lib.read_ifg_list(uncorrfile)
+            print('Downweighting uncorrected interferograms by {:.1f}'.format(args.downweight))
+            for ifgd in downweight_list:
+                print(ifgd)
+        else:
+            print('No uncorrected.txt found. Not downweighting anything')
+            args.downweight = 1
 
     #%% Ref phase for inversion
     lengththis = refy2-refy1
