@@ -497,11 +497,19 @@ edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
 
 ./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
-echo ' '
+echo ' '  2>&1 | tee -a $log
 echo '#####################' 2>&1 | tee -a $log
 echo '#### COMPLETED A TIMESERIES WITH L03 CORRECTIONS for '${FRAME} 2>&1 | tee -a $log
 echo '#####################' 2>&1 | tee -a $log
 echo ' ' 2>&1 | tee -a $log
+
+echo ' '  2>&1 | tee -a $log
+echo '#####################' 2>&1 | tee -a $log
+echo '#### Compare to original for '${FRAME} 2>&1 | tee -a $log
+echo '#####################' 2>&1 | tee -a $log
+echo ' ' 2>&1 | tee -a $log
+
+LOOPY05_compare_corrections.py -f ./ -i ${GEOCdir} -c ${finaldir} -o comp_origVfinal -n ${n_para} --reset
 
 echo ' ' 2>&1 | tee -a $log
 echo '############################' 2>&1 | tee -a $log
