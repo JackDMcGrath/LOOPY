@@ -64,8 +64,19 @@ if [ -z $n_para ]; then
 fi
 
 n_looks=10
+n_unw_thre=5 # n_unw_thre for final masking of velocity
+L03_unw_thre=2.5 # n_unw_thre to carry out L03 correction on (best to set to lower than n_unw_thre for masking- as masking is occurring at default 5, no point wasting time on L03 for to low a value)
+L04_unw_thre=2.5 # n_unw_thre to carry out L04 correction on (best to set to lower than n_unw_thre for masking)
+maxTlen=7.5 # MaxTlen for the complete timeseries
 
 GEOCdir=GEOCml${n_looks}
+
+logdir="runLog"
+log="$logdir/$(date +%Y%m%d%H%M)$(basename $0 .sh).log"
+mkdir -p $logdir
+
+echo "Log file:   $log"
+echo ""
 
 ####################
 ## Set Variables
@@ -82,6 +93,7 @@ fi
 
 echo 20141001 > $splitdates
 echo 20161113 >> $splitdates
+echo 20180101 >> $splitdates
 echo 20200101 >> $splitdates
 echo 20230101 >> $splitdates
 
@@ -123,52 +135,53 @@ if [ -f batch_LiCSBAS.sh ]; then
   rm -f batch_LiCSBAS.sh
 fi
 
-copy_batch_LiCSBAS.sh 
+copy_batch_LiCSBAS.sh  2>&1 | tee -a $log
 
-edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
-
-echo ' '
-echo '############################'
-echo '#### Running LiCSBAS with LOOPY Correction for '${FRAME}', splitting at '${splitdate}
-echo '############################'
-echo ' '
+edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
 
 echo ' '
-echo '############################'
-echo '#### Clipping, masking, and correcting data to '${GEOCdir}
-echo '############################'
-echo ' '
+echo '############################' 2>&1 | tee -a $log
+echo '#### Running LiCSBAS with LOOPY Correction for '${FRAME}', splitting at '${splitdate} 2>&1 | tee -a $log
+echo '############################' 2>&1 | tee -a $log
+echo ' ' 2>&1 | tee -a $log
 
-./batch_LiCSBAS.sh
+echo ' ' 2>&1 | tee -a $log
+echo '############################' 2>&1 | tee -a $log
+echo '#### Clipping, masking, and correcting data to '${GEOCdir} 2>&1 | tee -a $log
+echo '############################' 2>&1 | tee -a $log
+echo ' ' 2>&1 | tee -a $log
 
-echo ' '
-echo '############################'
-echo '#### Running LOOPY01 to identify hard errors in '${GEOCdir}
-echo '############################'
-echo ' '
+./batch_LiCSBAS.sh 2>&1 | tee -a $log
+
+echo ' ' 2>&1 | tee -a $log
+echo '############################' 2>&1 | tee -a $log
+echo '#### Running LOOPY01 to identify hard errors in '${GEOCdir} 2>&1 | tee -a $log
+echo '############################' 2>&1 | tee -a $log
+echo ' ' 2>&1 | tee -a $log
 
 L01dir=${GEOCdir}L01
 
 if [ ${kaikoura} == 'y' ]; then
-  LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --n_para ${n_para} --onlylisted
+  LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --n_para ${n_para} --onlylisted 2>&1 | tee -a $log
 else
-  LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --n_para ${n_para}
+  LOOPY01_find_errors.py -d $GEOCdir -c $L01dir -e $error_locations --n_para ${n_para} 2>&1 | tee -a $log
 fi
 
 if [ ! -z $splitdates ]; then
-  echo ' '
-  echo '############################'
+  echo ' ' 2>&1 | tee -a $log
+  echo '############################' 2>&1 | tee -a $log
 
   if [ ${kaikoura} == 'y' ]; then
-    echo "#### Splitting Timeseries around ${splitdates} into pre- and post-sesimic"
-    LiCSBAS_split_TS.py -d $L01dir -s $splitdates -k
+    echo "#### Splitting Timeseries around ${splitdates} into pre- and post-sesimic" 2>&1 | tee -a $log
+    echo '############################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
+    LiCSBAS_split_TS.py -d $L01dir -s $splitdates -k 2>&1 | tee -a $log
   else
-    echo "#### Splitting Timeseries around ${splitdates}"
-    LiCSBAS_split_TS.py -d $L01dir -s $splitdates
+    echo "#### Splitting Timeseries around ${splitdates}" 2>&1 | tee -a $log
+    echo '############################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
+    LiCSBAS_split_TS.py -d $L01dir -s $splitdates 2>&1 | tee -a $log
   fi
-
-  echo '############################'
-  echo ' '
 
   n_split=$((`wc -l splitdirs.txt | awk '{print $1}'` - 1))
 
@@ -183,48 +196,48 @@ if [ ! -z $splitdates ]; then
     echo p12_null_both y >> params.txt
     echo p12_find_reference n >> params.txt 
 
-    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
+    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
+
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Running null_both for '$splitdir 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' '
+
+    ./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
     echo ' '
-    echo '#####################'
-    echo '#### Running null_both for '$splitdir
-    echo '#####################'
-    echo ' '
-
-    ./batch_LiCSBAS.sh
-
-    echo ' '
-    echo '#####################'
-    echo '#### Running LOOPY03_iterative_inversion.py for '$splitdir
-    echo '#####################'
-    echo ' '
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Running LOOPY03_iterative_inversion.py for '$splitdir 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
 
     corrdir=${splitdir}L03
-    LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para}
+    LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} 2>&1 | tee -a $log
 
-    echo ' '
-    echo '#####################'
-    echo '#### Aggressively null corrected timeseries in '$corrdir
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Conservatively null corrected timeseries in '$corrdir 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
 
     echo GEOCmldir $corrdir > params.txt
     echo start_step 11 >> params.txt
     echo end_step 15 >> params.txt
     echo p12_null_both n >> params.txt
     echo p12_nullify y >> params.txt
-    echo p12_treat_as_bad y >> params.txt
+    echo p12_treat_as_bad n >> params.txt
 
-    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
-    ./batch_LiCSBAS.sh
+    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
+    ./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
   done
 
-  echo ' '
-  echo '#####################'
-  echo '#### Run nullification on original timeseries, so that non-corrected ifgs are nulled'
-  echo '#####################'
-  echo ' '
+  echo ' ' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo '#### Run nullification on original timeseries, so that non-corrected ifgs are nulled' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo ' ' 2>&1 | tee -a $log
   
   echo GEOCmldir $L01dir > params.txt
   echo start_step 11 >> params.txt
@@ -232,25 +245,28 @@ if [ ! -z $splitdates ]; then
   echo p12_null_both y >> params.txt
   echo p12_nullify n >> params.txt
 
-  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
-  ./batch_LiCSBAS.sh
+  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
+  ./batch_LiCSBAS.sh 2>&1 | tee -a $log
    
-  echo ' '
-  echo '#####################'
-  echo '#### Merge split timeseries'
-  echo '#####################'
-  echo ' '
+  echo ' ' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo '#### Merge split timeseries' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo ' ' 2>&1 | tee -a $log
 
   if [ ${kaikoura} == 'y' ]; then
-    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L03 --merge -k
+    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L03 --merge -k 2>&1 | tee -a $log
     
-    echo ' '
-    echo '#####################'
-    echo '#### Residual Correct pre-seismic network'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Residual Correct pre-seismic network' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     predir=${L01dir}mergePre
+    
+    timespan=`grep mergePre mergedirs.txt | awk '{print $4}'`
+    preTLen=$(python -c "print(round($timespan*0.8,1))") 
 
     echo GEOCmldir $predir > params.txt
     echo start_step 11 >> params.txt
@@ -258,28 +274,38 @@ if [ ! -z $splitdates ]; then
     echo p12_null_both n >> params.txt
     echo p12_nullify n >> params.txt     # No need to nullify again - already done this
     echo p12_find_reference y >> params.txt
+    echo p15_n_unw_r_thre ${L04_unw_thre} >> params.txt
+    echo p15_maxTlen_thre ${preTLen} >> params.txt
 
-    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
-    ./batch_LiCSBAS.sh
+    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
+    ./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
-    echo ' '
-    echo '#####################'
-    echo '#### Run Residual Correction'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Run Residual Correction' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     finalpredir=${predir}L04
 
-    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${predir} -o ${finalpredir} --nonan -n ${n_para} --filter
+    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${predir} -o ${finalpredir} --nonan -n ${n_para} --filter 2>&1 | tee -a $log
     
-    echo ' '
-    echo '#####################'
-    echo '#### Residual Correct post-seismic network'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Residual Correct post-seismic network' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     posdir=${L01dir}mergePos
+    timespan=`grep mergePos mergedirs.txt | awk '{print $4}'`
+    posTLen=$(python -c "print(round($timespan*0.8,1))")
 
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Replace spanners with aggressively nulled unw' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
+    
     for ifg in $(cat ${posdir}/uncorrected.txt); do
 	    cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${posdir}/$ifg/${ifg}.unw
     done
@@ -290,25 +316,27 @@ if [ ! -z $splitdates ]; then
     echo p12_null_both n >> params.txt
     echo p12_nullify n >> params.txt     # No need to nullify again - already done this
     echo p12_find_reference y >> params.txt
+    echo p15_n_unw_r_thre ${L04_unw_thre} >> params.txt
+    echo p15_maxTlen_thre ${posTLen} >> params.txt
 
-    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
-    ./batch_LiCSBAS.sh
+    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
+    ./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
-    echo ' '
-    echo '#####################'
-    echo '#### Run Residual Correction'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Run Residual Correction' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     finalposdir=${posdir}L04
 
-    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${posdir} -o ${finalposdir} --nonan -n ${n_para} --filter
+    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${posdir} -o ${finalposdir} --nonan -n ${n_para} --filter 2>&1 | tee -a $log
 
-    echo ' '
-    echo '#####################'
-    echo '#### Full Post-Seismic Time Series'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Full Post-Seismic Corrected Time Series' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     echo GEOCmldir $finalposdir > params.txt
     echo start_step 11 >> params.txt
@@ -316,33 +344,35 @@ if [ ! -z $splitdates ]; then
     echo p12_null_both n >> params.txt
     echo p12_nullify n >> params.txt     # No need to nullify again - already done this
     echo p12_find_reference y >> params.txt
-
+    
+    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
+    ./batch_LiCSBAS.sh 2>&1 | tee -a $log
    
-    echo ' '
-    echo '#####################'
-    echo '#### Merge Coseismic network'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Merge Coseismic network' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     finaldir=${L01dir}mergeCos
 
-    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L04 --merge -e
+    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L04 --merge -e 2>&1 | tee -a $log
 
     # Now have a network of L01, L03 then L04 corrected Pre- and Post- seismic, with uncorrected coseismic
 
-    echo ' '
-    echo '#####################'
-    echo '#### Create Post seismic nulled velocity fields'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Create Post seismic nulled velocity fields' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
 
     mv TS_${$finalposdir} TS_${$finalposdir}_nullno
 
-    echo ' '
-    echo '#####################'
-    echo '#### Full Post-Seismic Time Series Conservative'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Full Post-Seismic Time Series Conservative' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     echo GEOCmldir $finalposdir > params.txt
     echo start_step 11 >> params.txt
@@ -354,11 +384,11 @@ if [ ! -z $splitdates ]; then
 
     mv TS_${$finalposdir} TS_${$finalposdir}_nullcon
 
-    echo ' '
-    echo '#####################'
-    echo '#### Full Post-Seismic Time Series Aggressive'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Full Post-Seismic Time Series Aggressive' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     echo GEOCmldir $finalposdir > params.txt
     echo start_step 11 >> params.txt
@@ -370,16 +400,16 @@ if [ ! -z $splitdates ]; then
 
     mv TS_${finalposdir} TS_${finalposdir}_nullagg
 
-    LiCSBAS_reset_nulls -f ./ -d ${finalposdir} --reset_all
+    LiCSBAS_reset_nulls -f ./ -d ${finalposdir} --reset_all 2>&1 | tee -a $log
 
   else
-    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L03 --merge
+    LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L03 --merge 2>&1 | tee -a $log
 
-    echo ' '
-    echo '#####################'
-    echo '#### Add in nulled data for the uncorrected'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Add in nulled data for the uncorrected' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
 
     for ifg in $(cat ${L01dir}merge/uncorrected.txt); do
 	    cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${L01dir}merge/$ifg/${ifg}.unw
@@ -387,11 +417,11 @@ if [ ! -z $splitdates ]; then
     
     mergedir=${L01dir}merge
 
-    echo ' '
-    echo '#####################'
-    echo '#### Make Conservatively nulled timeseries'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Make Conservatively nulled timeseries' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
 
     echo GEOCmldir $mergedir > params.txt
     echo start_step 11 >> params.txt
@@ -399,19 +429,21 @@ if [ ! -z $splitdates ]; then
     echo p12_null_both n >> params.txt
     echo p12_nullify y >> params.txt
     echo p12_treat_as_bad n >> params.txt
+    echo p15_n_unw_r_thre ${L04_unw_thre} >> params.txt
+    echo p15_maxTlen_thre ${maxTlen} >> params.txt
 
-    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
-    ./batch_LiCSBAS.sh
+    edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
+    ./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
-    echo ' '
-    echo '#####################'
-    echo '#### Run Residual Correction'
-    echo '#####################'
-    echo ' '
+    echo ' ' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo '#### Run Residual Correction' 2>&1 | tee -a $log
+    echo '#####################' 2>&1 | tee -a $log
+    echo ' ' 2>&1 | tee -a $log
     
     finaldir=${GEOCdir}L04
 
-    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${mergedir} -o ${finaldir} --nonan -n ${n_para} --filter
+    LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${mergedir} -o ${finaldir} --nonan -n ${n_para} --filter 2>&1 | tee -a $log
 
   fi 
   
@@ -423,30 +455,30 @@ else
   echo p12_null_both y >> params.txt
   echo p12_find_reference n >> params.txt
 
-  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
+  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
 
-  echo ' '
-  echo '#####################'
-  echo '#### Running all nullification for '$L01dir
-  echo '#####################'
-  echo ' '
+  echo ' ' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo '#### Running all nullification for '$L01dir 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo ' ' 2>&1 | tee -a $log
 
-  ./batch_LiCSBAS.sh
+  ./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
-  echo ' '
-  echo '#####################'
-  echo '#### Running LOOPY03_iterative_inversion.py for '$L01dir
-  echo '#####################'
-  echo ' '
+  echo ' ' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo '#### Running LOOPY03_iterative_inversion.py for '$L01dir 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo ' ' 2>&1 | tee -a $log
 
   corrdir=${L01dir}L03
-  LOOPY03_iterative_inversion.py -d $L01dir -c ${corrdir} --n_para ${n_para}
+  LOOPY03_iterative_inversion.py -d $L01dir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} 2>&1 | tee -a $log
 
-  echo ' '
-  echo '#####################'
-  echo '#### Aggressively null corrected timeseries in '$corrdir
-  echo '#####################'
-  echo ' '
+  echo ' ' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo '#### Aggressively null corrected timeseries in '$corrdir 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo ' ' 2>&1 | tee -a $log
 
   echo GEOCmldir $corrdir > params.txt
   echo start_step 11 >> params.txt
@@ -455,27 +487,29 @@ else
   echo p12_null_both n >> params.txt
   echo p12_nullify y >> params.txt
   echo p12_treat_as_bad y >> params.txt
+  echo p15_n_unw_r_thre ${L04_unw_thre} >> params.txt
+  echo p15_maxTlen_thre ${maxTlen} >> params.txt
 
-  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
-  ./batch_LiCSBAS.sh
+  edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
+  ./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
-  echo ' '
-  echo '#####################'
-  echo '#### Run Residual Correction'
-  echo '#####################'
-  echo ' '
+  echo ' ' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo '#### Run Residual Correction' 2>&1 | tee -a $log
+  echo '#####################' 2>&1 | tee -a $log
+  echo ' ' 2>&1 | tee -a $log
     
   finaldir=${GEOCdir}L04
 
-  LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${corrdir} -o ${finaldir} --nonan -n ${n_para} --filter
+  LOOPY04_aggressive_residuals.py -d ${GEOCdir} -t TS_${corrdir} -o ${finaldir} --nonan -n ${n_para} --filter 2>&1 | tee -a $log
 
 fi
 
-echo ' '
-echo '#####################'
-echo '#### Running Full Time-series for ' $finaldir
-echo '#####################'
-echo ' '
+echo ' ' 2>&1 | tee -a $log
+echo '#####################' 2>&1 | tee -a $log
+echo '#### Running Full Time-series for ' $finaldir 2>&1 | tee -a $log
+echo '#####################' 2>&1 | tee -a $log
+echo ' ' 2>&1 | tee -a $log
 
 echo GEOCmldir $finaldir > params.txt
 echo start_step 11 >> params.txt
@@ -483,19 +517,21 @@ echo end_step 15 >> params.txt
 echo p11_unw_thre 0.05 >> params.txt
 echo p12_nullify n >> params.txt
 echo p12_find_reference y >> params.txt
+echo p15_n_unw_r_thre ${n_unw_thre} >> params.txt
+echo p15_maxTlen_thre ${maxTlen} >> params.txt
 
-edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt
+edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
 
-./batch_LiCSBAS.sh
-
-echo ' '
-echo '#####################'
-echo '#### COMPLETED A TIMESERIES WITH L03 CORRECTIONS for '${FRAME}
-echo '#####################'
-echo ' '
+./batch_LiCSBAS.sh 2>&1 | tee -a $log
 
 echo ' '
-echo '############################'
-echo '#### LOOPY-LiCSBAS for '${FRAME}' complete!'
-echo '############################'
-echo ' '
+echo '#####################' 2>&1 | tee -a $log
+echo '#### COMPLETED A TIMESERIES WITH L03 CORRECTIONS for '${FRAME} 2>&1 | tee -a $log
+echo '#####################' 2>&1 | tee -a $log
+echo ' ' 2>&1 | tee -a $log
+
+echo ' ' 2>&1 | tee -a $log
+echo '############################' 2>&1 | tee -a $log
+echo '#### LOOPY-LiCSBAS for '${FRAME}' complete!' 2>&1 | tee -a $log
+echo '############################' 2>&1 | tee -a $log
+echo ' ' 2>&1 | tee -a $log

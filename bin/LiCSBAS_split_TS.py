@@ -14,6 +14,7 @@ import LiCSBAS_io_lib as io_lib
 import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_loop_lib as loop_lib
 import LiCSBAS_plot_lib as plot_lib
+from datetime import datetime as dt
 
 class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     '''
@@ -83,11 +84,12 @@ def make_split_dir():
 
     splitfile = os.path.join(args.frame_dir, 'splitdirs.txt')
     with open(splitfile, "w") as f:
-        print('SplitID\tStart\tEnd', file=f)
+        print('SplitID\tStart\tEnd\tTimeSpan(yrs)', file=f)
 
     for i in np.arange(len(splitdates) - 1):
         split1 = int(splitdates[i])
         split2 = int(splitdates[i + 1])
+        timespan = round((((dt.strptime(str(split2), "%Y%m%d") - dt.strptime(str(split1), "%Y%m%d")).days) / 365.25), 1)
         print('Split {}/{}: {}_{}'.format(i + 1, len(splitdates) - 1, split1, split2))
 
         split_ifg = []
@@ -115,7 +117,7 @@ def make_split_dir():
             splitdir = unwdir + 'Split' + splitID
 
             with open(splitfile, "a") as f:
-                print('{} {} {}'.format(splitID, split1, split2), file=f)
+                print('{}\t{}\t{}\t{}'.format(splitID, split1, split2, timespan), file=f)
 
             if os.path.exists(splitdir):
                 print('{} Exists....'.format(splitdir))
@@ -145,6 +147,7 @@ def make_split_dir():
 
             unassigned_tmp = unassigned.copy()
             unassigned = list(set(unassigned_tmp) - set(split_ifg))
+            unassigned.sort()
 
     print('Unassigned Split-spanning IFGS:')
     for ifg in unassigned:
@@ -163,7 +166,7 @@ def merge_split_dir():
 
     firstdir = True
     split_ix = 1
-
+    
     for i in np.arange(len(splitdates) - 1):
         split1 = int(splitdates[i])
         split2 = int(splitdates[i + 1])
@@ -237,12 +240,16 @@ def merge_kaikoura_dir():
     splitID = []
     start = []
     end = []
+    
+    mergefile = os.path.join(args.frame_dir, 'mergedirs.txt')
+    with open(mergefile, "w") as f:
+        print('MergeID\t\tStart\t\tEnd\t\tTimeSpan(yrs)', file=f)
 
     f = open(os.path.join(args.frame_dir, 'splitdirs.txt'))
     line = f.readline()
     while line:
         if line[0] == "P":
-            id, date1, date2 = [s for s in re.split('[: ]', line)]
+            id, date1, date2, timespan = [s for s in re.split('[:\t]', line)]
             splitID.append(id)
             start.append(int(date1))
             end.append(int(date2[0:8]))
@@ -306,7 +313,7 @@ def merge_kaikoura_dir():
 
                     unassigned_tmp = unassigned.copy()
                     unassigned = list(set(unassigned_tmp) - set(split_ifg))
-
+                    unassigned.sort()
                 else:
                     print('{} does not exist!'.format(splitdir))
 
@@ -326,7 +333,9 @@ def merge_kaikoura_dir():
             unassigned_tmp = unassigned.copy()
             unassigned = list(set(unassigned_tmp) - set(assigned))
 
-
+        timespan = round((((dt.strptime(str(mergeEnd), "%Y%m%d") - dt.strptime(str(mergeStart), "%Y%m%d")).days) / 365.25), 1)
+        with open(mergefile, "a") as f:
+            print('{}\t{}\t{}\t{}'.format('merge' + seis, mergeStart, mergeEnd, timespan), file=f)
 
         uncorr_file = os.path.join(mergedir, 'uncorrected.txt')
         with open(uncorr_file, 'w') as f:
