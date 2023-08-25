@@ -5,3 +5,4 @@ bin/Velocity_fitting_multiEQ_filtered_std_new.py
 20*
 LOOPY_bin/testingFilters_LOOPY03_iterative_inversion.py
 LOOPY_bin/prep_InSAR_oneframe.sh
+n_loop_err
