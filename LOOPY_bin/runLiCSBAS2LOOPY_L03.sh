@@ -509,7 +509,7 @@ echo '#### Compare to original for '${FRAME} 2>&1 | tee -a $log
 echo '#####################' 2>&1 | tee -a $log
 echo ' ' 2>&1 | tee -a $log
 
-LOOPY05_compare_corrections.py -f ./ -i ${GEOCdir} -c ${finaldir} -o comp_origVfinal -n ${n_para} --reset
+LOOPY05_compare_correction.py -f ./ -i ${GEOCdir} -c ${finaldir} -o comp_origVfinal -n ${n_para} --reset
 
 echo ' ' 2>&1 | tee -a $log
 echo '############################' 2>&1 | tee -a $log

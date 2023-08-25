@@ -358,7 +358,7 @@ if [ $start_step -le 13 -a $end_step -ge 13 ];then
     p133_op="$p133_op -t TS_$GEOCmldir"
   fi
 	if [ ! -z $p13_inv_alg ];then p13_op="$p13_op --inv_alg $p13_inv_alg"; fi
-  if [ ! -z $p13_downweight_ifg ];then p13_op="$p13_op --d $p13_downweight_ifg"; fi
+  if [ ! -z $p13_downweight_ifg ];then p13_op="$p13_op -d $p13_downweight_ifg"; fi
 	if [ ! -z $p13_mem_size ];then p13_op="$p13_op --mem_size $p13_mem_size"; fi
 	if [ ! -z $p13_gamma ];then p13_op="$p13_op --gamma $p13_gamma"; fi
 	if [ ! -z $p13_n_para ];then
