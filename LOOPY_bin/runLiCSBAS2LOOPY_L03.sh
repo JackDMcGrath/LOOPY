@@ -68,6 +68,7 @@ n_unw_thre=5 # n_unw_thre for final masking of velocity
 L03_unw_thre=2.5 # n_unw_thre to carry out L03 correction on (best to set to lower than n_unw_thre for masking- as masking is occurring at default 5, no point wasting time on L03 for to low a value)
 L04_unw_thre=2.5 # n_unw_thre to carry out L04 correction on (best to set to lower than n_unw_thre for masking)
 maxTlen=7.5 # MaxTlen for the complete timeseries
+downweight=10 # Downweightinf factor for uncorrected spanners
 
 GEOCdir=GEOCml${n_looks}
 
@@ -274,6 +275,7 @@ if [ ! -z $splitdates ]; then
     echo p12_null_both n >> params.txt
     echo p12_nullify n >> params.txt     # No need to nullify again - already done this
     echo p12_find_reference y >> params.txt
+    echo p13_downweight_ifg ${downweight} >> params.txt
     echo p15_n_unw_r_thre ${L04_unw_thre} >> params.txt
     echo p15_maxTlen_thre ${preTLen} >> params.txt
 
@@ -302,12 +304,12 @@ if [ ! -z $splitdates ]; then
 
     echo ' ' 2>&1 | tee -a $log
     echo '#####################' 2>&1 | tee -a $log
-    echo '#### Replace spanners with aggressively nulled unw' 2>&1 | tee -a $log
+    echo '#### Replace spanners with conservatively nulled unw' 2>&1 | tee -a $log
     echo '#####################' 2>&1 | tee -a $log
     echo ' ' 2>&1 | tee -a $log
     
     for ifg in $(cat ${posdir}/uncorrected.txt); do
-	    cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${posdir}/$ifg/${ifg}.unw
+	    cp -f ${L01dir}/$ifg/${ifg}_con.unw ${posdir}/$ifg/${ifg}.unw
     done
 
     echo GEOCmldir $posdir > params.txt
@@ -315,6 +317,7 @@ if [ ! -z $splitdates ]; then
     echo end_step 15 >> params.txt
     echo p12_null_both n >> params.txt
     echo p12_nullify n >> params.txt     # No need to nullify again - already done this
+    echo p13_downweight_ifg ${downweight} >> params.txt
     echo p12_find_reference y >> params.txt
     echo p15_n_unw_r_thre ${L04_unw_thre} >> params.txt
     echo p15_maxTlen_thre ${posTLen} >> params.txt
@@ -362,45 +365,13 @@ if [ ! -z $splitdates ]; then
 
     echo ' ' 2>&1 | tee -a $log
     echo '#####################' 2>&1 | tee -a $log
-    echo '#### Create Post seismic nulled velocity fields' 2>&1 | tee -a $log
-    echo '#####################' 2>&1 | tee -a $log
-    echo ' ' 2>&1 | tee -a $log
-
-    mv TS_${$finalposdir} TS_${$finalposdir}_nullno
-
-    echo ' ' 2>&1 | tee -a $log
-    echo '#####################' 2>&1 | tee -a $log
-    echo '#### Full Post-Seismic Time Series Conservative' 2>&1 | tee -a $log
+    echo '#### Replace spanners with conservatively nulled unw' 2>&1 | tee -a $log
     echo '#####################' 2>&1 | tee -a $log
     echo ' ' 2>&1 | tee -a $log
     
-    echo GEOCmldir $finalposdir > params.txt
-    echo start_step 11 >> params.txt
-    echo end_step 15 >> params.txt
-    echo p12_null_both n >> params.txt
-    echo p12_nullify y >> params.txt
-    echo p12_treat_as_bad n >> params.txt
-    echo p12_find_reference y >> params.txt
-
-    mv TS_${$finalposdir} TS_${$finalposdir}_nullcon
-
-    echo ' ' 2>&1 | tee -a $log
-    echo '#####################' 2>&1 | tee -a $log
-    echo '#### Full Post-Seismic Time Series Aggressive' 2>&1 | tee -a $log
-    echo '#####################' 2>&1 | tee -a $log
-    echo ' ' 2>&1 | tee -a $log
-    
-    echo GEOCmldir $finalposdir > params.txt
-    echo start_step 11 >> params.txt
-    echo end_step 15 >> params.txt
-    echo p12_null_both n >> params.txt
-    echo p12_nullify y >> params.txt
-    echo p12_treat_as_bad y >> params.txt
-    echo p12_find_reference y >> params.txt
-
-    mv TS_${finalposdir} TS_${finalposdir}_nullagg
-
-    LiCSBAS_reset_nulls -f ./ -d ${finalposdir} --reset_all 2>&1 | tee -a $log
+    for ifg in $(cat ${finaldir}/uncorrected.txt); do
+	    cp -f ${L01dir}/$ifg/${ifg}_con.unw ${finaldir}/$ifg/${ifg}.unw
+    done
 
   else
     LiCSBAS_split_TS.py -f ./ -d ${L01dir} -s $splitdates -c ${L01dir} -m L03 --merge 2>&1 | tee -a $log
@@ -412,7 +383,7 @@ if [ ! -z $splitdates ]; then
     echo ' ' 2>&1 | tee -a $log
 
     for ifg in $(cat ${L01dir}merge/uncorrected.txt); do
-	    cp -f ${L01dir}/$ifg/${ifg}_agg.unw ${L01dir}merge/$ifg/${ifg}.unw
+	    cp -f ${L01dir}/$ifg/${ifg}_con.unw ${L01dir}merge/$ifg/${ifg}.unw
     done
     
     mergedir=${L01dir}merge
@@ -429,6 +400,7 @@ if [ ! -z $splitdates ]; then
     echo p12_null_both n >> params.txt
     echo p12_nullify y >> params.txt
     echo p12_treat_as_bad n >> params.txt
+    echo p13_downweight_ifg ${downweight} >> params.txt
     echo p15_n_unw_r_thre ${L04_unw_thre} >> params.txt
     echo p15_maxTlen_thre ${maxTlen} >> params.txt
 
@@ -517,6 +489,7 @@ echo end_step 15 >> params.txt
 echo p11_unw_thre 0.05 >> params.txt
 echo p12_nullify n >> params.txt
 echo p12_find_reference y >> params.txt
+echo p13_downweight_ifg ${downweight} >> params.txt
 echo p15_n_unw_r_thre ${n_unw_thre} >> params.txt
 echo p15_maxTlen_thre ${maxTlen} >> params.txt
 
