@@ -73,8 +73,10 @@ downweight=10 # Downweightinf factor for uncorrected spanners
 GEOCdir=GEOCml${n_looks}
 
 logdir="runLog"
-log="$logdir/$(date +%Y%m%d%H%M)$(basename $0 .sh).log"
+timestamp=`date +%Y%m%d%H%M`
+log="$logdir/${timestamp}/${timestamp}$(basename $0 .sh).log"
 mkdir -p $logdir
+mkdir -p $logdir/${timestamp}
 
 echo "Log file:   $log"
 echo ""
@@ -213,8 +215,15 @@ if [ ! -z $splitdates ]; then
     echo '#####################' 2>&1 | tee -a $log
     echo ' ' 2>&1 | tee -a $log
 
+    L03log="$logdir/${timestamp}/${splitdir}L03.log"
     corrdir=${splitdir}L03
-    LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} 2>&1 | tee -a $log
+    
+    echo "Output of LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} to ${L03log}" 2>&1 | tee -a $logdir
+    LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} 2>&1 | tee -a $L03log
+    
+    progress_bar=`grep -n 'Unwrapping Correction inversion' $L03log | tail -n 1 | awk '{print $1}' | rev | cut -b 2-10 | rev`
+    progress_bar=`python -c "((print $progress_bar + 3))"`
+    echo "To remove progress bar from log run: sed -i '${progress_bar}d' $L03log" 2>&1 | tee -a $log
 
     echo ' ' 2>&1 | tee -a $log
     echo '#####################' 2>&1 | tee -a $log
@@ -228,6 +237,7 @@ if [ ! -z $splitdates ]; then
     echo p12_null_both n >> params.txt
     echo p12_nullify y >> params.txt
     echo p12_treat_as_bad n >> params.txt
+    echo p15_n_unw_r_thre ${L04_unw_thre} >> params.txt
 
     edit_batch_LiCSBAS.sh batch_LiCSBAS.sh params.txt 2>&1 | tee -a $log
     ./batch_LiCSBAS.sh 2>&1 | tee -a $log
@@ -443,8 +453,15 @@ else
   echo '#####################' 2>&1 | tee -a $log
   echo ' ' 2>&1 | tee -a $log
 
+  L03log="$logdir/${timestamp}/${L01dir}L03.log"
+    
   corrdir=${L01dir}L03
+  echo "Output of LOOPY03_iterative_inversion.py -d $L01dir-c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} to ${L03log}" 2>&1 | tee -a $logdir
   LOOPY03_iterative_inversion.py -d $L01dir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} 2>&1 | tee -a $log
+    
+  progress_bar=`grep -n 'Unwrapping Correction inversion' $L03log | tail -n 1 | awk '{print $1}' | rev | cut -b 2-10 | rev`
+  progress_bar=`python -c "((print $progress_bar + 3))"`
+  echo "To remove progress bar from log run: sed -i '${progress_bar}d' $L03log" 2>&1 | tee -a $log
 
   echo ' ' 2>&1 | tee -a $log
   echo '#####################' 2>&1 | tee -a $log
