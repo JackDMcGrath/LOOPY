@@ -84,7 +84,7 @@ def make_split_dir():
 
     splitfile = os.path.join(args.frame_dir, 'splitdirs.txt')
     with open(splitfile, "w") as f:
-        print('SplitID\tStart\tEnd\tTimeSpan(yrs)', file=f)
+        print('SplitID\tStart\t\tEnd\t\tTimeSpan(yrs)\tInterferograms', file=f)
 
     for i in np.arange(len(splitdates) - 1):
         split1 = int(splitdates[i])
@@ -117,14 +117,14 @@ def make_split_dir():
             splitdir = unwdir + 'Split' + splitID
 
             with open(splitfile, "a") as f:
-                print('{}\t{}\t{}\t{}'.format(splitID, split1, split2, timespan), file=f)
+                print('{}\t{}\t{}\t{}\t\t{}'.format(splitID, split1, split2, timespan,len(split_ifg)), file=f)
 
             if os.path.exists(splitdir):
                 print('{} Exists....'.format(splitdir))
             else:
                 os.mkdir(splitdir)
                 print('Creating {}'.format(splitdir))
-
+            
             metafiles = glob.glob(os.path.join(unwdir, '*.*'))
             files = ['baselines', 'hgt']
             for file in files:
@@ -249,7 +249,7 @@ def merge_kaikoura_dir():
     line = f.readline()
     while line:
         if line[0] == "P":
-            id, date1, date2, timespan = [s for s in re.split('[:\t]', line)]
+            id, date1, date2, timespan, _, n_ifg = [s for s in re.split('[:\t]', line)]
             splitID.append(id)
             start.append(int(date1))
             end.append(int(date2[0:8]))
