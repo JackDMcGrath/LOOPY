@@ -708,6 +708,8 @@ def mask_unw_errors(i):
 
     # Modal filtering of npi images
     start = time.time()
+    if np.isnan(npi).all():
+      print('ERROR in {}({}) - all nans'.format(i,date))
     npi = mode_filter(npi, filtSize=21)
 
     if i == v:
@@ -999,6 +1001,7 @@ def mode_filter(data, filtSize=21):
     dataMode = ((np.array(im_mode, dtype='float32') / 255) * npi_range + npi_min).round()
     dataMode[np.where(np.isnan(data))] = np.nan
     dataMode[np.where(dataMode == npi_min)] = np.nan
+    
 
     return dataMode
 
