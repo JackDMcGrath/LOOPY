@@ -411,7 +411,7 @@ def main():
 
     if args.downweight != 1:
         uncorrfile = os.path.join(ccdir, 'uncorrected.txt')
-        if os.path.exits(uncorrfile):
+        if os.path.exists(uncorrfile):
             downweight_list = io_lib.read_ifg_list(uncorrfile)
             print('Downweighting uncorrected interferograms by {:.1f}'.format(args.downweight))
             for ifgd in downweight_list:
