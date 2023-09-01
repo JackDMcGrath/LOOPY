@@ -28,7 +28,7 @@ import sys
 import numpy as np
 import subprocess as subp
 import datetime as dt
-import statsmodels.api as sm
+#import statsmodels.api as sm
 from osgeo import gdal, osr
 
 #%%
@@ -74,9 +74,9 @@ def make_point_kml(lat, lon, kmlfile):
 
 
 #%%
-# def make_tstxt(x, y, imdates, ts, tsfile, refx1, refx2, refy1, refy2, gap, lat=None, lon=None, reflat1=None, reflat2=None, reflon1=None, reflon2=None, deramp_flag=None, hgt_linear_flag=None, filtwidth_km=None, filtwidth_yr=None):
-#     """
-#     Make txt of time series.
+def make_tstxt(x, y, imdates, ts, tsfile, refx1, refx2, refy1, refy2, gap, lat=None, lon=None, reflat1=None, reflat2=None, reflon1=None, reflon2=None, deramp_flag=None, hgt_linear_flag=None, filtwidth_km=None, filtwidth_yr=None):
+     """
+      Make txt of time series.
 #     Format example:
 #     # x, y    : 432, 532
 #     # lat, lon: 34.65466, 136.65432
@@ -91,34 +91,35 @@ def make_point_kml(lat, lon, kmlfile):
 #     20160716   -3.5
 #     """
 #     ### Calc model
-#     imdates_ordinal = np.array(([dt.datetime.strptime(imd, '%Y%m%d').toordinal() for imd in imdates])) ##73????
-#     imdates_yr = (imdates_ordinal-imdates_ordinal[0])/365.25
-#     A = sm.add_constant(imdates_yr) #[1, t]
-#     vconst, vel = sm.OLS(ts, A, missing='drop').fit().params
-#
-#     ### Identify gaps
-#     ixs_gap = np.where(gap==1)[0] # n_im-1, bool
-#     gap_str = ''
-#     for ix_gap in ixs_gap:
-#         gap_str = gap_str+imdates[ix_gap]+'_'+imdates[ix_gap+1]+' '
-#
-#     ### Output
-#     with open(tsfile, 'w') as f:
-#         print('# x, y    : {}, {}'.format(x, y), file=f)
-#         if all(v is not None for v in [lat, lon]):
-#             print('# lat, lon: {:.5f}, {:.5f}'.format(lat, lon), file=f)
-#         print('# ref     : {}:{}/{}:{}'.format(refx1, refx2, refy1, refy2), file=f)
-#         if all(v is not None for v in [reflon1, reflon2, reflat1, reflat2]):
-#             print('# refgeo  : {:.5f}/{:.5f}/{:.5f}/{:.5f}'.format(reflon1, reflon2, reflat1, reflat2), file=f)
-#         if filtwidth_yr is not None:
-#             print('# deramp, filtwidth_km, filtwidth_yr : {}, {}, {:.3f}'.format(deramp_flag, filtwidth_km, filtwidth_yr), file=f)
-#         if hgt_linear_flag is not None:
-#             print('# hgt_linear_flag : {}'.format(hgt_linear_flag), file=f)
-#         print('# gap     : {}'.format(gap_str), file=f)
-#         print('# linear model: {:.3f}*t{:+.3f}'.format(vel, vconst), file=f)
-#
-#         for i, imd in enumerate(imdates):
-#             print('{} {:7.2f}'.format(imd, ts[i]), file=f)
+     imdates_ordinal = np.array(([dt.datetime.strptime(imd, '%Y%m%d').toordinal() for imd in imdates])) ##73????
+     imdates_yr = (imdates_ordinal-imdates_ordinal[0])/365.25
+     #A = sm.add_constant(imdates_yr) #[1, t]
+     #vconst, vel = sm.OLS(ts, A, missing='drop').fit().params
+
+     ### Identify gaps
+     ixs_gap = np.where(gap==1)[0] # n_im-1, bool
+     gap_str = ''
+     for ix_gap in ixs_gap:
+         gap_str = gap_str+imdates[ix_gap]+'_'+imdates[ix_gap+1]+' '
+
+     ### Output
+     with open(tsfile, 'w') as f:
+         print('# x, y    : {}, {}'.format(x, y), file=f)
+         if all(v is not None for v in [lat, lon]):
+             print('# lat, lon: {:.5f}, {:.5f}'.format(lat, lon), file=f)
+         print('# ref     : {}:{}/{}:{}'.format(refx1, refx2, refy1, refy2), file=f)
+         if all(v is not None for v in [reflon1, reflon2, reflat1, reflat2]):
+             print('# refgeo  : {:.5f}/{:.5f}/{:.5f}/{:.5f}'.format(reflon1, reflon2, reflat1, reflat2), file=f)
+         if filtwidth_yr is not None:
+             print('# deramp, filtwidth_km, filtwidth_yr : {}, {}, {:.3f}'.format(deramp_flag, filtwidth_km, filtwidth_yr), file=f)
+         if hgt_linear_flag is not None:
+             print('# hgt_linear_flag : {}'.format(hgt_linear_flag), file=f)
+         print('# gap     : {}'.format(gap_str), file=f)
+         #print('# linear model: {:.3f}*t{:+.3f}'.format(vel, vconst), file=f)
+         print('# linear model: Not outputting - uncomment statsmodels in io_lib', file=f)
+
+         for i, imd in enumerate(imdates):
+             print('{} {:7.2f}'.format(imd, ts[i]), file=f)
 
 
 #%%
