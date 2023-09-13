@@ -91,7 +91,7 @@ def make_loop_matrix(ifgdates):
 
 
 #%%
-def read_unw_loop_ph(Aloop1, ifgdates, ifgdir, length, width, null_type=None):
+def read_unw_loop_ph(Aloop1, ifgdates, ifgdir, length, width, null_type=None, use_pha=False):
     ### Find index of ifg
     ix_ifg12, ix_ifg23 = np.where(Aloop1 == 1)[0]
     ix_ifg13 = np.where(Aloop1 == -1)[0][0]
@@ -99,10 +99,12 @@ def read_unw_loop_ph(Aloop1, ifgdates, ifgdir, length, width, null_type=None):
     ifgd23 = ifgdates[ix_ifg23]
     ifgd13 = ifgdates[ix_ifg13]
 
-    if null_type == 'cgg':
+    if null_type == 'agg':
         fileend = '_agg.unw'
     elif null_type == 'con':
         fileend = '_con.unw'
+    elif use_pha:
+        fileend = '.diff'
     else:
         fileend = '.unw'
 

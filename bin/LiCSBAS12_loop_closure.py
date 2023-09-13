@@ -143,7 +143,7 @@ def main(argv=None):
 
     global Aloop, ifgdates, ifgdir, length, width, loop_pngdir, cycle, n_ifg, da,\
         multi_prime, bad_ifg, noref_ifg, bad_ifg_all, refy1, refy2, refx1, refx2, cmap_wrap, \
-        treat_as_bad, aggro, conserve  ## for parallel processing
+        treat_as_bad, aggro, conserve, use_pha  ## for parallel processing
 
     #%% Set default
     ifgdir = []
@@ -157,6 +157,7 @@ def main(argv=None):
     treat_as_bad = False
     nullmask = False
     null_both = False
+    use_pha = True
 
     try:
         n_para = len(os.sched_getaffinity(0))
@@ -174,7 +175,7 @@ def main(argv=None):
         try:
             opts, args = getopt.getopt(argv[1:], "hd:t:l:",
                                        ["help", "multi_prime", "nullify", "nullmask", "skip_pngs", "treat_as_bad", "null_both",
-                                        "rm_ifg_list=", "n_para=", "ref_approx="])
+                                        "rm_ifg_list=", "n_para=", "ref_approx=", "use_pha"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -205,6 +206,8 @@ def main(argv=None):
                 treat_as_bad = True
             elif o == '--null_both':
                 null_both = True
+            elif o == '--use_pha':
+                use_pha = True
 
         if not ifgdir:
             raise Usage('No data directory given, -d is not optional!')
@@ -1218,6 +1221,8 @@ def loop_closure_4th(args, da):
             print("  {0:3}/{1:3}th loop...".format(i, n_loop), flush=True)
         ### Read unw
         unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width)
+        if use_pha:
+            pha12, pha23, pha13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width, use_pha=use_pha)
         ### Skip if bad ifg is included
         if ifgd12 in bad_ifg_all or ifgd23 in bad_ifg_all or ifgd13 in bad_ifg_all:
             #print('skipping '+ifgd13)
@@ -1227,7 +1232,10 @@ def loop_closure_4th(args, da):
         ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
         ref_unw13 = np.nanmean(unw13[refy1:refy2, refx1:refx2])
         ## Calculate loop phase taking into account ref phase
-        loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
+        if not use_pha:
+            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
+        else:
+            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13) - (pha12 + pha23 - pha13)
         ## Count number of loops with suspected unwrap error (>pi)
         loop_ph[np.isnan(loop_ph)] = 0 #to avoid warning
         is_ok = np.abs(loop_ph)<nullify_threshold
@@ -1256,6 +1264,8 @@ def loop_closure_4th_both(args, aggro, conserve):
             print("  {0:3}/{1:3}th loop...".format(i, n_loop), flush=True)
         ### Read unw
         unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width)
+        if use_pha:
+            pha12, pha23, pha13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width, use_pha=use_pha)
         ### Skip if bad ifg is included
         if ifgd12 in bad_ifg_all or ifgd23 in bad_ifg_all or ifgd13 in bad_ifg_all:
             #print('skipping '+ifgd13)
@@ -1265,7 +1275,10 @@ def loop_closure_4th_both(args, aggro, conserve):
         ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
         ref_unw13 = np.nanmean(unw13[refy1:refy2, refx1:refx2])
         ## Calculate loop phase taking into account ref phase
-        loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
+        if not use_pha:
+            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
+        else:
+            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13) - (pha12 + pha23 - pha13)
         ## Count number of loops with suspected unwrap error (>pi)
         loop_ph[np.isnan(loop_ph)] = 0 #to avoid warning
         is_ok = np.abs(loop_ph)<nullify_threshold
