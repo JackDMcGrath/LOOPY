@@ -493,7 +493,8 @@ def convert_wrapper(i):
         ### Multilook
         if nlook != 1:
             diff = tools_lib.multilook(diff, nlook, nlook, n_valid_thre)
-            diff.tofile(diffile)
+        
+        diff.tofile(diffile)
 
     return 0
 
