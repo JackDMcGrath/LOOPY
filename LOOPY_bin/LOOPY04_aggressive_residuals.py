@@ -375,12 +375,15 @@ def move_metafiles():
         if not os.path.exists(os.path.join(correct_dir, os.path.basename(file))):
             os.symlink(file, os.path.join(correct_dir, os.path.basename(file)))
 
-    print('Soft Linking Coherences....')
+    print('Soft Linking Coherences [and diffs]....')
     for ifg in res_list:
         pair = os.path.basename(ifg)
         ccfile = os.path.join(unwdir, pair, pair + '.cc')
+        difffile = os.path.join(unwdir, pair, pair + '.diff')
         if not os.path.exists(os.path.join(correct_dir, pair, pair + '.cc')):
             os.symlink(ccfile, os.path.join(correct_dir, pair, pair + '.cc'))
+        if not os.path.exists(os.path.join(correct_dir, pair, pair + '.diff')):
+            os.symlink(ccfile, os.path.join(correct_dir, pair, pair + '.diff'))
 
 def main():
     start()
@@ -391,7 +394,6 @@ def main():
     move_metafiles()
 
     finish()
-
 
 if __name__ == "__main__":
     main()

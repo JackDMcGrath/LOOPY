@@ -209,6 +209,8 @@ def merge_split_dir():
                 shutil.copyfile(os.path.join(ifgdir, pair + '.unw'), os.path.join(ifgmerge, pair + '.unw'))
                 shutil.copyfile(os.path.join(ifgdir, pair + '.unw.png'), os.path.join(ifgmerge, pair + '.unw.png'))
                 os.symlink(os.path.join(ifgdir, pair + '.cc'), os.path.join(ifgmerge, pair + '.cc'))
+                if os.path.exists(os.path.join(ifgdir, pair + '.diff')):
+                    os.symlink(os.path.join(ifgdir, pair + '.diff'), os.path.join(ifgmerge, pair + '.diff'))
 
             unassigned_tmp = unassigned.copy()
             unassigned = list(set(unassigned_tmp) - set(split_ifg))
@@ -307,6 +309,8 @@ def merge_kaikoura_dir():
                         shutil.copyfile(os.path.join(ifgdir, pair + '.unw'), os.path.join(ifgmerge, pair + '.unw'))
                         shutil.copyfile(os.path.join(ifgdir, pair + '.unw.png'), os.path.join(ifgmerge, pair + '.unw.png'))
                         os.symlink(os.path.join(ifgdir, pair + '.cc'), os.path.join(ifgmerge, pair + '.cc'))
+                        if os.path.exists(os.path.join(ifgdir, pair + '.diff')):
+                            os.symlink(os.path.join(ifgdir, pair + '.diff'), os.path.join(ifgmerge, pair + '.diff'))
 
                     mergeStart = min([mergeStart, start[id]])
                     mergeEnd = max([mergeEnd, end[id]])

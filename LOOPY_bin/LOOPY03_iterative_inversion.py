@@ -658,6 +658,9 @@ def apply_correction(i):
 
     if not os.path.exists(os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.cc')):
         shutil.copy(os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.cc'), os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.cc'))
+    # Link to the diff file
+    if not os.path.exists(os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.diff')) and os.path.exists(os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.diff')):
+        os.symlink(os.path.join(ifgdir, ifgdates[i], ifgdates[i] + '.diff'), os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.diff'))
 
     unwfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw')
     unwpngfile = os.path.join(corrdir, ifgdates[i], ifgdates[i] + '.unw.png')

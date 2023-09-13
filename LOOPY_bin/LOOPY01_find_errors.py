@@ -967,6 +967,10 @@ def mask_unw_errors(i):
     if not os.path.exists(os.path.join(corrdir, date, date + '.cc')):
         shutil.copy(os.path.join(ifgdir, date, date + '.cc'), os.path.join(corrdir, date, date + '.cc'))
 
+    # Link to the diff file
+    if not os.path.exists(os.path.join(corrdir, date, date + '.diff')) and os.path.exists(os.path.join(ifgdir, date, date + '.diff')):
+        shutil.copy(os.path.join(ifgdir, date, date + '.diff'), os.path.join(corrdir, date, date + '.diff'))
+
     if i == v:
         print('        Saved {:.2f}'.format(time.time() - begin))
 
