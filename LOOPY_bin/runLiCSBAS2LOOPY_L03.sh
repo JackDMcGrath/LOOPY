@@ -54,6 +54,8 @@ splitdates=splitdates.txt # date of major earthquake to split pre- and post- sei
 error_locations=/nfs/a285/homes/eejdm/coastlines/gshhg/NZCoastRiver.txt
 TOPS_file=/nfs/a285/homes/eejdm/FINALS/TOPS.txt
 
+process_from_start=False
+
 LiCSBAS_start="03" # LiCSBAS script to start processing from
 coh_thresh="0.04" # Going to mask all pixels lower than this
 
@@ -154,7 +156,11 @@ echo '#### Clipping, masking, and correcting data to '${GEOCdir} 2>&1 | tee -a $
 echo '############################' 2>&1 | tee -a $log
 echo ' ' 2>&1 | tee -a $log
 
-./batch_LiCSBAS.sh 2>&1 | tee -a $log
+if [ ${process_from_start} == 'True' ]; then
+	./batch_LiCSBAS.sh 2>&1 | tee -a $log
+else
+	echo 'Data already pre-pocessed up to LiCSBAS11' 2>&1 | tee -a $log
+fi
 
 echo ' ' 2>&1 | tee -a $log
 echo '############################' 2>&1 | tee -a $log
