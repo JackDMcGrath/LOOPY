@@ -68,6 +68,7 @@ do
   else
     value_old=$(grep "^${param}=\".*\"" $batch_LiCSBAS | head -1 | cut -f2 -d\")
     echo "Edit $param from \"$value_old\" to \"$value\""
+    #echo sed -i -e "s#${param}=\"${value_old}\"#${param}=\"${value}\"#" $batch_LiCSBAS
     sed -i -e "s#${param}=\"${value_old}\"#${param}=\"${value}\"#" $batch_LiCSBAS
   fi
 

@@ -24,12 +24,17 @@ v1.0 20190730 Yu Morioshita, Uni of Leeds and GSI
 
 """
 
+print('Importing LiCSBAS_io_lib.py')
+import time
+begin=time.time()
 import sys
 import numpy as np
 import subprocess as subp
 import datetime as dt
 #import statsmodels.api as sm
 from osgeo import gdal, osr
+print('LiCSBAS_io_lib.py imported in {:.2f}s'.format(time.time() - begin))
+
 
 #%%
 def make_dummy_bperp(bperp_file, imdates):

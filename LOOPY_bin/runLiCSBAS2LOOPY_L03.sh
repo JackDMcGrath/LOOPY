@@ -218,11 +218,11 @@ if [ ! -z $splitdates ]; then
     L03log="$logdir/${timestamp}/${splitdir}L03.log"
     corrdir=${splitdir}L03
     
-    echo "Output of LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} to ${L03log}" 2>&1 | tee -a $logdir
+    echo "Output of LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} to ${L03log}" 2>&1 | tee -a $log
     LOOPY03_iterative_inversion.py -d $splitdir -c ${corrdir} --n_para ${n_para} --n_unw_r_thre ${L03_unw_thre} 2>&1 | tee -a $L03log
     
     progress_bar=`grep -n 'Unwrapping Correction inversion' $L03log | tail -n 1 | awk '{print $1}' | rev | cut -b 2-10 | rev`
-    progress_bar=`python -c "((print $progress_bar + 3))"`
+    progress_bar=`python -c "((print($progress_bar + 3)))"`
     echo "To remove progress bar from log run: sed -i '${progress_bar}d' $L03log" 2>&1 | tee -a $log
 
     echo ' ' 2>&1 | tee -a $log
@@ -526,7 +526,7 @@ echo '#### Compare to original for '${FRAME} 2>&1 | tee -a $log
 echo '#####################' 2>&1 | tee -a $log
 echo ' ' 2>&1 | tee -a $log
 
-LOOPY05_compare_correction.py -f ./ -i ${GEOCdir} -c ${finaldir} -o comp_origVfinal -n ${n_para} --reset
+LOOPY05_compare_correction.py -f ./ -i ${GEOCdir} -c ${finaldir} -o comp_origVfinal -n ${n_para} --reset 2>&1 | tee -a $log
 
 echo ' ' 2>&1 | tee -a $log
 echo '############################' 2>&1 | tee -a $log

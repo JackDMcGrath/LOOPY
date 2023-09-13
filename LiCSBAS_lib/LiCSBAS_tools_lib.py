@@ -34,10 +34,13 @@ v1.1 20190916 Yu Morishita, Uni of Leeds and GSI
 v1.0 20190730 Yu Morishita, Uni of Leeds and GSI
  - Original implementation
 """
+print('Importing LiCSBAS_tools_lib.py')
+import time
+begin=time.time()
 import os
 import sys
 import re
-import time
+#import time
 import requests
 import dateutil
 import datetime as dt
@@ -46,7 +49,8 @@ import warnings
 from matplotlib.colors import LinearSegmentedColormap as LSC
 from matplotlib import pyplot as plt
 import matplotlib.path as path
-import networkx as nx
+#import networkx as nx
+print('LiCSBAS_tools_lib.py imported in {:.2f}s'.format(time.time() - begin))
 
 with warnings.catch_warnings(): ## To silence user warning about registered colourmaps
     #warnings.simplefilter('ignore', UserWarning)
@@ -550,6 +554,7 @@ def calc_temporal_baseline(ifg_list):
 
 def separate_strong_and_weak_links(ifg_list, component_statsfile, remove_edge_cuts=True, remove_node_cuts=True, skip_node_cuts=False):
     """return a list of strong ifgs and a list of weak ifgs"""
+    import networkx as nx
     primarylist = []
     secondarylist = []
     for pairs in ifg_list:

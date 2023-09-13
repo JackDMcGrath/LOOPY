@@ -27,18 +27,22 @@ Outputs in GEOCml*clip/ :
 =====
 Usage
 =====
-LiCSBAS05op_clip_unw.py -i in_dir -o out_dir [-r x1:x2/y1:y2] [-g lon1/lon2/lat1/lat2] [--n_para int]
+LiCSBAS05op_clip_unw.py -i in_dir -o out_dir [-r x1:x2/y1:y2] [-g lon1/lon2/lat1/lat2] [-p polyfile.txt] [--n_para int]
 
  -i  Path to the GEOCml* dir containing stack of unw data.
  -o  Path to the output dir.
  -r  Range to be clipped. Index starts from 0.
      0 for x2/y2 means all. (i.e., 0:0/0:0 means whole area).
  -g  Range to be clipped in geographical coordinates (deg).
+ -p  Text file containing polygon coords to be clipped (x1,y1,x2,y2,x3,y3....), 1 line per clip
+     The whole image will be clipped to the extent of the polyclips unless -r or -g is selected
  --n_para  Number of parallel processing (Default: # of usable CPU)
 
 """
 #%% Change log
 '''
+v1.2.6 20230804 Jack McGrath, Uni of Leeds
+ - Add poly clipping
 v1.2.5 20210105 Yu Morishita, GSI
  - Fill 0 by nan in unw
 v1.2.4 20201119 Yu Morishita, GSI
@@ -92,7 +96,7 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     ### For parallel processing
-    global ifgdates2, in_dir, out_dir, length, width, x1, x2, y1, y2,cycle, cmap_wrap
+    global ifgdates2, in_dir, out_dir, length, width, x1, x2, y1, y2, cycle, cmap_wrap, bool_mask
 
 
     #%% Set default
@@ -100,6 +104,7 @@ def main(argv=None):
     out_dir = []
     range_str = []
     range_geo_str = []
+    poly_file = []
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
@@ -112,7 +117,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hi:o:r:g:", ["help", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hi:o:r:g:p:", ["help", "n_para="])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -127,6 +132,8 @@ def main(argv=None):
                 range_str = a
             elif o == '-g':
                 range_geo_str = a
+            elif o == '-p':
+                poly_file = a
             elif o == '--n_para':
                 n_para = int(a)
 
@@ -134,8 +141,8 @@ def main(argv=None):
             raise Usage('No input directory given, -i is not optional!')
         if not out_dir:
             raise Usage('No output directory given, -o is not optional!')
-        if not range_str and not range_geo_str:
-            raise Usage('No clip area given, use either -r or -g!')
+        if not range_str and not range_geo_str and not poly_file:
+            raise Usage('No clip area given, use either -r, -g or -p!')
         if range_str and range_geo_str:
             raise Usage('Both -r and -g given, use either -r or -g not both!')
         elif not os.path.isdir(in_dir):
@@ -189,12 +196,36 @@ def main(argv=None):
             return 1
         else:
             x1, x2, y1, y2 = tools_lib.read_range(range_str, width, length)
-    else: ## -g
+    elif range_geo_str: ## -g
         if not tools_lib.read_range_geo(range_geo_str, width, length, lat1, postlat, lon1, postlon):
             print('\nERROR in {}\n'.format(range_geo_str), file=sys.stderr)
             return 1
         else:
             x1, x2, y1, y2 = tools_lib.read_range_geo(range_geo_str, width, length, lat1, postlat, lon1, postlon)
+            range_str = '{}:{}/{}:{}'.format(x1, x2, y1, y2)
+
+    bool_mask = np.zeros((length, width), dtype=bool)
+    if poly_file: ## -p
+        print('Clipping using polygon file: {}'.format(poly_file))
+        with open(poly_file) as f:
+            poly_strings_all = f.readlines()
+
+        dempar = os.path.join(in_dir, 'EQA.dem_par')
+        lat1 = float(io_lib.get_param_par(dempar, 'corner_lat')) # north
+        lon1 = float(io_lib.get_param_par(dempar, 'corner_lon')) # west
+        postlat = float(io_lib.get_param_par(dempar, 'post_lat')) # negative
+        postlon = float(io_lib.get_param_par(dempar, 'post_lon')) # positive
+        lat2 = lat1+postlat*(length-1) # south
+        lon2 = lon1+postlon*(width-1) # east
+        #lon, lat = np.arange(lon1, lon2+postlon, postlon), np.arange(lat1, lat2+postlat, postlat)
+        lon, lat = np.linspace(lon1, lon2, width), np.linspace(lat1, lat2, length)
+        for poly_str in poly_strings_all:
+            bool_mask = bool_mask + tools_lib.poly_mask(poly_str, lon, lat)
+        
+        clip_area = np.where(bool_mask)
+        bool_mask = bool_mask == False # Invert bool mask, so True are areas to be dropped
+        if not range_str and not range_geo_str:
+            x1, x2, y1, y2 = min(clip_area[1]), max(clip_area[1]), min(clip_area[0]), max(clip_area[0])
             range_str = '{}:{}/{}:{}'.format(x1, x2, y1, y2)
 
     ### Calc clipped  info
@@ -326,8 +357,12 @@ def clip_wrapper(ifgix):
     coh = io_lib.read_img(ccfile, length, width, dtype=ccformat)
 
     ### Clip
-    unw = unw[y1:y2, x1:x2]
-    coh = coh[y1:y2, x1:x2]
+    try:
+        unw[bool_mask] = np.nan
+        coh[bool_mask] = 0 # Can't convert int coh to nan
+    finally:
+        unw = unw[y1:y2, x1:x2]
+        coh = coh[y1:y2, x1:x2]
 
     ### Output
     out_dir1 = os.path.join(out_dir, ifgd)
@@ -338,7 +373,10 @@ def clip_wrapper(ifgix):
 
     if os.path.exists(compfile):
         comp = io_lib.read_img(compfile, length, width, dtype=ccformat)
-        comp = comp[y1:y2, x1:x2]
+        try:
+            comp[bool_mask] = np.nan
+        finally:
+            comp = comp[y1:y2, x1:x2]
         comp.tofile(os.path.join(out_dir1, ifgd + '.conncomp'))
 
     ## Output png for corrected unw

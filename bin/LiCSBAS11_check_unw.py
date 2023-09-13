@@ -68,6 +68,7 @@ v1.0 20190729 Yu Morishita, Uni of Leeds and GSI
 '''
 
 #%% Import
+print('Starting LiCSBAS11')
 import getopt
 import os
 import sys
@@ -75,11 +76,15 @@ import time
 import shutil
 import numpy as np
 import datetime as dt
+print('Importing IO Lib')
 import LiCSBAS_io_lib as io_lib
+print('Importing tools lib')
 import LiCSBAS_tools_lib as tools_lib
+print('Importing plot lib')
 import LiCSBAS_plot_lib as plot_lib
+print('LiCSBAS_Libs imported')
 from scipy import stats
-
+print('Modules Loaded')
 class Usage(Exception):
     """Usage context manager"""
     def __init__(self, msg):

@@ -31,14 +31,26 @@ v1.0 20190730 Yu Morishita, Uni of Leeds and GSI
  - Original implementation
 """
 
+print('Importing LiCSBAS_inv_lib.py')
+import time
+begin=time.time()
 import warnings
+#print(1, time.time() - begin)
 import numpy as np
+#print(2, time.time() - begin)
 import datetime as dt
+#print(3, time.time() - begin)
 import multiprocessing as multi
+#print(4, time.time() - begin)
 from astropy.stats import bootstrap
+#print(5, time.time() - begin)
 from astropy.utils import NumpyRNGContext
+#print(6, time.time() - begin)
 import LiCSBAS_tools_lib as tools_lib
-from sklearn.linear_model import RANSACRegressor
+#print(7, time.time() - begin)
+#from sklearn.linear_model import RANSACRegressor
+#print(8, time.time() - begin)
+print('LiCSBAS_inv_lib.py imported in {:.2f}s'.format(time.time() - begin))
 
 
 #%%
@@ -461,6 +473,7 @@ def calc_velsin(cum, dt_cum, imd0):
 
 
 def get_vel_ransac(dt_cum, cumm, return_intercept=False):
+    from sklearn.linear_model import RANSACRegressor
     """
     Recalculate velocity (and intercept) using RANSAC algorithm to identify/skip use of outliers.
 

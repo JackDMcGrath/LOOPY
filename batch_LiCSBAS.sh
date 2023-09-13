@@ -21,7 +21,7 @@ end_step="5"	# 01-05, 11-16
 
 nlook="10"	# multilook factor, used in step02
 GEOCmldir="GEOCml${nlook}"	# If start from 11 or later after doing 03-05, use e.g., GEOCml${nlook}GACOSmaskclip
-n_para="5" # Number of parallel processing in step 02-05,12,13,16. default: number of usable CPU
+n_para="4" # Number of parallel processing in step 02-05,12,13,16. default: number of usable CPU
 gpu="n"	# y/n
 check_only="n" # y/n. If y, not run scripts and just show commands to be done
 
@@ -29,17 +29,18 @@ logdir="log"
 log="$logdir/$(date +%Y%m%d%H%M)$(basename $0 .sh)_${start_step}_${end_step}.log"
 
 ### Optional steps (03-05) ###
-order_op03_05="03 04 05"	# can change order e.g., 05 03 04
+order_op03_05="05 04 03"	# can change order e.g., 05 03 04
 do03op_GACOS="y"	# y/n
-do04op_mask="n"	# y/n
+do04op_mask="y"	# y/n
 do05op_clip="n"	# y/n
 p04_mask_coh_thre=""	# e.g. 0.2 Mask based off average coherence
-p04_mask_ifg_coh_thre="" #e.g 0.01 Mask based of IFG coherence
+p04_mask_ifg_coh_thre="0.04" #e.g 0.01 Mask based of IFG coherence
 p04_mask_range=""	# e.g. 10:100/20:200 (ix start from 0)
 p04_mask_range_file=""	# Name of file containing range list
 p04_poly_mask_file="" # Name of file containing polymask (x1,y1,x2,y2,x3,y3....)
 p05_clip_range=""	# e.g. 10:100/20:200 (ix start from 0)
 p05_clip_range_geo=""	# e.g. 130.11/131.12/34.34/34.6 (in deg)
+p05_poly_clip_file=""   # Name of file containing range list
 
 ### Frequently used options. If blank, use default. ###
 p01_start_date=""	# default: 20141001
@@ -57,6 +58,7 @@ p12_treat_as_bad="n" # y/n Conservative ("n", default) or aggressive ("y") nulli
 p12_null_both="n" # y/n Run both nullifications, and store orignal unw, aggressive and conservative nullifications
 p12_ignore_comp="y" # y/n Ignore connected components when selecting reference [default "n"]
 p12_find_reference="y" # y/n Run improved method of checking the reference (LiCSBAS120_find_reference.py)
+p12_do_pngs="n" # y/n output pngs
 p13_null_noloop="n" # y/n Remove pixels that have no loop
 p13_downweight_ifg="" # Amount to downweight uncorrected interferograms (needs WLS inversion) (1 = no downweighting [default])
 p15_coh_thre="0.05"	# default: 0.05
@@ -67,11 +69,11 @@ p15_n_gap_thre="5"	# default: 10
 p15_stc_thre="5"	# default: 5 mm
 p15_n_ifg_noloop_thre="100"	# default: 50
 p15_n_loop_err_thre="10000"	# default: 5
-p15_resid_rms_thre="20"	# default: 2 mm
-p16_filtwidth_km=""	# default: 2 km
-p16_filtwidth_yr=""	# default: avg_interval*3 yr
+p15_resid_rms_thre="50"	# default: 2 mm
+p16_filtwidth_km="0" # default: 2 km
+p16_filtwidth_yr="0"	# default: avg_interval*3 yr
 p16_deg_deramp=""	# 1, bl, or 2. default: no deramp
-p16_hgt_linear="n"	# y/n. default: n
+p16_hgt_linear="y"	# y/n. default: n
 p16_hgt_min=""	# default: 200 (m)
 p16_hgt_max=""  # default: 10000 (m)
 p16_range=""	# e.g. 10:100/20:200 (ix start from 0)
@@ -236,6 +238,7 @@ if [ $step -eq 05 -a $start_step -le 05 -a $end_step -ge 05 ];then
     p05_op="$p05_op -o $outGEOCmldir"
     if [ ! -z $p05_clip_range ];then p05_op="$p05_op -r $p05_clip_range"; fi
     if [ ! -z $p05_clip_range_geo ];then p05_op="$p05_op -g $p05_clip_range_geo"; fi
+    if [ ! -z $p05_poly_clip_file ];then p05_op="$p05_op -p $p05_poly_clip_file"; fi
     if [ ! -z $p05_n_para ];then p05_op="$p05_op --n_para $p05_n_para";
     elif [ ! -z $n_para ];then p05_op="$p05_op --n_para $n_para";fi
 
@@ -289,6 +292,7 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
   if [ ! -z $p12_TSdir ];then p12_op="$p12_op -t $p12_TSdir"; fi
   if [ ! -z $p12_loop_thre ];then p12_op="$p12_op -l $p12_loop_thre"; fi
   if [ $p12_multi_prime == "y" ];then p12_op="$p12_op --multi_prime"; fi
+  if [ $p12_do_pngs == "n" ]; then p12_op="$p12_op --skip_pngs"; fi
   if [ $p12_nullify == "y" ];then 
     p12_op="$p12_op --nullify"; 
     if [ $p12_treat_as_bad == "y" ]; then

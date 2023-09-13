@@ -24,6 +24,9 @@ v1.0 20190729 Yu Morioshita, Uni of Leeds and GSI
  - Original implementation
 
 """
+print('Importing LiCSBAS_plot_lib.py')
+import time
+begin=time.time()
 import os
 os.environ['QT_QPA_PLATFORM']='offscreen'
 import numpy as np
@@ -40,6 +43,7 @@ from matplotlib import colors
 
 import LiCSBAS_tools_lib as tools_lib
 import LiCSBAS_inv_lib as inv_lib
+print('LiCSBAS_plot_lib.py imported in {:.2f}s'.format(time.time() - begin))
 
 
 #%%
@@ -186,8 +190,12 @@ def plot_hgt_corr(data_bf, fit_hgt, hgt, title, pngfile):
     """
     bool_nan = np.isnan(data_bf)
     data_af = data_bf - fit_hgt ### Correction
-    ix_hgt0 = np.nanargmin(hgt[~bool_nan])
-    ix_hgt1 = np.nanargmax(hgt[~bool_nan])
+    try:
+      ix_hgt0 = np.nanargmin(hgt[~bool_nan])
+      ix_hgt1 = np.nanargmax(hgt[~bool_nan])
+    except:
+      print(title, pngfile)
+      return
     hgt0 = hgt[~bool_nan][ix_hgt0]
     hgt1 = hgt[~bool_nan][ix_hgt1]
     fit_hgt0 = fit_hgt[~bool_nan][ix_hgt0]

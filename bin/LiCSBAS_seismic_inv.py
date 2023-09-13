@@ -333,6 +333,10 @@ def temporal_filter(cum):
 
         # Reload original data, nan identified outliers
         cum = np.array(data['cum']) - ref
+        n_nans = np.where(np.isnan(cum.flatten()))[0]
+        print('In reloaded data, there are {} nan values'.format(len(n_nans)))
+        print('Number of outliers identified: {}'.format(all_outliers.shape[0]))
+        print(all_outliers.shape)
         if args.apply_mask:
             print('Applying Mask to reloaded data')
             mask = io_lib.read_img(maskfile, length, width)
@@ -344,7 +348,17 @@ def temporal_filter(cum):
             cum[all_outliers[0], all_outliers[1], all_outliers[2]] = cum_lpt[all_outliers[0], all_outliers[1], all_outliers[2]]
         else:
             print('Nanning Outliers')
-            cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling, but causing problems
+            print('Value of [111, 117, 152] =', cum[111, 117, 152])
+            print('Value of [111, 152, 117] =', cum[111, 152, 117])
+            cum[all_outliers[0], all_outliers[1], all_outliers[2]] = np.nan # Nan the outliers. Better data handling, but causing problems - seems that the outliers aren't being nanned?
+            cum[all_outliers[0], all_outliers[1], all_outliers[2]] = -10000 # Nan the outliers. Better data handling, but causing problems - seems that the outliers aren't being nanned?
+            new_nans = np.where(np.isnan(cum.flatten()))[0]
+            print('In nanned data, there are {} nan values'.format(len(new_nans)))
+            print('Value of [111, 117, 152] =', cum[111, 117, 152])
+            print('Value of [111, 152, 117] =', cum[111, 152, 117])
+            with open('nanned_pixels.txt', 'w') as f:
+                for i in np.arange(all_outliers.shape[0]):
+                    print('{} {} {} {} '.format(dates[i], all_outliers[0, i], all_outliers[1, i], all_outliers[2, i]), file=f)
 
         print('Finding moving stddev')
         filt_std = np.ones(cum.shape) * np.nan
@@ -545,8 +559,6 @@ def find_outliers():
     return cum_lpt, outlier
 
 def lpt_filter(i):
-
-    # for i in datelist:
     if np.mod(i + 1, 10) == 0:
         print("  {0:3}/{1:3}th image...".format(i + 1, len(filterdates)), flush=True)
 
@@ -858,6 +870,7 @@ def fit_pixel_velocities(ii):
     # Fit Pre- and Post-Seismic Linear velocities, coseismic offset, postseismic relaxation and referencing offset
     disp = cum[:, valid[0][ii], valid[1][ii]]
     noNanPix = ~np.isnan(disp)
+    NanPix=np.where(np.isnan(disp))[0]
     disp = disp[noNanPix]
     # Intercept (reference term), Pre-Seismic Velocity, [[C]oseismic-offset, log [R]elaxation, [P]ost-seismic linear velocity]
     truemodel = np.zeros((2 + n_eq * 3))
@@ -906,9 +919,14 @@ def fit_pixel_velocities(ii):
     try:    
         invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
     except:
-        print(G)
-        print(singular)
-        invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
+        #print(G)
+        print('Singular matrix for {}/{}'.format(valid[1][ii], valid[0][ii]))
+        print('\tNan Date Indexes:',NanPix)
+        print('\tPre-identified singular columns', singular)
+        print('\tNot inverting (set values to nan')
+        #invVCM= np.linalg.inv(np.dot(np.dot(G.T, W), G))
+        inverr = np.append(inverr, [rms, std])
+        return truemodel * np.nan, inverr * np.nan
 
     model = np.matmul(invVCM, np.matmul(np.matmul(G.T, W), disp))
 

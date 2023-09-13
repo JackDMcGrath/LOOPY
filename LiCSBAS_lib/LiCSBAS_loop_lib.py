@@ -27,6 +27,9 @@ v1.1 20190906 Yu Morioshita, Uni of Leeds and GSI
 v1.0 20190708 Yu Morioshita, Uni of Leeds and GSI
  - Original implementation
 """
+print('Importing LiCSBAS_loop_lib.py')
+import time
+begin=time.time()
 
 import os
 import numpy as np
@@ -40,6 +43,7 @@ with warnings.catch_warnings(): ## To silence user warning
     warnings.simplefilter('ignore', UserWarning)
     mpl.use('Agg')
 from matplotlib import pyplot as plt
+print('LiCSBAS_loop_lib.py imported in {:.2f}s'.format(time.time() - begin))
 
 
 #%%
