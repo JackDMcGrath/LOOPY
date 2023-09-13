@@ -137,7 +137,7 @@ def identify_bad_ifg(bad_ifg_cand, good_ifg):
 
 
 #%%
-def make_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle):
+def make_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle, ref=[]):
     cmap_wrap = tools_lib.get_cmap('SCM.romaO')
     cmap_loop = tools_lib.get_cmap('SCM.vik')
 
@@ -169,6 +169,8 @@ def make_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle):
         ax.set_yticklabels([])
         cax = plt.colorbar(im)
         cax.set_ticks([])
+        if len(ref) > 0:
+            ax.plot([ref[0], ref[1]])
 
     ## loop phase
     ax = fig.add_subplot(2, 2, 4) #index start from 1

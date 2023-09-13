@@ -729,6 +729,7 @@ def main(argv=None):
     # generate loop pngs:
     if do_pngs and not null_both:
         ### Parallel processing
+        print('Generating Loop pngs....')
         p = q.Pool(_n_para)
         p.map(generate_pngs, range(n_loop))
         p.close()
@@ -979,7 +980,8 @@ def generate_pngs(i):
     n_loop = Aloop.shape[0]
 
     ### Read unw
-    unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width)
+    ref = [[refx1, refx2, refx2, refx1, refx1], [refy1, refy1, refy2, refy2, refy1]]
+    unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width, ref=ref)
 
     ### Skip if bad ifg is included
     if ifgd12 in bad_ifg or ifgd23 in bad_ifg or ifgd13 in bad_ifg:
