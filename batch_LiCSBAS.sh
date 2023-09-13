@@ -41,6 +41,7 @@ p04_poly_mask_file="" # Name of file containing polymask (x1,y1,x2,y2,x3,y3....)
 p05_clip_range=""	# e.g. 10:100/20:200 (ix start from 0)
 p05_clip_range_geo=""	# e.g. 130.11/131.12/34.34/34.6 (in deg)
 p05_poly_clip_file=""   # Name of file containing range list
+use_phase="y" # Also process wrapped IFGs
 
 ### Frequently used options. If blank, use default. ###
 p01_start_date=""	# default: 20141001
@@ -162,6 +163,7 @@ if [ $start_step -le 02 -a $end_step -ge 02 ];then
   if [ ! -z $p02_n_para ];then p02_op="$p02_op --n_para $p02_n_para";
   elif [ ! -z $n_para ];then p02_op="$p02_op --n_para $n_para";fi
   if [ $p02_cc_pngs == "y" ]; then p02_op="$p02_op --plot_cc"; fi
+  if [ $use_phase == "y" ];then p02_op="$p02_op --use_pha"; fi
 
   if [ $check_only == "y" ];then
     echo "LiCSBAS02_ml_prep.py $p02_op"
@@ -187,6 +189,7 @@ if [ $step -eq 03 -a $start_step -le 03 -a $end_step -ge 03 ];then
     if [ $p03_fillhole == "y" ];then p03_op="$p03_op --fillhole"; fi
     if [ ! -z $p03_n_para ];then p03_op="$p03_op --n_para $p03_n_para";
     elif [ ! -z $n_para ];then p03_op="$p03_op --n_para $n_para";fi
+    if [ $use_phase == "y" ];then p03_op="$p03_op --use_pha"; fi
 
     if [ $check_only == "y" ];then
       echo "LiCSBAS03op_GACOS.py $p03_op"
@@ -215,6 +218,7 @@ if [ $step -eq 04 -a $start_step -le 04 -a $end_step -ge 04 ];then
     if [ ! -z $p04_poly_mask_file ];then p04_op="$p04_op -p $p04_poly_mask_file"; fi
     if [ ! -z $p04_n_para ];then p04_op="$p04_op --n_para $p04_n_para";
     elif [ ! -z $n_para ];then p04_op="$p04_op --n_para $n_para";fi
+    if [ $use_phase == "y" ];then p04_op="$p04_op --use_pha"; fi
 
     if [ $check_only == "y" ];then
       echo "LiCSBAS04op_mask_unw.py $p04_op"
@@ -241,6 +245,7 @@ if [ $step -eq 05 -a $start_step -le 05 -a $end_step -ge 05 ];then
     if [ ! -z $p05_poly_clip_file ];then p05_op="$p05_op -p $p05_poly_clip_file"; fi
     if [ ! -z $p05_n_para ];then p05_op="$p05_op --n_para $p05_n_para";
     elif [ ! -z $n_para ];then p05_op="$p05_op --n_para $n_para";fi
+    if [ $use_phase == "y" ];then p05_op="$p05_op --use_pha"; fi
 
     if [ $check_only == "y" ];then
       echo "LiCSBAS05op_clip_unw.py $p05_op"
@@ -310,6 +315,7 @@ if [ $start_step -le 12 -a $end_step -ge 12 ];then
     p13_op="$p13_op --n_para $n_para";
   fi
   if [ $p12_ignore_comp == "y" ]; then p120_op="$p120_op --ignore_comp"; fi
+  if [ $use_phase == "y" ];then p12_op="$p12_op --use_pha"; fi
 
 	if [ ! -z $p12_TSdir ];then
     p12_op="$p12_op -t $p12_TSdir"
