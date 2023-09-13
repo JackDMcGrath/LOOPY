@@ -163,7 +163,7 @@ def main(argv=None):
                 n_para = int(a)
             elif o == '--plot_cc':
                 plot_cc = True
-            elif o == 'use_pha':
+            elif o == '--use_pha':
                 use_pha = True
 
         if not geocdir:
