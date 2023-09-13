@@ -982,6 +982,8 @@ def generate_pngs(i):
     ### Read unw
     ref = [[refx1, refx2, refx2, refx1, refx1], [refy1, refy1, refy2, refy2, refy1]]
     unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width)
+    if use_pha:
+        pha12, pha23, pha13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width, use_pha=use_pha)
 
     ### Skip if bad ifg is included
     if ifgd12 in bad_ifg or ifgd23 in bad_ifg or ifgd13 in bad_ifg:
@@ -997,7 +999,13 @@ def generate_pngs(i):
     ref_unw13 = np.nanmean(unw13[refy1:refy2, refx1:refx2])
 
     ## Calculate loop phase taking into account ref phase
-    loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
+    if not use_pha:
+        loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
+    else:
+        ref_pha12 = np.nanmean(pha12[refy1:refy2, refx1:refx2])
+        ref_pha23 = np.nanmean(pha23[refy1:refy2, refx1:refx2])
+        ref_pha13 = np.nanmean(pha13[refy1:refy2, refx1:refx2])
+        loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13) - (pha12 + pha23 - pha13) - (ref_pha12+ref_pha23-ref_pha13)
 
     # getting some average information
     if np.all(np.isnan(loop_ph)):
@@ -1190,6 +1198,8 @@ def loop_closure_4th_wrapper(args):
             print("  {0:3}/{1:3}th loop...".format(i, n_loop), flush=True)
         ### Read unw
         unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width)
+        if use_pha:
+            pha12, pha23, pha13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width, use_pha=use_pha)
         ### Skip if bad ifg is included
         if ifgd12 in bad_ifg_all or ifgd23 in bad_ifg_all or ifgd13 in bad_ifg_all:
             #print('skipping '+ifgd13)
@@ -1199,7 +1209,13 @@ def loop_closure_4th_wrapper(args):
         ref_unw23 = np.nanmean(unw23[refy1:refy2, refx1:refx2])
         ref_unw13 = np.nanmean(unw13[refy1:refy2, refx1:refx2])
         ## Calculate loop phase taking into account ref phase
-        loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
+        if not use_pha:
+            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
+        else:
+            ref_pha12 = np.nanmean(pha12[refy1:refy2, refx1:refx2])
+            ref_pha23 = np.nanmean(pha23[refy1:refy2, refx1:refx2])
+            ref_pha13 = np.nanmean(pha13[refy1:refy2, refx1:refx2])
+            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13) - (pha12 + pha23 - pha13) - (ref_pha12+ref_pha23-ref_pha13)
         ## Count number of loops with suspected unwrap error (>pi)
         loop_ph[np.isnan(loop_ph)] = 0 #to avoid warning
         is_error = np.abs(loop_ph)>np.pi
@@ -1237,7 +1253,10 @@ def loop_closure_4th(args, da):
         if not use_pha:
             loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
         else:
-            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13) - (pha12 + pha23 - pha13)
+            ref_pha12 = np.nanmean(pha12[refy1:refy2, refx1:refx2])
+            ref_pha23 = np.nanmean(pha23[refy1:refy2, refx1:refx2])
+            ref_pha13 = np.nanmean(pha13[refy1:refy2, refx1:refx2])
+            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13) - (pha12 + pha23 - pha13) - (ref_pha12+ref_pha23-ref_pha13)
         ## Count number of loops with suspected unwrap error (>pi)
         loop_ph[np.isnan(loop_ph)] = 0 #to avoid warning
         is_ok = np.abs(loop_ph)<nullify_threshold
@@ -1280,7 +1299,11 @@ def loop_closure_4th_both(args, aggro, conserve):
         if not use_pha:
             loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13)
         else:
-            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13) - (pha12 + pha23 - pha13)
+            ## Compute ref
+            ref_pha12 = np.nanmean(pha12[refy1:refy2, refx1:refx2])
+            ref_pha23 = np.nanmean(pha23[refy1:refy2, refx1:refx2])
+            ref_pha13 = np.nanmean(pha13[refy1:refy2, refx1:refx2])
+            loop_ph = unw12+unw23-unw13-(ref_unw12+ref_unw23-ref_unw13) - (pha12 + pha23 - pha13) - (ref_pha12+ref_pha23-ref_pha13)
         ## Count number of loops with suspected unwrap error (>pi)
         loop_ph[np.isnan(loop_ph)] = 0 #to avoid warning
         is_ok = np.abs(loop_ph)<nullify_threshold
