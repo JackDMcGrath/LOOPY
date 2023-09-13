@@ -981,7 +981,7 @@ def generate_pngs(i):
 
     ### Read unw
     ref = [[refx1, refx2, refx2, refx1, refx1], [refy1, refy1, refy2, refy2, refy1]]
-    unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width, ref=ref)
+    unw12, unw23, unw13, ifgd12, ifgd23, ifgd13 = loop_lib.read_unw_loop_ph(Aloop[i, :], ifgdates, ifgdir, length, width)
 
     ### Skip if bad ifg is included
     if ifgd12 in bad_ifg or ifgd23 in bad_ifg or ifgd13 in bad_ifg:
@@ -1032,7 +1032,7 @@ def generate_pngs(i):
         else:
             titles4.append('Loop phase (RMS={:.2f}rad)'.format(rms))
 
-        loop_lib.make_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle)
+        loop_lib.make_loop_png(unw12, unw23, unw13, loop_ph, png, titles4, cycle, ref=ref)
 
 
 #%%
