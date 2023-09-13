@@ -105,7 +105,7 @@ def main(argv=None):
     range_str = []
     range_geo_str = []
     poly_file = []
-    use_pha = True
+    use_pha = False
     try:
         n_para = len(os.sched_getaffinity(0))
     except:

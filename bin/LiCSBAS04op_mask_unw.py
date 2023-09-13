@@ -108,7 +108,7 @@ def main(argv=None):
     ex_range_str = []
     ex_range_file = []
     poly_file = []
-    use_pha = True
+    use_pha = False
     try:
         n_para = len(os.sched_getaffinity(0))
     except:

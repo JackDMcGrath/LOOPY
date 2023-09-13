@@ -157,7 +157,7 @@ def main(argv=None):
     treat_as_bad = False
     nullmask = False
     null_both = False
-    use_pha = True
+    use_pha = False
 
     try:
         n_para = len(os.sched_getaffinity(0))

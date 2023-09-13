@@ -178,7 +178,7 @@ def main(argv=None):
     gacosdir = 'GACOS'
     resampleAlg = 'cubicspline'# None # 'cubic' 
     fillholeflag = False
-    use_pha = True
+    use_pha = False
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
@@ -190,7 +190,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hi:o:g:z:", ["fillhole", "help", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hi:o:g:z:", ["fillhole", "help", "n_para=", "use_pha"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -209,6 +209,8 @@ def main(argv=None):
                 fillholeflag = True
             elif o == '--n_para':
                 n_para = int(a)
+            elif o == "--use_pha":
+                use_pha = True
 
         if not in_dir:
             raise Usage('No input directory given, -i is not optional!')

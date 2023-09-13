@@ -126,7 +126,7 @@ def main(argv=None):
     geocdir = []
     outdir = []
     nlook = 1
-    use_pha = True
+    use_pha = False
     plot_cc = False
     radar_freq = 5.405e9
     try:
