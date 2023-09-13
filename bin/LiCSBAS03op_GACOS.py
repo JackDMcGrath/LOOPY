@@ -530,6 +530,10 @@ def correct_wrapper(i):
     std_unwcor = np.nanstd(unw_cor)
     rate = (std_unw-std_unwcor)/std_unw*100
 
+    ### Link pha
+    if use_pha:
+        if not os.path.exists(os.path.join(out_dir1, ifgd+'.diff')):
+            os.symlink(os.path.relpath(os.path.join(in_dir1, ifgd+'.diff'), out_dir1), os.path.join(out_dir1, ifgd+'.diff'))
     ### Link cc
     if not os.path.exists(os.path.join(out_dir1, ifgd+'.cc')):
         os.symlink(os.path.relpath(os.path.join(in_dir1, ifgd+'.cc'), out_dir1), os.path.join(out_dir1, ifgd+'.cc'))
@@ -544,11 +548,6 @@ def correct_wrapper(i):
     pngfile = os.path.join(out_dir1, ifgd+'.unw.png')
     title = '{} ({}pi/cycle)'.format(ifgd, cycle*2)
     plot_lib.make_im_png(np.angle(np.exp(1j*unw_cor/cycle)*cycle), pngfile, cmap_wrap, title, -np.pi, np.pi, cbar=False)
-
-    ### Link pha
-    if use_pha:
-        if not os.path.exists(os.path.join(out_dir1, ifgd+'.diff')):
-            os.symlink(os.path.relpath(os.path.join(in_dir1, ifgd+'.diff'), out_dir1), os.path.join(out_dir1, ifgd+'.diff'))
 
     return 2, [ifgd, std_unw, std_unwcor, rate]
 

@@ -284,8 +284,13 @@ def main(argv=None):
         ifgdir1 = os.path.join(outdir, ifgd)
         unwfile = os.path.join(ifgdir1, ifgd+'.unw')
         ccfile = os.path.join(ifgdir1, ifgd+'.cc')
-        if not (os.path.exists(unwfile) and os.path.exists(ccfile)):
-            ifgdates2.append(ifgd)
+        if not use_pha:
+            if not (os.path.exists(unwfile) and os.path.exists(ccfile)):
+                ifgdates2.append(ifgd)
+        else:
+            difffile = os.path.join(ifgdir1, ifgd+'.diff')
+            if not (os.path.exists(unwfile) and os.path.exists(ccfile) and os.path.exists(difffile)):
+                ifgdates2.append(ifgd)
 
     n_ifg2 = len(ifgdates2)
     if n_ifg-n_ifg2 > 0:

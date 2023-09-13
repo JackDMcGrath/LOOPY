@@ -309,8 +309,13 @@ def main(argv=None):
         unwfile_c = os.path.join(out_dir1, ifgd+'.unw')
         ccfile_c = os.path.join(out_dir1, ifgd+'.cc')
         compfile_c = os.path.join(out_dir1, ifgd+'.conncomp')
-        if not (os.path.exists(unwfile_c) and os.path.exists(ccfile_c)):
-            ifgdates2.append(ifgd)
+        if not use_pha:
+            if not (os.path.exists(unwfile_c) and os.path.exists(ccfile_c)):
+                ifgdates2.append(ifgd)
+        else:
+            difffile_c = os.path.join(out_dir1, ifgd+'.diff')
+            if not (os.path.exists(unwfile_c) and os.path.exists(ccfile_c) and os.path.exists(difffile_c)):
+                ifgdates2.append(ifgd)
 
     n_ifg2 = len(ifgdates2)
     if n_ifg-n_ifg2 > 0:
