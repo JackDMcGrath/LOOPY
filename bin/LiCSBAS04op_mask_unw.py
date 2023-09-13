@@ -97,7 +97,7 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     ### For parallel processing
-    global ifgdates2, in_dir, out_dir, length, width, bool_mask, cycle, cmap_wrap, cc_ifg_thre
+    global ifgdates2, in_dir, out_dir, length, width, bool_mask, cycle, cmap_wrap, cc_ifg_thre, use_pha
 
 
     #%% Set default
@@ -108,6 +108,7 @@ def main(argv=None):
     ex_range_str = []
     ex_range_file = []
     poly_file = []
+    use_pha = True
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
@@ -121,7 +122,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hi:o:c:r:f:p:s:", ["help", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hi:o:c:r:f:p:s:", ["help", "n_para=", "use_pha"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -144,6 +145,8 @@ def main(argv=None):
                 poly_file = a
             elif o == '--n_para':
                 n_para = int(a)
+            elif o == '--use_pha':
+                use_pha = True
 
         if not in_dir:
             raise Usage('No input directory given, -i is not optional!')
@@ -333,6 +336,12 @@ def mask_wrapper(ifgix):
 
     unwfile = os.path.join(in_dir, ifgd, ifgd+'.unw')
     unw = io_lib.read_img(unwfile, length, width)
+
+    if use_pha:
+        difffile = os.path.join(in_dir, ifgd, ifgd+'.diff')
+        diff = io_lib.read_img(difffile, length, width)
+        diff[unw==0] = np.nan
+        diff[bool_mask] = np.nan
     unw[unw==0] = np.nan
         
     ### Mask
@@ -347,12 +356,16 @@ def mask_wrapper(ifgix):
             coh = io_lib.read_img(ccfile, length, width)
             coh[np.isnan(coh)] = 0 # Fill nan with 0
         unw[np.where(coh < cc_ifg_thre)] = np.nan
+        if use_pha:
+            diff[np.where(coh < cc_ifg_thre)] = np.nan
 
     ### Output
     out_dir1 = os.path.join(out_dir, ifgd)
     if not os.path.exists(out_dir1): os.mkdir(out_dir1)
     
     unw.tofile(os.path.join(out_dir1, ifgd+'.unw'))
+    if use_pha:
+        diff.tofile(os.path.join(out_dir1, ifgd+'.diff'))
     
     if not os.path.exists(os.path.join(out_dir1, ifgd+'.cc')):
         ccfile = os.path.join(in_dir, ifgd, ifgd+'.cc')

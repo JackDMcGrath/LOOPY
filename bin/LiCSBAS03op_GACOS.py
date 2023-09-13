@@ -169,7 +169,7 @@ def main(argv=None):
     ### For parallel processing
     global imdates2, gacosdir, outputBounds, width_geo, length_geo, resampleAlg,\
         sltddir, LOSu, m2r_coef, fillholeflag, ifgdates2,\
-        in_dir, out_dir, length_unw, width_unw, cycle, cmap_wrap
+        in_dir, out_dir, length_unw, width_unw, cycle, cmap_wrap, use_pha
 
 
     #%% Set default
@@ -178,6 +178,7 @@ def main(argv=None):
     gacosdir = 'GACOS'
     resampleAlg = 'cubicspline'# None # 'cubic' 
     fillholeflag = False
+    use_pha = True
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
@@ -541,6 +542,10 @@ def correct_wrapper(i):
     pngfile = os.path.join(out_dir1, ifgd+'.unw.png')
     title = '{} ({}pi/cycle)'.format(ifgd, cycle*2)
     plot_lib.make_im_png(np.angle(np.exp(1j*unw_cor/cycle)*cycle), pngfile, cmap_wrap, title, -np.pi, np.pi, cbar=False)
+
+    ### Link pha
+    if not os.path.exists(os.path.join(out_dir1, ifgd+'.diff')):
+        os.symlink(os.path.relpath(os.path.join(in_dir1, ifgd+'.diff'), out_dir1), os.path.join(out_dir1, ifgd+'.diff'))
 
     return 2, [ifgd, std_unw, std_unwcor, rate]
 

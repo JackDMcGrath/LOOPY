@@ -96,7 +96,7 @@ def main(argv=None):
     print("{} {}".format(os.path.basename(argv[0]), ' '.join(argv[1:])), flush=True)
 
     ### For parallel processing
-    global ifgdates2, in_dir, out_dir, length, width, x1, x2, y1, y2, cycle, cmap_wrap, bool_mask
+    global ifgdates2, in_dir, out_dir, length, width, x1, x2, y1, y2, cycle, cmap_wrap, bool_mask, use_pha
 
 
     #%% Set default
@@ -105,6 +105,7 @@ def main(argv=None):
     range_str = []
     range_geo_str = []
     poly_file = []
+    use_pha = True
     try:
         n_para = len(os.sched_getaffinity(0))
     except:
@@ -117,7 +118,7 @@ def main(argv=None):
     #%% Read options
     try:
         try:
-            opts, args = getopt.getopt(argv[1:], "hi:o:r:g:p:", ["help", "n_para="])
+            opts, args = getopt.getopt(argv[1:], "hi:o:r:g:p:", ["help", "n_para=", "use_pha"])
         except getopt.error as msg:
             raise Usage(msg)
         for o, a in opts:
@@ -136,6 +137,8 @@ def main(argv=None):
                 poly_file = a
             elif o == '--n_para':
                 n_para = int(a)
+            elif o == '--use_pha':
+                use_pha = True
 
         if not in_dir:
             raise Usage('No input directory given, -i is not optional!')
@@ -343,9 +346,13 @@ def clip_wrapper(ifgix):
     ifgd = ifgdates2[ifgix]
     unwfile = os.path.join(in_dir, ifgd, ifgd+'.unw')
     ccfile = os.path.join(in_dir, ifgd, ifgd+'.cc')
+    difffile = os.path.join(in_dir, ifgd, ifgd+'.diff')
     compfile = os.path.join(in_dir, ifgd, ifgd + '.conncomp')
 
     unw = io_lib.read_img(unwfile, length, width)
+    if use_pha:
+        diff = io_lib.read_img(difffile, length, width)
+        diff[unw==0] = np.nan
     unw[unw==0] = np.nan
     if os.path.getsize(ccfile) == length*width:
         ccformat = np.uint8
@@ -360,9 +367,13 @@ def clip_wrapper(ifgix):
     try:
         unw[bool_mask] = np.nan
         coh[bool_mask] = 0 # Can't convert int coh to nan
+        if use_pha:
+            diff[bool_mask] = np.nan
     finally:
         unw = unw[y1:y2, x1:x2]
         coh = coh[y1:y2, x1:x2]
+        if use_pha:
+            diff = diff[y1:y2, x1:x2]
 
     ### Output
     out_dir1 = os.path.join(out_dir, ifgd)
@@ -370,6 +381,8 @@ def clip_wrapper(ifgix):
 
     unw.tofile(os.path.join(out_dir1, ifgd+'.unw'))
     coh.tofile(os.path.join(out_dir1, ifgd+'.cc'))
+    if use_pha:
+        diff.tofile(os.path.join(out_dir1, ifgd+'.diff'))
 
     if os.path.exists(compfile):
         comp = io_lib.read_img(compfile, length, width, dtype=ccformat)
