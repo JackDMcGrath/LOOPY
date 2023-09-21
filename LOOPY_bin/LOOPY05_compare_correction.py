@@ -237,12 +237,13 @@ def plot_comparison(title, data1, data2, png_path, cmap=cm.RdBu, ifg=True):
         data2ref = np.nanmedian(data2)
         data1 = data1 - data1ref
         data2 = data2 - data2ref
-        diff = data1 - data2
+        diff = (data1 - data2) # Diff in mm
+        diff = (diff * 4) / 55.6 # Diff in pi radians ## UNHARDCODE WAVELENGTH
         vmin_tmp = np.nanmin([np.nanpercentile(data1, 0.5),np.nanpercentile(data2, 0.5)])
         vmax_tmp = np.nanmax([np.nanpercentile(data1, 99.5),np.nanpercentile(data2, 99.5)])
         vmax = np.nanmax([abs(vmin_tmp), abs(vmax_tmp)])
         vmin = -vmax
-        vlim = 2 * np.pi
+        vlim = 2
     else:
         diff = data1 - data2
         vlim = np.nanpercentile(abs(diff), 99.5)
@@ -253,10 +254,14 @@ def plot_comparison(title, data1, data2, png_path, cmap=cm.RdBu, ifg=True):
     im2 = ax[1].imshow(data2, vmin=vmin, vmax=vmax, cmap=cmap, interpolation='nearest')
     im3 = ax[2].imshow(diff, vmin=-vlim, vmax=vlim, cmap=cm.RdBu, interpolation='nearest')
 
-
-    ax[0].set_title("Original")
-    ax[1].set_title("Corrected")
-    ax[2].set_title("Difference")
+    if ifg:
+        ax[0].set_title("Original (mm)")
+        ax[1].set_title("Corrected (mm)")
+        ax[2].set_title("Difference (pi radians)")
+    else:
+        ax[0].set_title("Original")
+        ax[1].set_title("Corrected")
+        ax[2].set_title("Difference")
     fig.colorbar(im1, ax=ax[0], location='right', shrink=0.8)
     fig.colorbar(im2, ax=ax[1], location='right', shrink=0.8)
     fig.colorbar(im3, ax=ax[2], location='right', shrink=0.8)
