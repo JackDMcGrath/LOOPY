@@ -247,6 +247,7 @@ def plot_comparison(title, data1, data2, png_path, cmap=cm.RdBu, ifg=True):
     else:
         diff = data1 - data2
         vlim = np.nanpercentile(abs(diff), 99.5)
+        vlim = vlim if vlim != 0 else 1
         vmin = np.nanmin([np.nanpercentile(data1, 0.5),np.nanpercentile(data2, 0.5)])
         vmax = np.nanmax([np.nanpercentile(data1, 99.5),np.nanpercentile(data2, 99.5)])
 
